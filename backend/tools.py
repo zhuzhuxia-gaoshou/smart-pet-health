@@ -141,7 +141,8 @@ def generate_report(name: str = "", period: str = "月") -> str:
     pets = db.list_pets()
     if not pets:
         return "系统中暂无宠物，无法生成报告。"
-    parts = [f"# 全体宠物健康报告（近{period or '月'}）", ""]
+    period_word = {"周": "一周", "月": "一个月", "年": "一年"}.get((period or "月").strip(), "一个月")
+    parts = [f"# 全体宠物健康报告（近{period_word}）", ""]
     for p in pets:
         parts.append(_report_one(p, period, heading_level=2))
         parts.append("")
