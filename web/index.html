@@ -1,11 +1,1040 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>智能宠物健康管家</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   Design Tokens — Notion 暖色极简 × 陶土橙（PRD §2 / Spec §1）
+   ============================================================ */
+:root {
+  --bg: #FBFAF7;
+  --surface: #FFFFFF;
+  --surface-2: #F4F1EC;
+  --border: #E8E3DA;
+  --text: #221F1A;
+  --text-2: #6B6358;
+  --accent: #C2703D;
+  --accent-2: #E9D5B8;
+  --success: #3E7C4F;
+  --warn: #B7811B;
+  --danger: #B94A3F;
+  --accent-soft: rgba(194,112,61,.08);
+  --warn-soft: rgba(183,129,27,.10);
+  --danger-soft: rgba(185,74,63,.10);
+  --success-soft: rgba(62,124,79,.10);
+  --shadow-card: 0 1px 2px rgba(34,31,26,.04), 0 8px 24px -12px rgba(34,31,26,.12);
+  --shadow-deep: 0 1px 3px rgba(34,31,26,.02), 0 6px 14px rgba(34,31,26,.03),
+                 0 18px 38px -8px rgba(34,31,26,.10), 0 34px 72px -16px rgba(34,31,26,.06);
+  --r-btn: 8px; --r-card: 14px; --r-modal: 16px; --r-pill: 999px;
+  --dur: 180ms;
+  --font-title: 'Fraunces', Georgia, 'Songti SC', serif;
+  --font-body: 'Inter', -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+html[data-theme="dark"] {
+  --bg: #171614;
+  --surface: #221F1C;
+  --surface-2: #2A2622;
+  --border: #38332D;
+  --text: #EDE8E0;
+  --text-2: #A49A8B;
+  --accent: #D98A57;
+  --accent-2: #8A6D4E;
+  --success: #6FBF8A;
+  --warn: #E0B24E;
+  --danger: #E06C5E;
+  --accent-soft: rgba(217,138,87,.12);
+  --warn-soft: rgba(224,178,78,.12);
+  --danger-soft: rgba(224,108,94,.12);
+  --success-soft: rgba(111,191,138,.12);
+  --shadow-card: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.5);
+  --shadow-deep: 0 2px 6px rgba(0,0,0,.35), 0 18px 48px -10px rgba(0,0,0,.55);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior:smooth; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg); color: var(--text);
+  font-size: 15px; line-height: 1.55;
+  transition: background var(--dur) ease-out, color var(--dur) ease-out;
+  min-height: 100vh;
+}
+::selection { background: var(--accent-2); color: var(--text); }
+button { font-family: inherit; cursor: pointer; }
+input, select, textarea { font-family: inherit; font-size: 14px; color: var(--text); }
+a { color: var(--accent); }
+
+/* ---------- 顶栏 ---------- */
+.topbar {
+  position: sticky; top: 0; z-index: 50;
+  display: flex; align-items: center; gap: 16px;
+  height: 60px; padding: 0 24px;
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+.logo { display: flex; align-items: center; gap: 10px; user-select: none; cursor: pointer; }
+.logo-mark {
+  width: 30px; height: 30px; border-radius: 9px; flex: none;
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, var(--warn)));
+  display: grid; place-items: center; color: #fff;
+}
+.logo-mark svg { width: 17px; height: 17px; }
+.logo-name { font-family: var(--font-title); font-weight: 600; font-size: 17px; letter-spacing: -.2px; white-space: nowrap; }
+.tabs { display: flex; gap: 4px; margin: 0 auto; background: var(--surface-2); border: 1px solid var(--border); padding: 3px; border-radius: var(--r-pill); }
+.tab-btn {
+  border: 0; background: transparent; color: var(--text-2);
+  padding: 6px 18px; border-radius: var(--r-pill); font-size: 14px; font-weight: 500;
+  transition: all var(--dur) ease-out;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+
+/* ---------- 按钮 ---------- */
+.btn {
+  position: relative; overflow: hidden;
+  display: inline-flex; align-items: center; gap: 7px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  padding: 8px 16px; border-radius: var(--r-btn); font-size: 14px; font-weight: 500;
+  transition: transform 120ms ease-out, box-shadow var(--dur), background var(--dur), border-color var(--dur);
+  user-select: none; white-space: nowrap;
+}
+.btn:hover { border-color: color-mix(in srgb, var(--border) 40%, var(--text-2)); box-shadow: 0 2px 8px rgba(34,31,26,.07); }
+.btn:active { transform: scale(.97); box-shadow: none; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { background: color-mix(in srgb, var(--accent) 88%, #000); }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--text-2); }
+.btn.ghost:hover { background: var(--surface-2); color: var(--text); box-shadow: none; }
+.btn.danger { color: var(--danger); }
+.btn.danger:hover { background: var(--danger-soft); border-color: color-mix(in srgb, var(--danger) 35%, var(--border)); box-shadow: none; }
+.btn.sm { padding: 5px 11px; font-size: 13px; }
+.btn[disabled] { opacity: .55; pointer-events: none; }
+.ripple {
+  position: absolute; border-radius: 50%; pointer-events: none;
+  background: rgba(255,255,255,.45); transform: scale(0);
+  animation: ripple-anim .55s ease-out forwards;
+}
+.btn:not(.primary) .ripple { background: color-mix(in srgb, var(--accent) 25%, transparent); }
+@keyframes ripple-anim { to { transform: scale(3.6); opacity: 0; } }
+
+.theme-toggle {
+  width: 36px; height: 36px; border-radius: 50%;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text-2);
+  display: grid; place-items: center; transition: all var(--dur) ease-out;
+}
+.theme-toggle:hover { color: var(--accent); border-color: var(--accent); transform: rotate(18deg); }
+.theme-toggle svg { width: 17px; height: 17px; }
+html[data-theme="dark"] .icon-moon { display: none; }
+html[data-theme="light"] .icon-sun { display: none; }
+
+/* ---------- 布局 ---------- */
+.page { max-width: 1120px; margin: 0 auto; padding: 28px 24px 72px; }
+.view { display: none; }
+.view.active { display: block; animation: fade-up .22s ease-out; }
+@keyframes fade-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.page-head { margin-bottom: 22px; }
+.page-title { font-family: var(--font-title); font-size: 27px; font-weight: 600; letter-spacing: -.4px; }
+.page-sub { color: var(--text-2); font-size: 14px; margin-top: 3px; }
+
+/* ---------- 卡片 ---------- */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-card); box-shadow: var(--shadow-card);
+}
+.card-pad { padding: 20px; }
+.card-title { font-size: 13px; font-weight: 600; letter-spacing: .4px; color: var(--text-2); text-transform: uppercase; margin-bottom: 14px; display:flex; align-items:center; gap:8px; }
+.card-title svg { width: 15px; height: 15px; color: var(--accent); }
+
+/* ---------- 仪表盘 ---------- */
+.stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+.stat-card { padding: 22px 20px; display: flex; flex-direction: column; gap: 4px; transition: transform var(--dur) ease-out, box-shadow var(--dur); }
+.stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-deep); }
+.stat-num { font-family: var(--font-title); font-size: 40px; font-weight: 600; letter-spacing: -1px; line-height: 1.1; font-feature-settings: "lnum"; }
+.stat-label { color: var(--text-2); font-size: 13.5px; font-weight: 500; }
+.stat-ico { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; margin-bottom: 8px; }
+.stat-ico svg { width: 18px; height: 18px; }
+.stat-ico.a { background: var(--accent-soft); color: var(--accent); }
+.stat-ico.g { background: var(--success-soft); color: var(--success); }
+.stat-ico.w { background: var(--warn-soft); color: var(--warn); }
+
+.dash-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; align-items: start; }
+.dash-col { display: flex; flex-direction: column; gap: 16px; }
+
+.reminder-item {
+  display: flex; align-items: center; gap: 12px; padding: 11px 12px;
+  border-radius: 10px; border: 1px solid transparent; cursor: pointer;
+  transition: background var(--dur), border-color var(--dur), transform var(--dur);
+}
+.reminder-item:hover { background: var(--surface-2); border-color: var(--border); transform: translateX(2px); }
+.reminder-item + .reminder-item { margin-top: 2px; }
+.rem-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.rem-dot.warn { background: var(--warn); box-shadow: 0 0 0 4px var(--warn-soft); }
+.rem-dot.danger { background: var(--danger); box-shadow: 0 0 0 4px var(--danger-soft); animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 7px var(--danger-soft); } }
+.rem-main { flex: 1; min-width: 0; }
+.rem-title { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rem-meta { font-size: 12.5px; color: var(--text-2); }
+.rem-days { font-size: 12.5px; font-weight: 600; flex: none; }
+.rem-days.warn { color: var(--warn); }
+.rem-days.danger { color: var(--danger); }
+.empty-hint { color: var(--text-2); font-size: 13.5px; padding: 14px 4px; text-align: center; }
+
+.activity-item { display: flex; gap: 11px; padding: 9px 2px; font-size: 13.5px; align-items: baseline; }
+.activity-item + .activity-item { border-top: 1px dashed var(--border); }
+.activity-date { color: var(--text-2); font-variant-numeric: tabular-nums; flex: none; font-size: 12.5px; }
+.activity-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; align-self: center; }
+
+.ai-entry { background: linear-gradient(135deg, var(--accent-soft), transparent 65%), var(--surface); }
+.ai-entry p { color: var(--text-2); font-size: 13.5px; margin: 2px 0 14px; }
+.suggest-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  padding: 7px 13px; border-radius: var(--r-pill); font-size: 13px;
+  transition: all var(--dur) ease-out;
+}
+.chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); transform: translateY(-1px); }
+
+/* ---------- 宠物库 ---------- */
+.library-bar { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+.search-box { position: relative; flex: 1; min-width: 180px; }
+.search-box svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--text-2); pointer-events: none; }
+.search-box input {
+  width: 100%; padding: 9px 12px 9px 34px;
+  border: 1px solid var(--border); border-radius: var(--r-btn); background: var(--surface);
+  transition: border-color var(--dur), box-shadow var(--dur);
+}
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--r-btn); background: var(--surface); color: var(--text); }
+
+.pet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(252px, 1fr)); gap: 16px; }
+.pet-card { padding: 20px; cursor: pointer; position: relative; transition: transform var(--dur) ease-out, box-shadow var(--dur) ease-out, border-color var(--dur); }
+.pet-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-deep); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.pet-card-top { display: flex; align-items: center; gap: 13px; margin-bottom: 12px; }
+.pet-avatar {
+  width: 52px; height: 52px; border-radius: 16px; flex: none;
+  background: linear-gradient(145deg, var(--accent-soft), var(--surface-2));
+  border: 1px solid var(--border); display: grid; place-items: center; font-size: 26px;
+}
+.pet-name { font-family: var(--font-title); font-size: 19px; font-weight: 600; letter-spacing: -.2px; }
+.pet-breed { font-size: 13px; color: var(--text-2); }
+.pet-meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.badge { padding: 3px 10px; border-radius: var(--r-pill); font-size: 12px; font-weight: 600; letter-spacing: .1px; }
+.badge.healthy { background: var(--success-soft); color: var(--success); }
+.badge.attention { background: var(--warn-soft); color: var(--warn); }
+.badge.ill { background: var(--danger-soft); color: var(--danger); }
+.badge.plain { background: var(--surface-2); color: var(--text-2); font-weight: 500; }
+.pet-corner {
+  position: absolute; top: 12px; right: 12px;
+  padding: 3px 9px; border-radius: var(--r-pill); font-size: 11.5px; font-weight: 600;
+}
+.pet-corner.warn { background: var(--warn-soft); color: var(--warn); }
+.pet-corner.danger { background: var(--danger-soft); color: var(--danger); }
+
+.empty-state { text-align: center; padding: 70px 20px; color: var(--text-2); }
+.empty-state .big { font-size: 44px; margin-bottom: 12px; filter: grayscale(.2); }
+.empty-state h3 { font-family: var(--font-title); font-size: 20px; color: var(--text); margin-bottom: 6px; font-weight: 600; }
+
+/* ---------- 详情 ---------- */
+.detail-head { display: flex; align-items: flex-start; gap: 20px; padding: 26px; flex-wrap: wrap; }
+.detail-avatar { width: 84px; height: 84px; border-radius: 24px; font-size: 42px; }
+.detail-info { flex: 1; min-width: 200px; }
+.detail-name { font-family: var(--font-title); font-size: 28px; font-weight: 600; letter-spacing: -.5px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.detail-sub { color: var(--text-2); margin-top: 5px; font-size: 14px; }
+.detail-actions { display: flex; gap: 8px; }
+.back-link { display: inline-flex; align-items: center; gap: 5px; color: var(--text-2); font-size: 13.5px; margin-bottom: 14px; background: none; border: none; transition: color var(--dur); }
+.back-link:hover { color: var(--accent); }
+.back-link svg { width: 14px; height: 14px; }
+
+.detail-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin: 22px 0 18px; }
+.detail-tab { border: none; background: none; padding: 9px 18px; font-size: 14px; font-weight: 500; color: var(--text-2); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all var(--dur); }
+.detail-tab:hover { color: var(--text); }
+.detail-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.tab-pane { display: none; animation: fade-up .2s ease-out; }
+.tab-pane.active { display: block; }
+
+.timeline { position: relative; padding-left: 18px; }
+.timeline::before { content: ''; position: absolute; left: 4.5px; top: 6px; bottom: 6px; width: 1px; background: var(--border); }
+.tl-item { position: relative; padding: 0 0 20px 18px; }
+.tl-item::before { content: ''; position: absolute; left: -18px; top: 6px; width: 10px; height: 10px; border-radius: 50%; background: var(--tcolor, var(--accent)); border: 2px solid var(--bg); }
+.tl-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.tl-type { font-size: 11.5px; font-weight: 600; color: #fff; background: var(--tcolor, var(--accent)); padding: 2px 9px; border-radius: var(--r-pill); }
+.tl-title { font-weight: 600; font-size: 15px; }
+.tl-date { color: var(--text-2); font-size: 12.5px; margin-left: auto; font-variant-numeric: tabular-nums; }
+.tl-note { color: var(--text-2); font-size: 13.5px; margin-top: 3px; }
+.tl-next { margin-top: 5px; font-size: 12.5px; }
+.tl-next .badge { font-weight: 500; }
+.tl-del { border: none; background: none; color: var(--text-2); font-size: 12px; margin-top: 5px; padding: 2px 0; transition: color var(--dur); }
+.tl-del:hover { color: var(--danger); }
+
+.weight-chart-wrap { padding: 8px 4px 0; }
+.weight-chart-wrap svg { width: 100%; height: auto; display: block; }
+.wc-dot { transition: r var(--dur); }
+.wc-dot:hover { r: 6; }
+
+.props-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.prop-cell { background: var(--surface); padding: 14px 16px; }
+.prop-k { font-size: 12px; color: var(--text-2); font-weight: 600; letter-spacing: .3px; margin-bottom: 3px; }
+.prop-v { font-size: 14.5px; font-weight: 500; }
+
+/* ---------- AI 聊天 ---------- */
+.chat-wrap { display: flex; flex-direction: column; height: calc(100vh - 60px - 56px - 30px); min-height: 420px; }
+.chat-scroll { flex: 1; overflow-y: auto; padding: 4px 2px 16px; scrollbar-width: thin; }
+.msg { display: flex; gap: 10px; margin-bottom: 16px; animation: fade-up .18s ease-out; }
+.msg.user { flex-direction: row-reverse; }
+.msg-avatar { width: 30px; height: 30px; border-radius: 10px; flex: none; display: grid; place-items: center; font-size: 14px; margin-top: 2px; }
+.msg.user .msg-avatar { background: var(--surface-2); border: 1px solid var(--border); }
+.msg.bot .msg-avatar { background: linear-gradient(135deg, var(--accent), var(--warn)); color: #fff; }
+.msg-avatar svg { width: 16px; height: 16px; }
+.bubble {
+  max-width: min(76%, 640px); padding: 12px 16px; border-radius: 14px;
+  background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-card);
+  font-size: 14.5px; line-height: 1.65; overflow-wrap: break-word;
+}
+.msg.user .bubble { background: var(--accent); border-color: var(--accent); color: #fff; }
+.msg.bot .bubble { border-top-left-radius: 4px; }
+.msg.user .bubble { border-top-right-radius: 4px; }
+.bubble h1, .bubble h2, .bubble h3 { font-family: var(--font-title); margin: 12px 0 6px; line-height: 1.3; }
+.bubble h1 { font-size: 19px; } .bubble h2 { font-size: 17px; } .bubble h3 { font-size: 15.5px; }
+.bubble h1:first-child, .bubble h2:first-child { margin-top: 0; }
+.bubble ul, .bubble ol { padding-left: 20px; margin: 6px 0; }
+.bubble li { margin: 3px 0; }
+.bubble code { background: var(--surface-2); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+.bubble strong { font-weight: 600; }
+.msg-actions { display: flex; gap: 8px; margin-top: 9px; }
+.mode-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--text-2); margin-top: 7px; }
+.mode-tag::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+.mode-tag.example::before { background: var(--warn); }
+
+.typing { display: inline-flex; gap: 5px; padding: 4px 0; align-items: center; color: var(--text-2); font-size: 13.5px; }
+.typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); opacity: .4; animation: bounce 1.1s infinite ease-in-out; }
+.typing i:nth-child(2) { animation-delay: .16s; } .typing i:nth-child(3) { animation-delay: .32s; }
+@keyframes bounce { 30% { opacity: 1; transform: translateY(-4px); } 60% { opacity: .4; } }
+
+.chat-composer { margin-top: 14px; }
+.chat-quick { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.chat-input-row { display: flex; gap: 10px; align-items: flex-end; }
+.chat-input-row textarea {
+  flex: 1; resize: none; border: 1px solid var(--border); border-radius: 12px;
+  padding: 12px 14px; background: var(--surface); font-size: 14.5px; line-height: 1.5;
+  max-height: 120px; transition: border-color var(--dur), box-shadow var(--dur);
+}
+
+/* ---------- 弹窗 ---------- */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 100; display: none;
+  background: rgba(23,22,20,.45); backdrop-filter: blur(3px);
+  align-items: center; justify-content: center; padding: 20px;
+}
+.modal-overlay.open { display: flex; animation: overlay-in .18s ease-out; }
+@keyframes overlay-in { from { opacity: 0; } }
+.modal {
+  width: 100%; max-width: 480px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--r-modal);
+  box-shadow: var(--shadow-deep); padding: 24px; max-height: 88vh; overflow-y: auto;
+  animation: modal-in .2s ease-out;
+}
+@keyframes modal-in { from { opacity: 0; transform: translateY(10px) scale(.98); } }
+.modal h3 { font-family: var(--font-title); font-size: 20px; font-weight: 600; margin-bottom: 18px; letter-spacing: -.3px; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-field { display: flex; flex-direction: column; gap: 5px; }
+.form-field.full { grid-column: 1 / -1; }
+.form-field label { font-size: 12.5px; font-weight: 600; color: var(--text-2); }
+.form-field label .req { color: var(--danger); }
+.form-field input, .form-field select, .form-field textarea {
+  border: 1px solid var(--border); border-radius: var(--r-btn);
+  padding: 9px 11px; background: var(--surface-2);
+  transition: border-color var(--dur), box-shadow var(--dur), background var(--dur);
+}
+.form-field input:focus, .form-field select:focus, .form-field textarea:focus { background: var(--surface); }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+
+/* ---------- Toast ---------- */
+.toast-root { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%); z-index: 200; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
+.toast {
+  background: var(--text); color: var(--bg); padding: 10px 18px; border-radius: var(--r-pill);
+  font-size: 13.5px; font-weight: 500; box-shadow: var(--shadow-deep);
+  display: flex; gap: 8px; align-items: center; animation: toast-in .22s ease-out;
+}
+@keyframes toast-in { from { opacity: 0; transform: translateY(10px); } }
+.toast.out { opacity: 0; transform: translateY(8px); transition: all .25s ease-out; }
+.toast .t-ico { color: var(--success); font-weight: 700; }
+.toast.err .t-ico { color: var(--danger); }
+
+.shake { animation: shake-anim .35s ease-out; }
+@keyframes shake-anim { 20% { transform: translateX(-5px); } 45% { transform: translateX(4px); } 70% { transform: translateX(-3px); } 90% { transform: translateX(2px); } }
+
+.saved-flash { background: var(--success) !important; border-color: var(--success) !important; color: #fff !important; }
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 900px) {
+  .dash-grid { grid-template-columns: 1fr; }
+  .stat-row { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .stat-num { font-size: 30px; }
+}
+@media (max-width: 640px) {
+  .topbar { padding: 0 14px; gap: 8px; }
+  .logo-name { display: none; }
+  .tabs { margin: 0; }
+  .tab-btn { padding: 6px 12px; font-size: 13px; }
+  .btn .btn-label { display: none; }
+  .btn.primary { padding: 8px 11px; }
+  .page { padding: 20px 14px 60px; }
+  .stat-row { grid-template-columns: 1fr 1fr; }
+  .stat-row .stat-card:nth-child(3) { grid-column: 1 / -1; }
+  .form-grid { grid-template-columns: 1fr; }
+  .detail-head { padding: 18px; }
+  .bubble { max-width: 85%; }
+  .chat-wrap { height: calc(100vh - 60px - 44px - 24px); }
+}
+</style>
 </head>
 <body>
-<p>前端页面将在 P3 阶段实现。</p>
+
+<!-- ======================= 顶栏 ======================= -->
+<header class="topbar">
+  <div class="logo" onclick="go('dashboard')">
+    <span class="logo-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21c-4.5 0-7.5-2.8-7.5-6.2 0-2.4 1.6-4 3.3-5C9 8.6 10.4 7 10.4 5.3c0-1 .4-1.8 1.1-2.3.4.9 1.3 1.4 2.4 1.4 1.6 0 2.8 1.2 2.8 2.8 0 .4-.1.8-.2 1.1 1.9.9 3.2 2.6 3.2 4.7 0 4.9-4 8-7.7 8z"/><circle cx="7.2" cy="9.8" r=".9" fill="currentColor" stroke="none"/><circle cx="16.8" cy="9.8" r=".9" fill="currentColor" stroke="none"/><circle cx="9.5" cy="6.5" r=".9" fill="currentColor" stroke="none"/><circle cx="14.5" cy="6.5" r=".9" fill="currentColor" stroke="none"/></svg>
+    </span>
+    <span class="logo-name">宠物健康管家</span>
+  </div>
+  <nav class="tabs" id="nav-tabs">
+    <button class="tab-btn active" data-view="dashboard" onclick="go('dashboard')">仪表盘</button>
+    <button class="tab-btn" data-view="library" onclick="go('library')">宠物</button>
+    <button class="tab-btn" data-view="chat" onclick="go('chat')">AI 助手</button>
+  </nav>
+  <div class="topbar-right">
+    <button class="theme-toggle" onclick="toggleTheme()" title="切换亮暗模式" aria-label="切换亮暗模式">
+      <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    </button>
+    <button class="btn primary" onclick="openPetModal()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      <span class="btn-label">新增宠物</span>
+    </button>
+  </div>
+</header>
+
+<!-- ======================= 主视图 ======================= -->
+<main class="page">
+
+  <!-- 仪表盘 -->
+  <section class="view active" id="view-dashboard">
+    <div class="page-head">
+      <div class="page-title">仪表盘</div>
+      <div class="page-sub">一眼掌握所有宠物的健康概况与到期事项</div>
+    </div>
+    <div class="stat-row" id="stat-row"></div>
+    <div class="dash-grid">
+      <div class="dash-col">
+        <div class="card card-pad">
+          <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>到期提醒</div>
+          <div id="dash-reminders"></div>
+        </div>
+        <div class="card card-pad">
+          <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>最近动态</div>
+          <div id="dash-activity"></div>
+        </div>
+      </div>
+      <div class="dash-col">
+        <div class="card card-pad ai-entry">
+          <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z"/><path d="M19 15l.7 2.1L22 18l-2.3.9L19 21l-.9-2.1L15.8 18l2.3-.9z"/></svg>AI 智能助手</div>
+          <p>基于数据库回答问题，自动生成健康报告。试试：</p>
+          <div class="suggest-chips" id="suggest-chips"></div>
+          <div style="margin-top:16px">
+            <button class="btn primary sm" onclick="go('chat')">打开 AI 助手
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="card card-pad">
+          <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg>我的宠物</div>
+          <div id="dash-pets-mini"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 宠物库 -->
+  <section class="view" id="view-library">
+    <div class="page-head">
+      <div class="page-title">宠物档案</div>
+      <div class="page-sub">管理所有宠物的基础信息与健康档案</div>
+    </div>
+    <div class="library-bar">
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input id="lib-search" placeholder="搜索名字或品种…" oninput="renderLibrary()">
+      </div>
+      <select class="filter" id="lib-type" onchange="renderLibrary()">
+        <option value="">全部类型</option><option value="dog">狗</option><option value="cat">猫</option><option value="bird">鸟</option><option value="other">其他</option>
+      </select>
+      <select class="filter" id="lib-status" onchange="renderLibrary()">
+        <option value="">全部状态</option><option value="healthy">健康</option><option value="attention">需关注</option><option value="ill">治疗中</option>
+      </select>
+      <select class="filter" id="lib-sort" onchange="renderLibrary()">
+        <option value="id">默认排序</option><option value="name">按名称</option><option value="birthday">按生日</option>
+      </select>
+    </div>
+    <div class="pet-grid" id="pet-grid"></div>
+    <div class="empty-state" id="lib-empty" style="display:none">
+      <div class="big">🐾</div>
+      <h3>还没有符合条件的宠物</h3>
+      <p>点击右上角「新增宠物」开始建立档案</p>
+    </div>
+  </section>
+
+  <!-- 宠物详情 -->
+  <section class="view" id="view-detail"></section>
+
+  <!-- AI 助手 -->
+  <section class="view" id="view-chat">
+    <div class="page-head">
+      <div class="page-title">AI 智能助手</div>
+      <div class="page-sub" id="chat-sub">LangChain Agent · 基于数据库回答 · 自动生成健康报告</div>
+    </div>
+    <div class="chat-wrap">
+      <div class="chat-scroll" id="chat-scroll"></div>
+      <div class="chat-composer">
+        <div class="chat-quick" id="chat-quick"></div>
+        <div class="chat-input-row">
+          <textarea id="chat-input" rows="1" placeholder="问我任何关于宠物健康的问题，例如「可乐接下来要打什么疫苗？」"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat();}"></textarea>
+          <button class="btn primary" id="chat-send" onclick="sendChat()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg>
+            <span class="btn-label">发送</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ======================= 弹窗 ======================= -->
+<div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modal-box"></div>
+</div>
+<div class="toast-root" id="toast-root"></div>
+
+<script>
+/* ============================================================
+   状态与 API
+   ============================================================ */
+const API = '';           // 同源部署（FastAPI 托管），跨端口调试时改为 http://127.0.0.1:8000
+const state = {
+  pets: [], reminders: [], stats: null, recent: [],
+  detailPetId: null, detailTab: 'timeline',
+  chat: [], agentMode: null, weightsCache: {},
+};
+const TYPE_LABEL = { vaccine:'疫苗', checkup:'体检', deworm:'驱虫', medication:'喂药', clinic:'就诊' };
+const TYPE_COLOR = { vaccine:'var(--success)', checkup:'var(--accent)', deworm:'var(--warn)', medication:'#8B6FC0', clinic:'var(--danger)' };
+const STATUS_LABEL = { healthy:'健康', attention:'需关注', ill:'治疗中' };
+const TYPE_EMOJI = { cat:'🐱', dog:'🐶', bird:'🦜', other:'🐾' };
+const $ = id => document.getElementById(id);
+
+async function api(path, opts) {
+  const res = await fetch(API + path, Object.assign({ headers: {'Content-Type':'application/json'} }, opts));
+  const data = await res.json().catch(() => ({}));
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ============================================================
+   路由 / 视图切换
+   ============================================================ */
+let currentView = 'dashboard';
+function go(view, opts) {
+  currentView = view;
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  const target = $('view-' + view);
+  if (target) { target.classList.remove('active'); void target.offsetWidth; target.classList.add('active'); }
+  document.querySelectorAll('#nav-tabs .tab-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.view === (view === 'detail' ? 'library' : view)));
+  if (view === 'dashboard') renderDashboard();
+  if (view === 'library') renderLibrary();
+  if (view === 'detail' && opts?.petId) openDetail(opts.petId);
+  if (view === 'chat') renderChat();
+}
+
+async function refreshData() {
+  const [p, r, s] = await Promise.all([api('/api/pets'), api('/api/reminders'), api('/api/stats')]);
+  state.pets = p.pets; state.reminders = r.reminders; state.stats = s.stats; state.recent = s.recent;
+}
+
+/* ============================================================
+   仪表盘
+   ============================================================ */
+async function renderDashboard() {
+  await refreshData();
+  const st = state.stats;
+  $('stat-row').innerHTML = [
+    statCard('a', '🐾', st.pet_count, '宠物总数', '<path d=\"M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><circle cx=\"9.5\" cy=\"7\" r=\"4\"/>'),
+    statCard('g', '', st.record_count, '健康记录数', '<path d=\"M9 11l3 3L22 4\"/><path d=\"M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11\"/>'),
+    statCard('w', '', st.due_count, '临期/逾期项目', '<path d=\"M10.3 3.6L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0z\"/><path d=\"M12 9v4M12 17h.01\"/>'),
+  ].join('');
+  animateCount($('stat-row'));
+
+  const rem = state.reminders;
+  $('dash-reminders').innerHTML = rem.length ? rem.map(r => `
+    <div class="reminder-item" onclick="go('detail',{petId:${r.pet_id}})">
+      <span class="rem-dot ${r.overdue ? 'danger' : 'warn'}"></span>
+      <div class="rem-main">
+        <div class="rem-title">${esc(r.pet_name)} · ${esc(r.title)}</div>
+        <div class="rem-meta">${r.type_label} · 下次日期 ${r.next_date}</div>
+      </div>
+      <span class="rem-days ${r.overdue ? 'danger' : 'warn'}">${r.overdue ? '逾期 ' + (-r.days_left) + ' 天' : '剩 ' + r.days_left + ' 天'}</span>
+    </div>`).join('')
+    : '<div class="empty-hint">🎉 没有临期或逾期项目，一切都在计划中</div>';
+
+  const dotColor = t => ({ vaccine:'var(--success)', checkup:'var(--accent)', deworm:'var(--warn)', medication:'#8B6FC0', clinic:'var(--danger)' }[t] || 'var(--text-2)');
+  $('dash-activity').innerHTML = state.recent.length ? state.recent.map(a => `
+    <div class="activity-item" onclick="go('detail',{petId:${a.pet_id}})" style="cursor:pointer">
+      <span class="activity-dot" style="background:${dotColor(a.type)}"></span>
+      <span class="activity-date">${esc((a.date||'').slice(5))}</span>
+      <span><b>${esc(a.pet_name)}</b> ${esc(a.title)} <span style="color:var(--text-2)">· ${a.type_label}</span></span>
+    </div>`).join('')
+    : '<div class="empty-hint">暂无记录</div>';
+
+  const chips = ['可乐接下来要打什么疫苗？', '最近有哪些到期事项？', '生成布丁的健康报告'];
+  $('suggest-chips').innerHTML = chips.map(c => `<button class="chip" onclick="askFromSuggest('${esc(c)}')">${esc(c)}</button>`).join('');
+
+  $('dash-pets-mini').innerHTML = state.pets.length ? state.pets.map(p => `
+    <div class="reminder-item" onclick="go('detail',{petId:${p.id}})">
+      <span style="font-size:22px">${esc(p.avatar || TYPE_EMOJI[p.type] || '🐾')}</span>
+      <div class="rem-main">
+        <div class="rem-title">${esc(p.name)} <span class="badge ${p.status}" style="margin-left:4px">${STATUS_LABEL[p.status] || p.status}</span></div>
+        <div class="rem-meta">${esc(p.breed || '')} · ${p.age}</div>
+      </div>
+    </div>`).join('') : '<div class="empty-hint">还没有宠物档案，点击右上角新增</div>';
+}
+function statCard(cls, emoji, num, label, svg) {
+  return `<div class="card stat-card">
+    <span class="stat-ico ${cls}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${svg}</svg></span>
+    <div class="stat-num" data-num="${num}">0</div><div class="stat-label">${label}</div></div>`;
+}
+function animateCount(root) {
+  root.querySelectorAll('.stat-num').forEach(el => {
+    const target = +el.dataset.num, t0 = performance.now(), dur = 650;
+    (function tick(t) {
+      const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+      el.textContent = Math.round(target * e);
+      if (k < 1) requestAnimationFrame(tick);
+    })(t0);
+  });
+}
+
+/* ============================================================
+   宠物库
+   ============================================================ */
+function renderLibrary() {
+  const q = ($('lib-search').value || '').trim().toLowerCase();
+  const ft = $('lib-type').value, fs = $('lib-status').value, sort = $('lib-sort').value;
+  let list = state.pets.filter(p =>
+    (!q || (p.name || '').toLowerCase().includes(q) || (p.breed || '').toLowerCase().includes(q)) &&
+    (!ft || p.type === ft) && (!fs || p.status === fs));
+  if (sort === 'name') list = [...list].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'zh'));
+  if (sort === 'birthday') list = [...list].sort((a, b) => (a.birthday || '9999').localeCompare(b.birthday || '9999'));
+  $('lib-empty').style.display = list.length ? 'none' : 'block';
+  $('pet-grid').innerHTML = list.map(p => {
+    const worst = (p.upcoming || []).reduce((m, r) => Math.min(m, r.days_left), 999);
+    const corner = worst < 0 ? `<span class="pet-corner danger">逾期${-worst}天</span>`
+      : worst <= 7 ? `<span class="pet-corner warn">${worst}天后到期</span>` : '';
+    return `<div class="card pet-card" onclick="go('detail',{petId:${p.id}})">
+      ${corner}
+      <div class="pet-card-top">
+        <div class="pet-avatar">${esc(p.avatar || TYPE_EMOJI[p.type] || '🐾')}</div>
+        <div><div class="pet-name">${esc(p.name)}</div>
+        <div class="pet-breed">${esc(p.breed || '未知品种')} · ${p.age}</div></div>
+      </div>
+      <div class="pet-meta">
+        <span class="badge ${p.status}">${STATUS_LABEL[p.status] || p.status}</span>
+        <span class="badge plain">${p.record_count} 条记录</span>
+        ${p.latest_weight ? `<span class="badge plain">${p.latest_weight} kg</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ============================================================
+   宠物详情
+   ============================================================ */
+async function openDetail(petId) {
+  state.detailPetId = petId;
+  state.detailTab = 'timeline';
+  let pet, records, weights;
+  try {
+    const [a, b, c] = await Promise.all([
+      api(`/api/pets/${petId}`), api(`/api/pets/${petId}/records`), api(`/api/pets/${petId}/weights`)]);
+    pet = a.pet; records = b.records; weights = c.weights;
+  } catch (e) { toast(e.message || '宠物不存在', true); go('library'); return; }
+  state.weightsCache[petId] = weights;
+  const p = pet;
+  const worst = (p.upcoming || []).reduce((m, r) => Math.min(m, r.days_left), 999);
+  $('view-detail').innerHTML = `
+    <button class="back-link" onclick="go('library')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg> 返回宠物库</button>
+    <div class="card detail-head">
+      <div class="pet-avatar detail-avatar">${esc(p.avatar || TYPE_EMOJI[p.type] || '🐾')}</div>
+      <div class="detail-info">
+        <div class="detail-name">${esc(p.name)}
+          <span class="badge ${p.status}">${STATUS_LABEL[p.status] || p.status}</span>
+          ${worst <= 7 ? `<span class="badge ${worst < 0 ? 'ill' : 'attention'}">${worst < 0 ? `有事项逾期${-worst}天` : `${worst}天后有事项到期`}</span>` : ''}
+        </div>
+        <div class="detail-sub">${esc(p.breed || '未知品种')} · ${p.gender === 'male' ? '公' : p.gender === 'female' ? '母' : '未知'} · ${p.age} · 当前体重 ${p.latest_weight ?? '—'} kg · ${p.record_count} 条健康记录</div>
+        <div class="detail-sub">${esc(p.personality || '')}</div>
+      </div>
+      <div class="detail-actions">
+        <button class="btn primary sm" onclick="openRecordModal()">＋ 新增记录</button>
+        <button class="btn sm" onclick="openPetModal(${p.id})">编辑</button>
+        <button class="btn sm danger" onclick="askDeletePet(${p.id}, this)">删除</button>
+      </div>
+    </div>
+    <div class="detail-tabs">
+      <button class="detail-tab active" data-tab="timeline" onclick="switchTab('timeline', this)">健康时间线</button>
+      <button class="detail-tab" data-tab="weight" onclick="switchTab('weight', this)">体重趋势</button>
+      <button class="detail-tab" data-tab="props" onclick="switchTab('props', this)">资料</button>
+    </div>
+    <div class="tab-pane active" id="pane-timeline">${timelineHTML(records)}</div>
+    <div class="tab-pane" id="pane-weight"><div class="card card-pad" id="weight-chart"></div></div>
+    <div class="tab-pane" id="pane-props">${propsHTML(p)}</div>`;
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  currentView = 'detail';
+  $('view-detail').classList.add('active');
+  document.querySelectorAll('#nav-tabs .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.view === 'library'));
+  drawWeightChart();
+}
+function switchTab(tab, btn) {
+  state.detailTab = tab;
+  document.querySelectorAll('.detail-tab').forEach(b => b.classList.toggle('active', b === btn));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  $('pane-' + tab).classList.add('active');
+  if (tab === 'weight') drawWeightChart();
+}
+function timelineHTML(records) {
+  if (!records.length) return '<div class="empty-hint">暂无健康记录，点击右上角「新增记录」开始</div>';
+  return `<div class="timeline">` + records.map(r => {
+    const color = TYPE_COLOR[r.type] || 'var(--accent)';
+    let nextBadge = '';
+    if (r.next_date) {
+      const d = r.days_left;
+      const cls = d < 0 ? 'ill' : d <= 7 ? 'attention' : 'plain';
+      const txt = d < 0 ? `下次 ${r.next_date} · 已逾期 ${-d} 天` : `下次 ${r.next_date} · 剩 ${d} 天`;
+      nextBadge = `<div class="tl-next"><span class="badge ${cls}">⏰ ${txt}</span></div>`;
+    }
+    return `<div class="tl-item" style="--tcolor:${color}">
+      <div class="tl-head">
+        <span class="tl-type" style="background:${color}">${r.type_label || TYPE_LABEL[r.type] || r.type}</span>
+        <span class="tl-title">${esc(r.title)}</span>
+        <span class="tl-date">${esc(r.date)}</span>
+      </div>
+      ${r.note ? `<div class="tl-note">${esc(r.note)}</div>` : ''}
+      ${nextBadge}
+      <button class="tl-del" onclick="deleteRecord(${r.id}, this)">删除此条</button>
+    </div>`;
+  }).join('') + `</div>`;
+}
+function propsHTML(p) {
+  const cell = (k, v) => `<div class="prop-cell"><div class="prop-k">${k}</div><div class="prop-v">${v ?? '—'}</div></div>`;
+  return `<div class="props-grid">
+    ${cell('名字', esc(p.name))}${cell('类型', { cat:'猫', dog:'狗', bird:'鸟', other:'其他' }[p.type] || '—')}
+    ${cell('品种', esc(p.breed))}${cell('性别', { male:'公', female:'母', unknown:'未知' }[p.gender] || '—')}
+    ${cell('生日', esc(p.birthday))}${cell('年龄', p.age)}
+    ${cell('体重 (kg)', p.weight ?? p.latest_weight)}${cell('健康状态', STATUS_LABEL[p.status] || p.status)}
+    ${cell('性格备注', esc(p.personality))}${cell('创建时间', esc(p.created_at))}
+  </div>`;
+}
+
+/* ---------- 体重 SVG 折线图（手绘，无第三方库） ---------- */
+function drawWeightChart() {
+  const box = $('weight-chart'); if (!box) return;
+  const logs = state.weightsCache[state.detailPetId] || [];
+  if (logs.length < 2) { box.innerHTML = '<div class="empty-hint">体重记录不足两条，暂无趋势图。在「新增记录」中填写体重即可积累数据。</div>'; return; }
+  const W = 640, H = 240, PL = 46, PR = 16, PT = 18, PB = 34;
+  const ws = logs.map(l => l.weight), wMin = Math.min(...ws), wMax = Math.max(...ws);
+  const pad = (wMax - wMin) * 0.15 || Math.max(wMax * 0.06, 0.2);
+  const lo = wMin - pad, hi = wMax + pad;
+  const x = i => PL + (W - PL - PR) * (logs.length === 1 ? 0.5 : i / (logs.length - 1));
+  const y = v => PT + (H - PT - PB) * (1 - (v - lo) / (hi - lo));
+  const pts = logs.map((l, i) => [x(i), y(l.weight)]);
+  const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  const area = line + ` L ${x(logs.length - 1).toFixed(1)} ${H - PB} L ${x(0).toFixed(1)} ${H - PB} Z`;
+  const gridN = 4, grid = [];
+  for (let g = 0; g <= gridN; g++) {
+    const v = lo + (hi - lo) * g / gridN, yy = y(v);
+    grid.push(`<line x1="${PL}" y1="${yy}" x2="${W - PR}" y2="${yy}" stroke="var(--border)" stroke-width="1" ${g ? 'stroke-dasharray="3 4"' : ''}/><text x="${PL - 8}" y="${yy + 4}" text-anchor="end" font-size="10.5" fill="var(--text-2)">${v < 1 ? v.toFixed(2) : v.toFixed(1)}</text>`);
+  }
+  const step = Math.max(1, Math.ceil(logs.length / 6));
+  const xLabels = logs.map((l, i) => i % step === 0 || i === logs.length - 1
+    ? `<text x="${x(i)}" y="${H - 12}" text-anchor="middle" font-size="10.5" fill="var(--text-2)">${(l.date || '').slice(5)}</text>` : '').join('');
+  const dots = pts.map((p, i) => `<circle class="wc-dot" cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="4" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"><title>${logs[i].date}: ${logs[i].weight} kg</title></circle>`).join('');
+  const delta = ws[ws.length - 1] - ws[0];
+  box.innerHTML = `<div class="card-title" style="margin-bottom:6px">体重趋势
+      <span class="badge ${Math.abs(delta / (ws[0] || 1)) >= 0.1 ? 'attention' : 'plain'}" style="margin-left:8px;text-transform:none">
+      ${delta >= 0 ? '+' : ''}${delta.toFixed(2)} kg（近 ${logs.length} 次）</span></div>
+    <div class="weight-chart-wrap"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="体重折线图">
+      <defs><linearGradient id="warea" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="var(--accent)" stop-opacity=".22"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/>
+      </linearGradient></defs>
+      ${grid}<path d="${area}" fill="url(#warea)"/>
+      <path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+      ${dots}${xLabels}
+    </svg></div>`;
+}
+
+/* ============================================================
+   弹窗：新增/编辑宠物
+   ============================================================ */
+function openModal(html) { $('modal-box').innerHTML = html; $('modal-overlay').classList.add('open'); }
+function closeModal() { $('modal-overlay').classList.remove('open'); }
+
+function openPetModal(id) {
+  const p = id ? state.pets.find(x => x.id === id) || {} : {};
+  openModal(`
+  <h3>${id ? '编辑宠物资料' : '新增宠物'}</h3>
+  <form id="pet-form" onsubmit="return submitPet(event, ${id ?? 'null'})">
+    <div class="form-grid">
+      <div class="form-field"><label>名字 <span class="req">*</span></label><input name="name" required maxlength="30" value="${esc(p.name || '')}"></div>
+      <div class="form-field"><label>头像 Emoji</label><input name="avatar" maxlength="4" placeholder="🐶" value="${esc(p.avatar || '')}"></div>
+      <div class="form-field"><label>类型</label><select name="type">
+        ${[['cat','猫'],['dog','狗'],['bird','鸟'],['other','其他']].map(([v, l]) => `<option value="${v}" ${p.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div class="form-field"><label>品种</label><input name="breed" value="${esc(p.breed || '')}" placeholder="如：柯基 / 英短"></div>
+      <div class="form-field"><label>性别</label><select name="gender">
+        ${[['unknown','未知'],['male','公'],['female','母']].map(([v, l]) => `<option value="${v}" ${(p.gender || 'unknown') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div class="form-field"><label>生日</label><input name="birthday" type="date" value="${esc(p.birthday || '')}"></div>
+      <div class="form-field"><label>体重 (kg)</label><input name="weight" type="number" step="0.01" min="0" value="${p.weight ?? ''}"></div>
+      <div class="form-field"><label>健康状态</label><select name="status">
+        ${[['healthy','健康'],['attention','需关注'],['ill','治疗中']].map(([v, l]) => `<option value="${v}" ${(p.status || 'healthy') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div class="form-field full"><label>性格备注</label><textarea name="personality" rows="2" maxlength="200" placeholder="性格特点、生活习惯…">${esc(p.personality || '')}</textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn" onclick="closeModal()">取消</button>
+      <button type="submit" class="btn primary" id="pet-save-btn">${id ? '保存修改' : '创建宠物'}</button>
+    </div>
+  </form>`);
+}
+async function submitPet(e, id) {
+  e.preventDefault();
+  const f = Object.fromEntries(new FormData(e.target).entries());
+  Object.keys(f).forEach(k => { if (f[k] === '') delete f[k]; });
+  if (!f.name) return false;
+  try {
+    if (id) await api(`/api/pets/${id}`, { method: 'PUT', body: JSON.stringify(f) });
+    else await api('/api/pets', { method: 'POST', body: JSON.stringify(f) });
+    flashSaved($('pet-save-btn'));
+    setTimeout(async () => {
+      closeModal(); await refreshData();
+      if (id) openDetail(id); else { go(currentView === 'detail' ? 'library' : currentView); if (currentView === 'library') renderLibrary(); if (currentView === 'dashboard') renderDashboard(); }
+      toast(id ? '修改已保存 ✓' : `已创建宠物「${f.name}」✓`);
+    }, 450);
+  } catch (err) { toast(err.message, true); }
+  return false;
+}
+function askDeletePet(id, btn) {
+  const p = state.pets.find(x => x.id === id);
+  openModal(`<h3>删除宠物「${esc(p?.name || '')}」？</h3>
+    <p style="color:var(--text-2);font-size:14px;margin-bottom:4px">其全部健康记录与体重记录将一并删除，且不可恢复。</p>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">取消</button>
+      <button class="btn primary" style="background:var(--danger);border-color:var(--danger)" id="del-btn" onclick="confirmDeletePet(${id}, this)">确认删除</button>
+    </div>`);
+}
+async function confirmDeletePet(id, btn) {
+  btn.classList.add('shake');
+  try {
+    await api(`/api/pets/${id}`, { method: 'DELETE' });
+    closeModal(); await refreshData(); go('library');
+    toast('宠物已删除');
+  } catch (e) { toast(e.message, true); }
+}
+
+/* ---------- 新增健康记录 ---------- */
+function openRecordModal() {
+  const today = new Date().toISOString().slice(0, 10);
+  openModal(`
+  <h3>新增健康记录</h3>
+  <form id="rec-form" onsubmit="return submitRecord(event)">
+    <div class="form-grid">
+      <div class="form-field"><label>类型</label><select name="type">
+        ${Object.entries(TYPE_LABEL).map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></div>
+      <div class="form-field"><label>日期</label><input name="date" type="date" value="${today}"></div>
+      <div class="form-field full"><label>标题 <span class="req">*</span></label><input name="title" required maxlength="60" placeholder="如：狂犬疫苗（第2年）"></div>
+      <div class="form-field full"><label>说明</label><textarea name="note" rows="2" maxlength="300" placeholder="医生嘱托、剂量、反应观察…"></textarea></div>
+      <div class="form-field"><label>下次日期（选填，用于提醒）</label><input name="next_date" type="date"></div>
+      <div class="form-field"><label>当时体重 kg（选填，记录进趋势）</label><input name="weight" type="number" step="0.01" min="0"></div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn" onclick="closeModal()">取消</button>
+      <button type="submit" class="btn primary" id="rec-save-btn">保存记录</button>
+    </div>
+  </form>`);
+}
+async function submitRecord(e) {
+  e.preventDefault();
+  const f = Object.fromEntries(new FormData(e.target).entries());
+  Object.keys(f).forEach(k => { if (f[k] === '') delete f[k]; });
+  try {
+    await api(`/api/pets/${state.detailPetId}/records`, { method: 'POST', body: JSON.stringify(f) });
+    flashSaved($('rec-save-btn'));
+    setTimeout(() => { closeModal(); openDetail(state.detailPetId); toast('记录已保存 ✓'); }, 450);
+  } catch (err) { toast(err.message, true); }
+  return false;
+}
+async function deleteRecord(rid, btn) {
+  btn.classList.add('shake');
+  try {
+    await api(`/api/records/${rid}`, { method: 'DELETE' });
+    openDetail(state.detailPetId); toast('记录已删除');
+  } catch (e) { toast(e.message, true); btn.classList.remove('shake'); }
+}
+function flashSaved(btn) { btn.classList.add('saved-flash'); btn.innerHTML = '✓ 已保存'; btn.disabled = true; }
+
+/* ============================================================
+   AI 聊天
+   ============================================================ */
+const QUICK_QS = ['最近有哪些到期或逾期的事项？', '可乐接下来要打什么疫苗？', '布丁的健康状况怎么样？', '生成所有宠物的健康报告'];
+function renderChat() {
+  $('chat-quick').innerHTML = QUICK_QS.map(q => `<button class="chip" onclick="askFromSuggest('${esc(q)}')">${esc(q)}</button>`).join('');
+  const sc = $('chat-scroll');
+  sc.innerHTML = state.chat.map(m => msgHTML(m)).join('');
+  sc.scrollTop = sc.scrollHeight;
+  api('/api/agent/status').then(s => {
+    state.agentMode = s.mode;
+    $('chat-sub').textContent = s.mode === 'agent'
+      ? 'LangChain ReAct Agent（通义千问）已连接 · 基于数据库回答'
+      : '当前为示例回答模式（未配置 API Key）· 配置后自动升级为 LangChain Agent';
+  }).catch(() => {});
+  if (!state.chat.length && !sc.querySelector('.msg')) {
+    sc.innerHTML = msgHTML({ role: 'bot', text: '你好，我是**智能宠物健康管家** 🐾\n\n我可以查询宠物档案与健康记录、计算到期提醒、分析健康状况，并一键生成健康报告。试试下方快捷问题，或直接输入你的问题。', mode: null });
+  }
+}
+function msgHTML(m) {
+  const av = m.role === 'user' ? '我' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z"/></svg>';
+  const isReport = m.role === 'bot' && /(^#|\n#)\s/.test(m.text || '');
+  const actions = m.role === 'bot' ? `<div class="msg-actions">
+      <button class="btn ghost sm" onclick="copyAnswer(this)" data-text="${encodeURIComponent(m.text)}">⧉ 复制</button>
+      ${isReport ? `<button class="btn ghost sm" onclick='downloadMd(${JSON.stringify(m.text).replace(/'/g, "&#39;")},"健康报告")'>⤓ 下载 .md</button>` : ''}
+    </div>${m.mode ? `<div class="mode-tag ${m.mode === 'example' ? 'example' : ''}">${m.mode === 'example' ? '示例回答模式（未配置 API Key）' : 'LangChain Agent · 通义千问'}</div>` : ''}` : '';
+  return `<div class="msg ${m.role}"><div class="msg-avatar">${av}</div>
+    <div><div class="bubble">${mdLite(m.text)}</div>${actions}</div></div>`;
+}
+function askFromSuggest(q) {
+  go('chat');
+  $('chat-input').value = q;
+  sendChat();
+}
+async function sendChat() {
+  const ta = $('chat-input'), msg = ta.value.trim();
+  if (!msg) return;
+  ta.value = ''; autoGrow(ta);
+  state.chat.push({ role: 'user', text: msg });
+  const sc = $('chat-scroll');
+  sc.insertAdjacentHTML('beforeend', msgHTML({ role: 'user', text: msg }));
+  const think = document.createElement('div');
+  think.className = 'msg bot';
+  think.innerHTML = `<div class="msg-avatar">✦</div><div class="bubble"><span class="typing"><i></i><i></i><i></i> 思考中…</span></div>`;
+  sc.appendChild(think); sc.scrollTop = sc.scrollHeight;
+  $('chat-send').disabled = true; $('chat-send').querySelector('.btn-label').textContent = '思考中…';
+  try {
+    const r = await api('/api/chat', { method: 'POST', body: JSON.stringify({ message: msg }) });
+    think.remove();
+    state.chat.push({ role: 'bot', text: r.reply, mode: r.mode });
+  } catch (e) {
+    think.remove();
+    state.chat.push({ role: 'bot', text: '抱歉，请求失败了：' + e.message, mode: null });
+  }
+  const el = document.createElement('div'); el.innerHTML = msgHTML(state.chat[state.chat.length - 1]);
+  sc.appendChild(el.firstElementChild); sc.scrollTop = sc.scrollHeight;
+  $('chat-send').disabled = false; const lbl = $('chat-send').querySelector('.btn-label'); if (lbl) lbl.textContent = '发送';
+}
+function autoGrow(ta) { ta.style.height = 'auto'; ta.style.height = Math.min(120, ta.scrollHeight) + 'px'; }
+$('chat-input')?.addEventListener('input', e => autoGrow(e.target));
+
+/* 轻量 Markdown：标题/加粗/行内代码/列表/引用 */
+function mdLite(src) {
+  const lines = esc(src || '').split('\n'); const out = [];
+  let list = null;
+  const inline = s => s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>');
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    let m;
+    if ((m = line.match(/^(#{1,3})\s+(.*)/))) {
+      if (list) { out.push(`</${list}>`); list = null; }
+      out.push(`<h${m[1].length}>${inline(m[2])}</h${m[1].length}>`);
+    } else if ((m = line.match(/^[-•]\s+(.*)/))) {
+      if (list !== 'ul') { if (list) out.push(`</${list}>`); out.push('<ul>'); list = 'ul'; }
+      out.push(`<li>${inline(m[1])}</li>`);
+    } else if (/^\s*$/.test(line)) {
+      if (list) { out.push(`</${list}>`); list = null; }
+    } else {
+      if (list) { out.push(`</${list}>`); list = null; }
+      out.push(`<div>${inline(line)}</div>`);
+    }
+  }
+  if (list) out.push(`</${list}>`);
+  return out.join('');
+}
+function copyAnswer(btn) {
+  const text = decodeURIComponent(btn.dataset.text || '');
+  (navigator.clipboard?.writeText(text) || Promise.reject())
+    .then(() => { btn.textContent = '✓ 已复制'; setTimeout(() => btn.textContent = '⧉ 复制', 1400); })
+    .catch(() => { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); btn.textContent = '✓ 已复制'; });
+}
+function downloadMd(text, name) {
+  const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `${name}_${new Date().toISOString().slice(0, 10)}.md`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+/* ============================================================
+   主题 / Toast / 涟漪
+   ============================================================ */
+function toggleTheme() {
+  const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  localStorage.setItem('pet-theme', next);
+}
+(function initTheme() {
+  const saved = localStorage.getItem('pet-theme');
+  const sys = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  document.documentElement.dataset.theme = saved || sys;
+})();
+function toast(text, isErr) {
+  const t = document.createElement('div');
+  t.className = 'toast' + (isErr ? ' err' : '');
+  t.innerHTML = `<span class="t-ico">${isErr ? '✕' : '✓'}</span>${esc(text)}`;
+  $('toast-root').appendChild(t);
+  setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 300); }, 2300);
+}
+document.body.addEventListener('pointerdown', e => {
+  const btn = e.target.closest('.btn'); if (!btn) return;
+  const rect = btn.getBoundingClientRect(), size = Math.max(rect.width, rect.height);
+  const r = document.createElement('span'); r.className = 'ripple';
+  r.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX - rect.left - size / 2}px;top:${e.clientY - rect.top - size / 2}px`;
+  btn.appendChild(r); setTimeout(() => r.remove(), 600);
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+/* ============================================================
+   启动
+   ============================================================ */
+(async function boot() {
+  try {
+    await refreshData();
+    renderDashboard();
+  } catch (e) {
+    document.body.insertAdjacentHTML('beforeend',
+      '<div class="page"><div class="card card-pad empty-state"><div class="big">⚠️</div><h3>无法连接后端</h3><p>' + esc(e.message) + '<br>请先运行 <code>python backend/main.py</code> 再刷新本页。</p></div></div>');
+  }
+})();
+</script>
 </body>
 </html>
