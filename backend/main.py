@@ -4,6 +4,7 @@
 启动：python main.py  →  http://127.0.0.1:8000
 """
 import os
+from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
@@ -15,7 +16,13 @@ import db
 
 WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "web")
 
-app = FastAPI(title="智能宠物健康管家", version="2.1")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    db.init_and_seed()
+    yield
+
+
+app = FastAPI(title="智能宠物健康管家", version="2.1", lifespan=lifespan)
 
 # 开发期放开 CORS（允许前端跨端口调试）
 app.add_middleware(
@@ -24,11 +31,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.on_event("startup")
-def _startup() -> None:
-    db.init_and_seed()
 
 
 # ---------------------------------------------------------------- 模型
