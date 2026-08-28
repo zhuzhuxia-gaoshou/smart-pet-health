@@ -142,6 +142,12 @@ def api_chat(body: ChatIn):
     return agent.answer(body.message)
 
 
+@app.get("/api/agent/status")
+def api_agent_status():
+    import agent
+    return agent.status()
+
+
 # ---------------------------------------------------------------- 前端页面
 
 @app.get("/")
