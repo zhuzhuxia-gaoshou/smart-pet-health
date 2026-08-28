@@ -5,7 +5,7 @@ const { JSDOM } = require('jsdom');
 const html = fs.readFileSync('C:/Users/Administrator/Desktop/项目/smart-pet-health/web/index.html', 'utf8');
 const BASE = 'http://127.0.0.1:8000';
 
-const dom = new JSDOM(html, { url: BASE + '/', pretendToBeVisual: true, runScripts: 'outside-only' });
+const dom = new JSDOM(html, { url: BASE + '/app', pretendToBeVisual: true, runScripts: 'outside-only' });
 const { window } = dom;
 window.matchMedia = q => ({ matches: false, media: q, addListener(){}, removeListener(){}, addEventListener(){}, removeEventListener(){} });
 window.fetch = (path, opts) => fetch(BASE + path, opts);

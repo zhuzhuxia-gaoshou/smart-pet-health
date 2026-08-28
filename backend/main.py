@@ -196,7 +196,14 @@ def api_agent_status():
 # ---------------------------------------------------------------- 前端页面
 
 @app.get("/")
+def welcome():
+    """网站入口：欢迎页 → 点「开始使用」→ 过渡动画 → 进入应用。"""
+    return FileResponse(os.path.join(WEB_DIR, "welcome.html"))
+
+
+@app.get("/app")
 def index():
+    """主应用单页（仪表盘/宠物/回忆集/AI 助手）。"""
     return FileResponse(os.path.join(WEB_DIR, "index.html"))
 
 
