@@ -152,6 +152,40 @@ html[data-theme="light"] .icon-sun { display: none; }
 .card-title { font-size: 13px; font-weight: 600; letter-spacing: .4px; color: var(--text-2); text-transform: uppercase; margin-bottom: 14px; display:flex; align-items:center; gap:8px; }
 .card-title svg { width: 15px; height: 15px; color: var(--accent); }
 
+/* ---------- 欢迎横幅（纯装饰） ---------- */
+.welcome-banner {
+  position: relative; overflow: hidden;
+  border-radius: 18px; padding: 30px 34px 28px; margin-bottom: 22px;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  background: linear-gradient(118deg, #FBFAF7 0%, #F8EFDF 30%, #EFD5B4 58%, #DFA371 82%, #C2703D 100%);
+  box-shadow: 0 1px 2px rgba(34,31,26,.04), 0 2px 6px rgba(34,31,26,.03),
+              0 10px 22px -10px rgba(122,68,30,.18), 0 20px 44px -18px rgba(34,31,26,.10);
+  min-height: 122px;
+}
+html[data-theme="dark"] .welcome-banner {
+  border-color: #38332D;
+  background: linear-gradient(118deg, #26221C 0%, #33271B 48%, #573A1F 78%, #7E4A24 100%);
+}
+.wb-text { position: relative; z-index: 1; max-width: 62%; }
+.wb-title {
+  font-family: var(--font-title); font-weight: 700; font-size: 29px; line-height: 1.25;
+  letter-spacing: -.5px; color: #221F1A; font-feature-settings: "lnum";
+}
+.wb-sub { margin-top: 7px; font-size: 14px; font-weight: 400; letter-spacing: .2px; color: #6B6358; }
+html[data-theme="dark"] .wb-title { color: #F3EEE6; }
+html[data-theme="dark"] .wb-sub { color: #A49A8B; }
+.wb-paws { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+html:not([data-theme="dark"]) .wb-paws .paw-warm { fill: #8A4A22; }
+.wb-paws .paw-cream { fill: #FBFAF7; }
+html[data-theme="dark"] .wb-paws .paw-warm { fill: #E9D5B8; }
+html[data-theme="dark"] .wb-paws .paw-cream { fill: #171614; }
+@media (max-width: 640px) {
+  .welcome-banner { padding: 22px 20px 20px; min-height: 100px; }
+  .wb-title { font-size: 21px; }
+  .wb-sub { font-size: 12.5px; }
+  .wb-text { max-width: 78%; }
+}
+
 /* ---------- 仪表盘 ---------- */
 .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
 .stat-card { padding: 22px 20px; display: flex; flex-direction: column; gap: 4px; transition: transform var(--dur) ease-out, box-shadow var(--dur); }
@@ -502,6 +536,29 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
 
   <!-- 仪表盘 -->
   <section class="view active" id="view-dashboard">
+    <div class="welcome-banner" aria-hidden="true">
+      <svg class="wb-paws" viewBox="0 0 1120 140" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <g id="wb-paw">
+            <ellipse cx="0" cy="6.4" rx="7.4" ry="6.2"/>
+            <ellipse cx="-8.6" cy="-3.8" rx="3.3" ry="4.6" transform="rotate(-26 -8.6 -3.8)"/>
+            <ellipse cx="-3" cy="-8.4" rx="3.3" ry="4.9" transform="rotate(-8 -3 -8.4)"/>
+            <ellipse cx="3" cy="-8.4" rx="3.3" ry="4.9" transform="rotate(8 3 -8.4)"/>
+            <ellipse cx="8.6" cy="-3.8" rx="3.3" ry="4.6" transform="rotate(26 8.6 -3.8)"/>
+          </g>
+        </defs>
+        <use href="#wb-paw" class="paw-warm" opacity=".10" transform="translate(548 118) rotate(14) scale(1.15)"/>
+        <use href="#wb-paw" class="paw-warm" opacity=".07" transform="translate(648 96) rotate(-10) scale(.8)"/>
+        <use href="#wb-paw" class="paw-cream" opacity=".16" transform="translate(838 50) rotate(-18) scale(1.45)"/>
+        <use href="#wb-paw" class="paw-cream" opacity=".12" transform="translate(928 92) rotate(9) scale(.95)"/>
+        <use href="#wb-paw" class="paw-cream" opacity=".20" transform="translate(1030 40) rotate(-5) scale(1.8)"/>
+        <use href="#wb-paw" class="paw-cream" opacity=".10" transform="translate(1092 128) rotate(24) scale(2.5)"/>
+      </svg>
+      <div class="wb-text">
+        <div class="wb-title">愿你的每一只毛孩子都健康</div>
+        <div class="wb-sub">记录它的日常，留住它的成长</div>
+      </div>
+    </div>
     <div class="page-head">
       <div class="page-title">仪表盘</div>
       <div class="page-sub">一眼掌握所有宠物的健康概况与到期事项</div>
