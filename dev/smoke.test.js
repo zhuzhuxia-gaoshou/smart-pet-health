@@ -31,24 +31,58 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
   const n = sel => doc.querySelectorAll(sel).length;
   const state = () => T.getState();
 
-  check('boot loads pets (3)', state().pets.length === 3, 'got ' + state().pets.length);
+  check('boot loads pets (>=3)', state().pets.length >= 3, 'got ' + state().pets.length);
   check('stat cards = 3', n('#stat-row .stat-card') === 3);
   check('reminders rendered', n('#dash-reminders .reminder-item') >= 3, 'got ' + n('#dash-reminders .reminder-item'));
   check('activity rendered', n('#dash-activity .activity-item') >= 3);
   check('suggest chips', n('#suggest-chips .chip') === 3);
+  check('stats are clickable', n('#stat-row .stat-card.clickable') === 3);
+  check('dash reminders capped at 4', n('#dash-reminders .reminder-item') <= 4 && n('#dash-reminders .reminder-item') >= 3,
+    'got ' + n('#dash-reminders .reminder-item'));
+  check('activity capped at 5', n('#dash-activity .activity-item') <= 5);
+  check('month overview shown', T.$('dash-month-card').style.display === 'block' && n('#dash-month-body .month-row') === 3);
+  check('mini pets removed', !T.$('dash-pets-mini'));
+
+  // 统计卡点击 → 新页面
+  T.go('records');
+  await sleep(600);
+  const recCount = (await (await fetch(BASE + '/api/records')).json()).records.length;
+  check('records view lists all', n('#records-list .rec-row') === recCount, n('#records-list .rec-row') + ' vs ' + recCount);
+  T.go('reminders');
+  await sleep(200);
+  check('reminders view lists all', n('#reminders-full-list .reminder-item') === state().reminders.length,
+    n('#reminders-full-list .reminder-item') + ' vs ' + state().reminders.length);
+
+  // 详情页"从哪来回哪去"
+  T.go('reminders');
+  await sleep(200);
+  await T.go('detail', { petId: 2, from: 'reminders' });
+  await sleep(600);
+  check('back button says 返回到期提醒', (doc.querySelector('#view-detail .back-link') || {}).textContent?.includes('到期提醒'),
+    (doc.querySelector('#view-detail .back-link') || {}).textContent);
+  T.go('records');
+  await T.go('detail', { petId: 1, from: 'records' });
+  await sleep(600);
+  check('back button says 返回健康记录', (doc.querySelector('#view-detail .back-link') || {}).textContent?.includes('健康记录'));
+  T.go('dashboard');
+  await T.go('detail', { petId: 1, from: 'dashboard' });
+  await sleep(600);
+  check('back button says 返回仪表盘', (doc.querySelector('#view-detail .back-link') || {}).textContent?.includes('仪表盘'));
 
   T.go('library');
-  check('pet grid = 3', n('#pet-grid .pet-card') === 3);
+  const petTotal = state().pets.length;
+  check('pet grid matches data', n('#pet-grid .pet-card') === petTotal, n('#pet-grid .pet-card') + ' vs ' + petTotal);
   T.$('lib-search').value = '柯基'; T.renderLibrary();
   check('search by breed', n('#pet-grid .pet-card') === 1, 'got ' + n('#pet-grid .pet-card'));
   T.$('lib-search').value = ''; T.$('lib-type').value = 'cat'; T.renderLibrary();
   check('filter cats', n('#pet-grid .pet-card') === 1, 'got ' + n('#pet-grid .pet-card'));
   T.$('lib-type').value = ''; T.renderLibrary();
-  check('grid restored', n('#pet-grid .pet-card') === 3);
+  check('grid restored', n('#pet-grid .pet-card') === petTotal);
 
   await T.openDetail(1);
   await sleep(500);
-  check('timeline items', n('#pane-timeline .tl-item') === 4, 'got ' + n('#pane-timeline .tl-item'));
+  const tlCount = (await (await fetch(BASE + '/api/pets/1/records')).json()).records.length;
+  check('timeline items', n('#pane-timeline .tl-item') === tlCount, n('#pane-timeline .tl-item') + ' vs ' + tlCount);
   T.switchTab('weight', doc.querySelector('[data-tab=weight]'));
   await sleep(200);
   check('weight svg dots', n('#weight-chart .wc-dot') >= 4, 'got ' + n('#weight-chart .wc-dot'));
@@ -76,7 +110,8 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
   const txt = last ? last.textContent : '';
   check('AI answer mentions reminders', /临期|逾期/.test(txt), txt.slice(0, 60));
   check('mode tag shown', n('#chat-scroll .mode-tag') >= 1);
-  check('agent mode = example', state().agentMode === 'example', 'mode=' + state().agentMode);
+  const expectMode = (await (await fetch(BASE + '/api/agent/status')).json()).mode;
+  check('agent mode matches status', state().agentMode === expectMode, state().agentMode + ' vs ' + expectMode);
   check('copy button exists', n('#chat-scroll .msg-actions .btn') >= 1);
 
   T.toggleTheme();

@@ -201,6 +201,34 @@ html[data-theme="light"] .icon-sun { display: none; }
 }
 .chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); transform: translateY(-1px); }
 
+.stat-card.clickable { cursor: pointer; }
+.stat-card.clickable:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.stat-card .stat-hint { position: absolute; top: 16px; right: 16px; font-size: 11.5px; color: var(--text-2); opacity: 0; transition: opacity var(--dur); }
+.stat-card { position: relative; }
+.stat-card.clickable:hover .stat-hint { opacity: 1; }
+.compact-card { padding: 16px 18px; }
+.compact-card .card-title { margin-bottom: 8px; display: flex; align-items: center; }
+.view-all { margin-left: auto; border: none; background: none; color: var(--accent); font-size: 12.5px; font-weight: 600; padding: 2px 6px; border-radius: 6px; transition: background var(--dur); }
+.view-all:hover { background: var(--accent-soft); }
+.compact-card .reminder-item { padding: 7px 8px; }
+
+/* 全部记录 / 提醒列表 */
+.rec-row {
+  display: flex; align-items: center; gap: 11px; padding: 11px 12px;
+  border-radius: 10px; cursor: pointer; border: 1px solid transparent;
+  transition: background var(--dur), border-color var(--dur), transform var(--dur);
+}
+.rec-row:hover { background: var(--surface-2); border-color: var(--border); transform: translateX(2px); }
+.rec-row + .rec-row { margin-top: 2px; }
+.rec-date { color: var(--text-2); font-size: 12.5px; font-variant-numeric: tabular-nums; flex: none; width: 44px; }
+.rec-type { font-size: 11px; font-weight: 600; color: #fff; padding: 2px 8px; border-radius: var(--r-pill); flex: none; }
+.rec-pet { font-weight: 600; font-size: 13.5px; flex: none; }
+.rec-title { flex: 1; min-width: 0; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec-next { flex: none; font-size: 12px; }
+.month-row { display: flex; justify-content: space-between; padding: 7px 2px; font-size: 13.5px; }
+.month-row + .month-row { border-top: 1px dashed var(--border); }
+.month-row b { font-family: var(--font-title); font-weight: 600; }
+
 /* ---------- 宠物库 ---------- */
 .library-bar { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
 .search-box { position: relative; flex: 1; min-width: 180px; }
@@ -439,11 +467,12 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
     <div class="stat-row" id="stat-row"></div>
     <div class="dash-grid">
       <div class="dash-col">
-        <div class="card card-pad">
-          <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>到期提醒</div>
+        <div class="card card-pad compact-card">
+          <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>到期提醒
+            <button class="view-all" onclick="go('reminders')">查看全部 →</button></div>
           <div id="dash-reminders"></div>
         </div>
-        <div class="card card-pad">
+        <div class="card card-pad compact-card">
           <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>最近动态</div>
           <div id="dash-activity"></div>
         </div>
@@ -459,12 +488,34 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
             </button>
           </div>
         </div>
-        <div class="card card-pad">
-          <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg>我的宠物</div>
-          <div id="dash-pets-mini"></div>
+        <div class="card card-pad" id="dash-month-card" style="display:none">
+          <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>本月概览</div>
+          <div id="dash-month-body"></div>
         </div>
       </div>
     </div>
+  </section>
+
+  <!-- 全部健康记录（点击统计卡进入） -->
+  <section class="view" id="view-records">
+    <div class="page-head">
+      <button class="back-link" onclick="go('dashboard')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg> 返回仪表盘</button>
+      <div class="page-title">全部健康记录</div>
+      <div class="page-sub" id="records-sub">按时间倒序展示所有宠物的记录，点击可进入宠物详情</div>
+    </div>
+    <div id="records-list"></div>
+  </section>
+
+  <!-- 全部到期提醒（点击统计卡进入） -->
+  <section class="view" id="view-reminders">
+    <div class="page-head">
+      <button class="back-link" onclick="go('dashboard')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg> 返回仪表盘</button>
+      <div class="page-title">到期提醒</div>
+      <div class="page-sub" id="reminders-sub">逾期与 7 天内临期的事项</div>
+    </div>
+    <div class="card card-pad" id="reminders-full-list"></div>
   </section>
 
   <!-- 宠物库 -->
@@ -557,16 +608,21 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
    ============================================================ */
 let currentView = 'dashboard';
 function go(view, opts) {
+  const prev = currentView;
   currentView = view;
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   const target = $('view-' + view);
   if (target) { target.classList.remove('active'); void target.offsetWidth; target.classList.add('active'); }
+  const tabMap = { detail: 'library', records: 'dashboard', reminders: 'dashboard' };
   document.querySelectorAll('#nav-tabs .tab-btn').forEach(b =>
-    b.classList.toggle('active', b.dataset.view === (view === 'detail' ? 'library' : view)));
+    b.classList.toggle('active', b.dataset.view === (view === 'detail' ? (tabMap[view] || view) : view)));
   if (view === 'dashboard') renderDashboard();
   if (view === 'library') renderLibrary();
-  if (view === 'detail' && opts?.petId) openDetail(opts.petId);
+  if (view === 'detail' && opts?.petId) openDetail(opts.petId, opts.from || prev);
+  if (view === 'records') renderRecords();
+  if (view === 'reminders') renderRemindersView();
   if (view === 'chat') renderChat();
+  window.scrollTo({ top: 0 });
 }
 
 async function refreshData() {
@@ -581,14 +637,14 @@ async function renderDashboard() {
   await refreshData();
   const st = state.stats;
   $('stat-row').innerHTML = [
-    statCard('a', '🐾', st.pet_count, '宠物总数', '<path d=\"M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><circle cx=\"9.5\" cy=\"7\" r=\"4\"/>'),
-    statCard('g', '', st.record_count, '健康记录数', '<path d=\"M9 11l3 3L22 4\"/><path d=\"M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11\"/>'),
-    statCard('w', '', st.due_count, '临期/逾期项目', '<path d=\"M10.3 3.6L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0z\"/><path d=\"M12 9v4M12 17h.01\"/>'),
+    statCard('a', '🐾', st.pet_count, '宠物总数', '<path d=\"M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><circle cx=\"9.5\" cy=\"7\" r=\"4\"/>', 'library', '查看宠物'),
+    statCard('g', '', st.record_count, '健康记录数', '<path d=\"M9 11l3 3L22 4\"/><path d=\"M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11\"/>', 'records', '查看全部'),
+    statCard('w', '', st.due_count, '临期/逾期项目', '<path d=\"M10.3 3.6L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0z\"/><path d=\"M12 9v4M12 17h.01\"/>', 'reminders', '处理提醒'),
   ].join('');
   animateCount($('stat-row'));
 
   const rem = state.reminders;
-  $('dash-reminders').innerHTML = rem.length ? rem.map(r => `
+  $('dash-reminders').innerHTML = rem.length ? rem.slice(0, 4).map(r => `
     <div class="reminder-item" onclick="go('detail',{petId:${r.pet_id}})">
       <span class="rem-dot ${r.overdue ? 'danger' : 'warn'}"></span>
       <div class="rem-main">
@@ -611,17 +667,65 @@ async function renderDashboard() {
   const chips = ['可乐接下来要打什么疫苗？', '最近有哪些到期事项？', '生成布丁的健康报告'];
   $('suggest-chips').innerHTML = chips.map(c => `<button class="chip" onclick="askFromSuggest('${esc(c)}')">${esc(c)}</button>`).join('');
 
-  $('dash-pets-mini').innerHTML = state.pets.length ? state.pets.map(p => `
-    <div class="reminder-item" onclick="go('detail',{petId:${p.id}})">
-      <span style="font-size:22px">${esc(p.avatar || TYPE_EMOJI[p.type] || '🐾')}</span>
-      <div class="rem-main">
-        <div class="rem-title">${esc(p.name)} <span class="badge ${p.status}" style="margin-left:4px">${STATUS_LABEL[p.status] || p.status}</span></div>
-        <div class="rem-meta">${esc(p.breed || '')} · ${p.age}</div>
-      </div>
-    </div>`).join('') : '<div class="empty-hint">还没有宠物档案，点击右上角新增</div>';
+  // 本月概览（由已有数据计算，无额外请求）
+  const ym = new Date().toISOString().slice(0, 7);
+  const monthRecs = state.recent.filter(a => (a.date || '').startsWith(ym));
+  const overdue = rem.filter(r => r.overdue).length;
+  const soon = rem.length - overdue;
+  $('dash-month-card').style.display = 'block';
+  $('dash-month-body').innerHTML = `
+    <div class="month-row"><span style="color:var(--text-2)">本月新记录</span><b>${monthRecs.length} 条</b></div>
+    <div class="month-row"><span style="color:var(--text-2)">逾期未处理</span><b style="color:${overdue ? 'var(--danger)' : 'var(--success)'}">${overdue ? overdue + ' 项' : '无'}</b></div>
+    <div class="month-row"><span style="color:var(--text-2)">7 日内临期</span><b style="color:${soon ? 'var(--warn)' : 'var(--success)'}">${soon ? soon + ' 项' : '无'}</b></div>`;
 }
-function statCard(cls, emoji, num, label, svg) {
-  return `<div class="card stat-card">
+
+/* ---------- 全部健康记录页 ---------- */
+async function renderRecords() {
+  const { records } = await api('/api/records');
+  $('records-sub').textContent = `共 ${records.length} 条 · 按时间倒序 · 点击行进入宠物详情`;
+  if (!records.length) {
+    $('records-list').innerHTML = '<div class="card card-pad empty-hint">暂无健康记录</div>';
+    return;
+  }
+  $('records-list').innerHTML = `<div class="card card-pad">` + records.map(r => {
+    let nextChip = '';
+    if (r.next_date) {
+      const cls = r.days_left < 0 ? 'ill' : r.days_left <= 7 ? 'attention' : 'plain';
+      const txt = r.days_left < 0 ? `逾期${-r.days_left}天` : `剩${r.days_left}天`;
+      nextChip = `<span class="badge ${cls} rec-next">⏰ ${r.next_date} · ${txt}</span>`;
+    }
+    return `<div class="rec-row" onclick="go('detail',{petId:${r.pet_id}})">
+      <span class="rec-date">${esc((r.date || '').slice(5))}</span>
+      <span class="rec-type" style="background:${TYPE_COLOR[r.type] || 'var(--accent)'}">${r.type_label}</span>
+      <span class="rec-pet">${esc(r.pet_avatar || TYPE_EMOJI[r.pet_type] || '🐾')} ${esc(r.pet_name)}</span>
+      <span class="rec-title">${esc(r.title)}</span>
+      ${nextChip}
+    </div>`;
+  }).join('') + `</div>`;
+}
+
+/* ---------- 全部到期提醒页 ---------- */
+function renderRemindersView() {
+  const rem = state.reminders;
+  const overdue = rem.filter(r => r.overdue).length;
+  $('reminders-sub').textContent = rem.length
+    ? `${overdue} 项逾期 · ${rem.length - overdue} 项临期（7 天内）· 点击行进入宠物详情`
+    : '全部事项均在计划内';
+  $('reminders-full-list').innerHTML = rem.length ? rem.map(r => `
+    <div class="reminder-item" onclick="go('detail',{petId:${r.pet_id}})">
+      <span class="rem-dot ${r.overdue ? 'danger' : 'warn'}"></span>
+      <div class="rem-main">
+        <div class="rem-title">${esc(r.pet_name)} · ${esc(r.title)}</div>
+        <div class="rem-meta">${r.type_label} · 下次日期 ${r.next_date}</div>
+      </div>
+      <span class="rem-days ${r.overdue ? 'danger' : 'warn'}">${r.overdue ? '逾期 ' + (-r.days_left) + ' 天' : '剩 ' + r.days_left + ' 天'}</span>
+    </div>`).join('')
+    : '<div class="empty-hint">🎉 没有临期或逾期项目，一切都在计划中</div>';
+}
+function statCard(cls, emoji, num, label, svg, route, hint) {
+  return `<div class="card stat-card clickable" role="button" tabindex="0" onclick="go('${route}')"
+      onkeydown="if(event.key==='Enter')go('${route}')">
+    <span class="stat-hint">${hint} →</span>
     <span class="stat-ico ${cls}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${svg}</svg></span>
     <div class="stat-num" data-num="${num}">0</div><div class="stat-label">${label}</div></div>`;
 }
@@ -671,9 +775,11 @@ function renderLibrary() {
 /* ============================================================
    宠物详情
    ============================================================ */
-async function openDetail(petId) {
+const BACK_MAP = { dashboard: '返回仪表盘', library: '返回宠物库', records: '返回健康记录', reminders: '返回到期提醒' };
+async function openDetail(petId, from) {
   state.detailPetId = petId;
   state.detailTab = 'timeline';
+  state.detailFrom = ['dashboard', 'library', 'records', 'reminders'].includes(from) ? from : 'library';
   let pet, records, weights;
   try {
     const [a, b, c] = await Promise.all([
@@ -684,8 +790,8 @@ async function openDetail(petId) {
   const p = pet;
   const worst = (p.upcoming || []).reduce((m, r) => Math.min(m, r.days_left), 999);
   $('view-detail').innerHTML = `
-    <button class="back-link" onclick="go('library')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg> 返回宠物库</button>
+    <button class="back-link" onclick="go('${state.detailFrom}')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg> ${BACK_MAP[state.detailFrom]}</button>
     <div class="card detail-head">
       <div class="pet-avatar detail-avatar">${esc(p.avatar || TYPE_EMOJI[p.type] || '🐾')}</div>
       <div class="detail-info">
@@ -855,7 +961,8 @@ async function confirmDeletePet(id, btn) {
   btn.classList.add('shake');
   try {
     await api(`/api/pets/${id}`, { method: 'DELETE' });
-    closeModal(); await refreshData(); go('library');
+    closeModal(); await refreshData();
+    go(state.detailFrom === 'detail' || !state.detailFrom ? 'library' : state.detailFrom);
     toast('宠物已删除');
   } catch (e) { toast(e.message, true); }
 }

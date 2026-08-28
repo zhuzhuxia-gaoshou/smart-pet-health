@@ -365,7 +365,28 @@ def stats() -> dict:
     }
 
 
-def recent_activity(limit: int = 8) -> list[dict]:
+def list_all_records(limit: int | None = None) -> list[dict]:
+    """全部健康记录（带宠物名/头像），按日期倒序 — 供"健康记录"页使用。"""
+    sql = ("SELECT r.*, p.name AS pet_name, p.avatar AS pet_avatar, p.type AS pet_type"
+           " FROM health_records r JOIN pets p ON p.id = r.pet_id"
+           " ORDER BY r.date DESC, r.id DESC")
+    conn = get_conn()
+    try:
+        rows = conn.execute(sql + (" LIMIT ?" if limit else ""),
+                            ((limit,) if limit else ())).fetchall()
+    finally:
+        conn.close()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["type_label"] = RECORD_TYPES.get(d["type"], d["type"])
+        if d.get("next_date"):
+            d["days_left"] = days_until(d["next_date"])
+        out.append(d)
+    return out
+
+
+def recent_activity(limit: int = 5) -> list[dict]:
     """最近动态：健康记录（带宠物名）按日期倒序。"""
     conn = get_conn()
     try:

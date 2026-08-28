@@ -130,6 +130,11 @@ def api_reminders():
     return {"reminders": db.compute_reminders()}
 
 
+@app.get("/api/records")
+def api_all_records(limit: int | None = None):
+    return {"records": db.list_all_records(limit)}
+
+
 @app.get("/api/stats")
 def api_stats():
     return {"stats": db.stats(), "reminders": db.compute_reminders(),
