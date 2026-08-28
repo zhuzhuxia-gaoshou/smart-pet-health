@@ -196,36 +196,36 @@ h1 em{font-family:'Fraunces',var(--serif);font-style:italic;font-weight:500;
 /* ============ 点击「开始使用」的全屏过渡页 ============ */
 .gate{position:fixed;inset:0;z-index:50;display:grid;place-items:center;
   background:radial-gradient(1100px 700px at 50% 38%, #faf6ee, var(--bg));
-  opacity:0;visibility:hidden;transition:opacity .5s ease,visibility .5s ease}
+  opacity:0;visibility:hidden;transition:opacity .35s ease,visibility .35s ease}
 .gate.show{opacity:1;visibility:visible}
 [data-theme="dark"] .gate{background:radial-gradient(1100px 700px at 50% 38%, #26241f, var(--bg))}
 .gate-inner{text-align:center;padding:0 24px}
 .gate-paw{width:50px;height:50px;color:var(--accent);margin:0 auto 24px;display:block;
   opacity:0;transform:scale(.5)}
-.gate.show .gate-paw{animation:gatePop .6s cubic-bezier(.2,.9,.3,1.25) .25s forwards}
+.gate.show .gate-paw{animation:gatePop .45s cubic-bezier(.2,.9,.3,1.25) .15s forwards}
 @keyframes gatePop{to{opacity:1;transform:scale(1)}}
 .gate-title{font-family:var(--serif);font-weight:600;color:var(--text);
   font-size:clamp(2rem,5.4vw,3.3rem);line-height:1.28;letter-spacing:.02em}
 .gate-title span{display:inline-block;opacity:0;transform:translateY(.5em)}
 .gate.show .gate-title span{animation:rise .55s ease forwards}
 .gate-title .g-em{color:var(--accent-text)}
-.gate.show .gate-title span:nth-child(1){animation-delay:.45s}
-.gate.show .gate-title span:nth-child(2){animation-delay:.53s}
-.gate.show .gate-title span:nth-child(3){animation-delay:.61s}
-.gate.show .gate-title span:nth-child(4){animation-delay:.69s}
-.gate.show .gate-title span:nth-child(5){animation-delay:.77s}
-.gate.show .gate-title span:nth-child(6){animation-delay:.85s}
-.gate.show .gate-title span:nth-child(7){animation-delay:.93s}
-.gate.show .gate-title span:nth-child(8){animation-delay:1.01s}
-.gate.show .gate-title span:nth-child(9){animation-delay:1.09s}
+.gate.show .gate-title span:nth-child(1){animation-delay:.30s}
+.gate.show .gate-title span:nth-child(2){animation-delay:.35s}
+.gate.show .gate-title span:nth-child(3){animation-delay:.40s}
+.gate.show .gate-title span:nth-child(4){animation-delay:.45s}
+.gate.show .gate-title span:nth-child(5){animation-delay:.50s}
+.gate.show .gate-title span:nth-child(6){animation-delay:.55s}
+.gate.show .gate-title span:nth-child(7){animation-delay:.60s}
+.gate.show .gate-title span:nth-child(8){animation-delay:.65s}
+.gate.show .gate-title span:nth-child(9){animation-delay:.70s}
 .gate-sub{font-family:'Fraunces',var(--serif);font-style:italic;font-weight:400;
   color:var(--text-3);font-size:1.05rem;margin-top:18px;opacity:0}
-.gate.show .gate-sub{animation:rise .6s ease 1.45s forwards}
+.gate.show .gate-sub{animation:rise .45s ease .95s forwards}
 .gate-bar{width:190px;height:2px;border-radius:2px;margin:30px auto 0;
   background:var(--border-2);overflow:hidden;opacity:0}
-.gate.show .gate-bar{animation:gateFade .4s ease 1.7s forwards}
+.gate.show .gate-bar{animation:gateFade .3s ease 1.15s forwards}
 .gate-bar i{display:block;height:100%;width:0;background:var(--accent);border-radius:2px}
-.gate.show .gate-bar i{animation:gateLoad 1.4s ease 1.75s forwards}
+.gate.show .gate-bar i{animation:gateLoad .75s ease 1.2s forwards}
 @keyframes gateFade{to{opacity:1}}
 @keyframes gateLoad{to{width:100%}}
 
@@ -509,7 +509,7 @@ document.getElementById('startBtn').addEventListener('click', e => {
       toast('过渡页演示完成 · 填好 APP_URL 后将自动跳转到应用');
       gating = false;
     }
-  }, 3400);
+  }, 2100);
 });
 </script>
 </body>
