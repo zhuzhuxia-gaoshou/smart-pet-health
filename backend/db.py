@@ -49,7 +49,27 @@ CREATE TABLE IF NOT EXISTS weight_logs(
   pet_id INTEGER, date TEXT, weight REAL,
   FOREIGN KEY(pet_id) REFERENCES pets(id) ON DELETE CASCADE
 );
+CREATE TABLE IF NOT EXISTS memories(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  pet_id INTEGER,
+  date TEXT NOT NULL, title TEXT NOT NULL,
+  text TEXT DEFAULT '', image TEXT DEFAULT '',
+  created_at TEXT DEFAULT (datetime('now','localtime')),
+  FOREIGN KEY(pet_id) REFERENCES pets(id) ON DELETE SET NULL
+);
 """
+
+
+def _placeholder_image(emoji: str, c1: str, c2: str) -> str:
+    """生成纯色渐变 SVG 占位图（data URI），供示例回忆缩略图使用。"""
+    import base64
+    svg = (f"<svg xmlns='http://www.w3.org/2000/svg' width='640' height='420'>"
+           f"<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>"
+           f"<stop offset='0' stop-color='{c1}'/><stop offset='1' stop-color='{c2}'/>"
+           f"</linearGradient></defs>"
+           f"<rect width='640' height='420' fill='url(#g)'/>"
+           f"<text x='320' y='250' font-size='120' text-anchor='middle'>{emoji}</text></svg>")
+    return "data:image/svg+xml;base64," + base64.b64encode(svg.encode("utf-8")).decode("ascii")
 
 
 def init_db() -> None:
@@ -404,9 +424,135 @@ def recent_activity(limit: int = 5) -> list[dict]:
         conn.close()
 
 
+MEMORY_FIELDS = ("pet_id", "date", "title", "text", "image")
+
+
+def _mem_row_to_dict(row, name_map: dict[int, dict]) -> dict:
+    d = dict(row)
+    pet = name_map.get(d.get("pet_id"))
+    d["pet_name"] = pet["name"] if pet else None
+    d["pet_avatar"] = (pet.get("avatar") if pet else None) or (
+        {"cat": "🐱", "dog": "🐶", "bird": "🦜"}.get(pet.get("type") if pet else None, "🐾") if pet else None)
+    return d
+
+
+def list_memories(pet_id: int | None = None) -> list[dict]:
+    conn = get_conn()
+    try:
+        name_map = {r["id"]: dict(r) for r in conn.execute("SELECT id,name,type,avatar FROM pets")}
+        sql = ("SELECT * FROM memories" + (" WHERE pet_id=?" if pet_id else "")
+               + " ORDER BY date DESC, id DESC")
+        rows = conn.execute(sql, ((pet_id,) if pet_id else ())).fetchall()
+        return [_mem_row_to_dict(r, name_map) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_memory(mem_id: int) -> dict | None:
+    conn = get_conn()
+    try:
+        row = conn.execute("SELECT * FROM memories WHERE id=?", (mem_id,)).fetchone()
+        if not row:
+            return None
+        name_map = {r["id"]: dict(r) for r in conn.execute("SELECT id,name,type,avatar FROM pets")}
+        return _mem_row_to_dict(row, name_map)
+    finally:
+        conn.close()
+
+
+def add_memory(data: dict) -> dict | None:
+    pid = data.get("pet_id")
+    if pid and get_pet(pid) is None:
+        return None
+    conn = get_conn()
+    try:
+        cur = conn.execute(
+            "INSERT INTO memories(pet_id,date,title,text,image) VALUES(?,?,?,?,?)",
+            (pid, data.get("date"), data.get("title"),
+             data.get("text") or "", data.get("image") or ""))
+        conn.commit()
+        return get_memory(cur.lastrowid)
+    finally:
+        conn.close()
+
+
+def update_memory(mem_id: int, data: dict) -> dict | None:
+    conn = get_conn()
+    try:
+        row = conn.execute("SELECT id FROM memories WHERE id=?", (mem_id,)).fetchone()
+        if not row:
+            return None
+    finally:
+        conn.close()
+    if data.get("pet_id") and get_pet(data["pet_id"]) is None:
+        return None
+    conn = get_conn()
+    try:
+        fields = {k: v for k, v in data.items() if k in MEMORY_FIELDS and v is not None}
+        if fields:
+            conn.execute("UPDATE memories SET " + ",".join(f"{k}=?" for k in fields) + " WHERE id=?",
+                         list(fields.values()) + [mem_id])
+            conn.commit()
+        return get_memory(mem_id)
+    finally:
+        conn.close()
+
+
+def delete_memory(mem_id: int) -> bool:
+    conn = get_conn()
+    try:
+        cur = conn.execute("DELETE FROM memories WHERE id=?", (mem_id,))
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def days_together(pet: dict) -> int | None:
+    """陪伴天数：优先按生日（接回家日期），否则按建档日期。"""
+    base = pet.get("birthday") or (pet.get("created_at") or "")[:10]
+    if not base:
+        return None
+    try:
+        return -days_until(base)
+    except ValueError:
+        return None
+
+
+def seed_memories() -> None:
+    """回忆集首次运行时注入示例回忆（仅当 memories 表为空；按名字匹配现有宠物，匹配不到则跳过）。"""
+    conn = get_conn()
+    try:
+        if conn.execute("SELECT COUNT(*) FROM memories").fetchone()[0] > 0:
+            return
+        pet_of = {r["name"]: r["id"] for r in conn.execute("SELECT id, name FROM pets")}
+        samples = [
+            # (宠物名, 相对天数偏移, 标题, 文字, 占位图emoji/配色)
+            ("可乐", -1080, "回家第一天", "纸箱里缩着一小团，半夜偷偷爬上了我的床，从此床上再没有我的位置。", ("🐶", "#E9D5B8", "#C2703D")),
+            ("可乐", -520, "第一次郊游", "带到河边它死活不下水，回家路上倒是把鞋叼走了。", ("🌊", "#BFD8C8", "#3E7C4F")),
+            ("可乐", -95, "学会了新把戏", "转圈换零食，如今一转就是三圈，刹不住车。", ("🎾", "#E9D5B8", "#B7811B")),
+            ("布丁", -700, "到家第一夜", "躲在沙发底下发出低沉的飞机耳警告，第三天自己走了出来。", ("🐱", "#C9CFE0", "#6B6358")),
+            ("布丁", -430, "第一次打疫苗", "进诊室前威风凛凛，针还没扎先嚎出了声，护士都笑了。", ("💉", "#BFD8C8", "#3E7C4F")),
+            ("布丁", -110, "发现体重超标，开始减肥", "医生推了减肥粮，如今每天监督它少舔两口罐头。", ("⚖️", "#E9C9C2", "#B94A3F")),
+            ("翠翠", -400, "学会第一句口哨", "清晨对着鸟笼吹了三遍，它居然回了一段走调的。", ("🦜", "#D8E3C9", "#8BA870")),
+            ("翠翠", -60, "站在肩头散步", "在小区走了一圈，回头率百分百，邻居都喊它'翠老板'。", ("🌳", "#E9D5B8", "#C2703D")),
+        ]
+        for name, off, title, text, (emoji, c1, c2) in samples:
+            pid = pet_of.get(name)
+            if pid is None:
+                continue
+            conn.execute(
+                "INSERT INTO memories(pet_id,date,title,text,image) VALUES(?,?,?,?,?)",
+                (pid, _d(off), title, text, _placeholder_image(emoji, c1, c2)))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def init_and_seed() -> None:
     init_db()
     seed()
+    seed_memories()
 
 
 if __name__ == "__main__":

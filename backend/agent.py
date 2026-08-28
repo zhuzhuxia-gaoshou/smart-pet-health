@@ -61,7 +61,8 @@ TOOLS_BRIEF = """可用工具：
 - query_health_records(宠物名): 查其健康记录（疫苗/体检/驱虫/喂药/就诊），按时间倒序
 - get_reminders(): 查所有临期（7天内）或已逾期事项，无需参数
 - analyze_health(宠物名): 综合记录与体重做健康分析
-- generate_report(宠物名, 周期): 生成 Markdown 健康报告；名字留空表示全部宠物，周期取 周/月/年"""
+- generate_report(宠物名, 周期): 生成 Markdown 健康报告；名字留空表示全部宠物，周期取 周/月/年
+- query_memories(宠物名): 查询主人为宠物手动写下的回忆故事（第一次郊游、纪念时刻等成长记录）；名字留空返回全部宠物的最新回忆"""
 
 SYSTEM_PROMPT = """你是「智能宠物健康管家」的 AI 助手，一个专业的宠物健康管理 Agent。
 你通过工具查询 SQLite 数据库中的真实宠物档案与健康记录，请遵循：
@@ -114,6 +115,9 @@ def _build_tools():
         name: str = Field(default="", description="宠物名字；留空表示生成全部宠物的报告")
         period: str = Field(default="月", description="统计周期：周 / 月 / 年")
 
+    class MemNameIn(BaseModel):
+        name: str = Field(default="", description="宠物名字；留空表示查看全部宠物的回忆")
+
     return [
         StructuredTool.from_function(tools.query_pet, name="query_pet",
                                      description=tools.query_pet.__doc__.strip(),
@@ -134,6 +138,11 @@ def _build_tools():
             name="generate_report",
             description=tools.generate_report.__doc__.strip(),
             args_schema=ReportIn),
+        StructuredTool.from_function(
+            lambda name="": tools.query_memories(name),
+            name="query_memories",
+            description=tools.query_memories.__doc__.strip(),
+            args_schema=MemNameIn),
     ]
 
 
@@ -193,10 +202,14 @@ def _example_answer(message: str) -> str:
     msg = message.strip()
     pet = _find_pet_name(msg)
     report_kw = any(k in msg for k in ("报告", "周报", "月报", "报表"))
+    memory_kw = any(k in msg for k in ("回忆", "故事", "第一次", "纪念", "成长", "照片"))
     remind_kw = any(k in msg for k in ("提醒", "到期", "临期", "逾期", "该做", "什么时候"))
     analyze_kw = any(k in msg for k in ("分析", "怎么样", "健康吗", "体重", "状态如何", "评估"))
     record_kw = any(k in msg for k in ("疫苗", "驱虫", "体检", "喂药", "就诊", "记录", "打过", "接种"))
 
+    if memory_kw and not report_kw:
+        return (tools.query_memories(pet or "")
+                + "\n\n> 当前为示例回答模式（未配置 API Key）。")
     if report_kw:
         return (tools.generate_report(pet or "", "月")
                 + "\n\n> 当前为示例回答模式（未配置 API Key），报告由数据库真实数据自动生成。")

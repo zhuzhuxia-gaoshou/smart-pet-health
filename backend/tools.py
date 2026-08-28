@@ -72,6 +72,36 @@ def get_reminders(_input: str = "") -> str:
     return "\n".join(lines)
 
 
+def query_memories(name: str = "") -> str:
+    """查询宠物手动记录的回忆故事（成长记录/纪念时刻）。名字留空时返回全部宠物的最新回忆。"""
+    import db
+    name = (name or "").strip()
+    if name:
+        pet = db.fetch_pet_by_name(name)
+        if not pet:
+            return _pet_missing_text(name)
+        mems = db.list_memories(pet["id"])
+        if not mems:
+            return f"「{pet['name']}」还没有记录任何回忆，可以在「回忆集」页面添加第一条。"
+        days = db.days_together(pet)
+        lines = [f"「{pet['name']}」共 {len(mems)} 条回忆"
+                 + (f"，不知不觉已经陪伴了 {days} 天：" if days else "：")]
+        for m in mems:
+            line = f"- {m['date']}《{m['title']}》"
+            if m.get("text"):
+                line += f"：{m['text']}"
+            lines.append(line)
+        return "\n".join(lines)
+    mems = db.list_memories()[:10]
+    if not mems:
+        return "还没有任何回忆记录，可以在「回忆集」页面为宠物写下第一个故事。"
+    lines = [f"最近的 {len(mems)} 条回忆（按时间倒序）："]
+    for m in mems:
+        who = m["pet_name"] or "未指定宠物"
+        lines.append(f"- {m['date']}【{who}】《{m['title']}》" + (f"：{m['text']}" if m.get("text") else ""))
+    return "\n".join(lines)
+
+
 def analyze_health(name: str) -> str:
     """结合健康记录与体重历史，对某只宠物做简要健康分析。"""
     pet = db.fetch_pet_by_name(name)
@@ -218,4 +248,5 @@ TOOL_META = [
     ("get_reminders", "查询所有临期（7天内）或已逾期的健康事项，无需参数"),
     ("analyze_health", "按宠物名字做健康分析：记录概况、提醒、体重变化与结论"),
     ("generate_report", "生成健康报告（Markdown）。参数：宠物名（可为空表示全部）、周期（周/月/年）"),
+    ("query_memories", "查询宠物回忆故事/成长记录。参数：宠物名（可为空表示全部）"),
 ]

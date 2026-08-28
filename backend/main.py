@@ -60,6 +60,14 @@ class ChatIn(BaseModel):
     message: str = Field(..., min_length=1, max_length=500)
 
 
+class MemoryIn(BaseModel):
+    date: str = Field(..., min_length=8, max_length=10)
+    title: str = Field(..., min_length=1, max_length=60)
+    pet_id: int | None = None
+    text: str | None = Field(None, max_length=2000)
+    image: str | None = None   # base64 data URI（前端已压缩）
+
+
 # ---------------------------------------------------------------- 宠物 CRUD
 
 @app.get("/api/pets")
@@ -139,6 +147,36 @@ def api_all_records(limit: int | None = None):
 def api_stats():
     return {"stats": db.stats(), "reminders": db.compute_reminders(),
             "recent": db.recent_activity()}
+
+
+# ---------------------------------------------------------------- 回忆集
+
+@app.get("/api/memories")
+def api_list_memories(pet_id: int | None = None):
+    return {"memories": db.list_memories(pet_id)}
+
+
+@app.post("/api/memories")
+def api_add_memory(mem: MemoryIn):
+    result = db.add_memory(mem.model_dump(exclude_none=True))
+    if result is None:
+        return {"error": "宠物不存在"}
+    return {"memory": result}
+
+
+@app.put("/api/memories/{mem_id}")
+def api_update_memory(mem_id: int, mem: MemoryIn):
+    result = db.update_memory(mem_id, mem.model_dump(exclude_none=True))
+    if result is None:
+        return {"error": "回忆不存在或宠物不存在"}
+    return {"memory": result}
+
+
+@app.delete("/api/memories/{mem_id}")
+def api_delete_memory(mem_id: int):
+    if not db.delete_memory(mem_id):
+        return {"error": "回忆不存在"}
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------- AI 对话（P2 接入 Agent）

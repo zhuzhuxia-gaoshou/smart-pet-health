@@ -397,6 +397,50 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
 
 .saved-flash { background: var(--success) !important; border-color: var(--success) !important; color: #fff !important; }
 
+/* ---------- 回忆集 ---------- */
+.mem-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.mem-tools { display: flex; gap: 10px; align-items: center; }
+.mem-pet-chips { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 22px; }
+.mem-pet-chip {
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  padding: 6px 14px 6px 7px; border-radius: var(--r-pill); font-size: 13.5px; font-weight: 500;
+  transition: all var(--dur) ease-out;
+}
+.mem-pet-chip .mc-av { width: 26px; height: 26px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--border); display: grid; place-items: center; font-size: 15px; }
+.mem-pet-chip:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); box-shadow: var(--shadow-card); }
+.mem-pet-chip .mc-count { font-size: 11.5px; color: var(--text-2); }
+
+.mem-tl { position: relative; padding-left: 26px; }
+.mem-tl::before { content: ''; position: absolute; left: 6px; top: 6px; bottom: 6px; width: 1px; background: var(--border); }
+.mem-item { position: relative; margin-bottom: 20px; animation: fade-up .2s ease-out; }
+.mem-item::before { content: ''; position: absolute; left: -26px; top: 24px; width: 13px; height: 13px; border-radius: 50%; background: var(--surface); border: 2.5px solid var(--accent); }
+.mem-year { font-family: var(--font-title); font-size: 15px; font-weight: 600; color: var(--text-2); letter-spacing: .5px; margin: 26px 0 12px; }
+.mem-year:first-child { margin-top: 0; }
+.mem-card {
+  display: flex; gap: 16px; padding: 16px; cursor: pointer;
+  transition: transform var(--dur) ease-out, box-shadow var(--dur) ease-out, border-color var(--dur);
+}
+.mem-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-deep); border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); }
+.mem-thumb { width: 104px; height: 84px; border-radius: 10px; object-fit: cover; flex: none; border: 1px solid var(--border); background: var(--surface-2); }
+.mem-body { flex: 1; min-width: 0; }
+.mem-date { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; letter-spacing: .3px; }
+.mem-title { font-family: var(--font-title); font-size: 17px; font-weight: 600; margin: 2px 0 4px; letter-spacing: -.2px; }
+.mem-text { font-size: 13.5px; color: var(--text-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.mem-petbadge { margin-top: 8px; }
+.modal.wide { max-width: 640px; }
+.lb-img { width: 100%; border-radius: 12px; border: 1px solid var(--border); margin: 4px 0 14px; max-height: 52vh; object-fit: contain; background: var(--surface-2); }
+.lb-title { font-family: var(--font-title); font-size: 21px; font-weight: 600; }
+.lb-date { color: var(--text-2); font-size: 13px; margin: 2px 0 10px; }
+.lb-text { font-size: 14.5px; line-height: 1.75; white-space: pre-wrap; }
+.lb-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+.img-preview-wrap { position: relative; display: none; }
+.img-preview-wrap.show { display: block; }
+.img-preview { width: 100%; max-height: 160px; object-fit: contain; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); }
+.img-remove { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border-radius: 50%; border: none; background: rgba(0,0,0,.55); color: #fff; font-size: 14px; line-height: 1; display: grid; place-items: center; }
+.wall-head { display: flex; align-items: center; gap: 18px; padding: 24px 26px; margin-bottom: 24px; }
+.wall-sum { font-size: 14px; color: var(--text-2); margin-top: 5px; }
+
 /* ---------- 无障碍：系统减弱动效 ---------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
@@ -438,6 +482,7 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
   <nav class="tabs" id="nav-tabs">
     <button class="tab-btn active" data-view="dashboard" onclick="go('dashboard')">仪表盘</button>
     <button class="tab-btn" data-view="library" onclick="go('library')">宠物</button>
+    <button class="tab-btn" data-view="memories" onclick="go('memories')">回忆集</button>
     <button class="tab-btn" data-view="chat" onclick="go('chat')">AI 助手</button>
   </nav>
   <div class="topbar-right">
@@ -545,6 +590,30 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
   <!-- 宠物详情 -->
   <section class="view" id="view-detail"></section>
 
+  <!-- 回忆集 · 屏1 全局时间轴 -->
+  <section class="view" id="view-memories">
+    <div class="page-head mem-head">
+      <div>
+        <div class="page-title">回忆集</div>
+        <div class="page-sub">那些值得反复想起的瞬间 · 按时间倒序</div>
+      </div>
+      <div class="mem-tools">
+        <select class="filter" id="mem-filter" onchange="renderMemTimeline()">
+          <option value="">全部宠物</option>
+        </select>
+        <button class="btn primary" onclick="openMemoryModal()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          新增回忆
+        </button>
+      </div>
+    </div>
+    <div class="mem-pet-chips" id="mem-pet-chips"></div>
+    <div id="mem-timeline"></div>
+  </section>
+
+  <!-- 回忆集 · 屏2 单宠回忆墙 -->
+  <section class="view" id="view-memwall"></section>
+
   <!-- AI 助手 -->
   <section class="view" id="view-chat">
     <div class="page-head">
@@ -583,6 +652,7 @@ const state = {
   pets: [], reminders: [], stats: null, recent: [],
   detailPetId: null, detailTab: 'timeline',
   chat: [], agentMode: null, weightsCache: {},
+  memories: [], memWallPetId: null, memImg: '',
 };
 const TYPE_LABEL = { vaccine:'疫苗', checkup:'体检', deworm:'驱虫', medication:'喂药', clinic:'就诊' };
 const TYPE_COLOR = { vaccine:'var(--success)', checkup:'var(--accent)', deworm:'var(--warn)', medication:'#8B6FC0', clinic:'var(--danger)' };
@@ -608,9 +678,9 @@ function go(view, opts) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   const target = $('view-' + view);
   if (target) { target.classList.remove('active'); void target.offsetWidth; target.classList.add('active'); }
-  const tabMap = { detail: 'library', records: 'dashboard', reminders: 'dashboard' };
+  const activeTab = { detail: 'library', records: 'dashboard', reminders: 'dashboard', memwall: 'memories' }[view] || view;
   document.querySelectorAll('#nav-tabs .tab-btn').forEach(b =>
-    b.classList.toggle('active', b.dataset.view === (view === 'detail' ? (tabMap[view] || view) : view)));
+    b.classList.toggle('active', b.dataset.view === activeTab));
   if (view === 'dashboard') renderDashboard();
   if (view === 'library') {
     $('lib-back').style.display = (opts && opts.back) ? '' : 'none';
@@ -619,6 +689,8 @@ function go(view, opts) {
   if (view === 'detail' && opts?.petId) openDetail(opts.petId, opts.from || prev);
   if (view === 'records') renderRecords();
   if (view === 'reminders') renderRemindersView();
+  if (view === 'memories') renderMemories();
+  if (view === 'memwall' && opts?.petId) renderMemWall(opts.petId);
   if (view === 'chat') renderChat();
   window.scrollTo({ top: 0 });
 }
@@ -763,11 +835,11 @@ function renderLibrary() {
 /* ============================================================
    宠物详情
    ============================================================ */
-const BACK_MAP = { dashboard: '返回仪表盘', library: '返回宠物库', records: '返回健康记录', reminders: '返回到期提醒' };
+const BACK_MAP = { dashboard: '返回仪表盘', library: '返回宠物库', records: '返回健康记录', reminders: '返回到期提醒', memwall: '返回回忆墙', memories: '返回回忆集' };
 async function openDetail(petId, from) {
   state.detailPetId = petId;
   state.detailTab = 'timeline';
-  state.detailFrom = ['dashboard', 'library', 'records', 'reminders'].includes(from) ? from : 'library';
+  state.detailFrom = ['dashboard', 'library', 'records', 'reminders', 'memwall', 'memories'].includes(from) ? from : 'library';
   let pet, records, weights;
   try {
     const [a, b, c] = await Promise.all([
@@ -891,7 +963,11 @@ function drawWeightChart() {
 /* ============================================================
    弹窗：新增/编辑宠物
    ============================================================ */
-function openModal(html) { $('modal-box').innerHTML = html; $('modal-overlay').classList.add('open'); }
+function openModal(html, wide) {
+  $('modal-box').innerHTML = html;
+  $('modal-box').classList.toggle('wide', !!wide);
+  $('modal-overlay').classList.add('open');
+}
 function closeModal() { $('modal-overlay').classList.remove('open'); }
 
 function openPetModal(id) {
@@ -995,6 +1071,201 @@ async function deleteRecord(rid, btn) {
   } catch (e) { toast(e.message, true); btn.classList.remove('shake'); }
 }
 function flashSaved(btn) { btn.classList.add('saved-flash'); btn.innerHTML = '✓ 已保存'; btn.disabled = true; }
+
+/* ============================================================
+   回忆集
+   ============================================================ */
+async function renderMemories() {
+  const { memories } = await api('/api/memories');
+  state.memories = memories;
+  // 筛选下拉（含"未指定"虚拟项）
+  const sel = $('mem-filter');
+  const cur = sel.value;
+  const hasGlobal = memories.some(m => !m.pet_id);
+  sel.innerHTML = '<option value="">全部宠物</option>' +
+    state.pets.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('') +
+    (hasGlobal ? '<option value="none">未指定宠物</option>' : '');
+  sel.value = [...sel.options].some(o => o.value === cur) ? cur : '';
+  // 宠物头像 chip 条 → 点击进入单宠回忆墙
+  $('mem-pet-chips').innerHTML = state.pets.map(p => {
+    const cnt = memories.filter(m => m.pet_id === p.id).length;
+    return `<button class="mem-pet-chip" onclick="go('memwall',{petId:${p.id}})">
+      <span class="mc-av">${esc(p.avatar || TYPE_EMOJI[p.type] || '🐾')}</span>
+      ${esc(p.name)} <span class="mc-count">${cnt} 条</span></button>`;
+  }).join('');
+  renderMemTimeline();
+}
+function renderMemTimeline() {
+  const f = $('mem-filter').value;
+  const list = state.memories.filter(m =>
+    f === '' ? true : f === 'none' ? !m.pet_id : m.pet_id === +f);
+  $('mem-timeline').innerHTML = memTimelineHTML(list, true);
+}
+function memTimelineHTML(list, showPet) {
+  if (!list.length) return `
+    <div class="card empty-state">
+      <div class="big">📖</div>
+      <h3>还没有回忆</h3>
+      <p style="margin-bottom:18px">写下第一个故事吧——那些瞬间值得被记住</p>
+      <button class="btn primary" onclick="openMemoryModal()">＋ 新增第一条回忆</button>
+    </div>`;
+  let html = '<div class="mem-tl">';
+  let lastYear = '';
+  for (const m of list) {
+    const y = (m.date || '').slice(0, 4);
+    if (y && y !== lastYear) { html += `<div class="mem-year">${y}</div>`; lastYear = y; }
+    html += `<div class="mem-item"><div class="card mem-card" onclick="openMemoryLightbox(${m.id})">
+      ${m.image ? `<img class="mem-thumb" src="${m.image}" alt="">` : ''}
+      <div class="mem-body">
+        <div class="mem-date">${esc(m.date)}</div>
+        <div class="mem-title">${esc(m.title)}</div>
+        ${m.text ? `<div class="mem-text">${esc(m.text)}</div>` : ''}
+        ${showPet && m.pet_name ? `<div class="mem-petbadge"><span class="badge plain">${esc(m.pet_avatar || '🐾')} ${esc(m.pet_name)}</span></div>` : ''}
+      </div>
+    </div></div>`;
+  }
+  return html + '</div>';
+}
+async function renderMemWall(petId) {
+  state.memWallPetId = petId;
+  const [{ pet }, { memories }] = await Promise.all([
+    api(`/api/pets/${petId}`), api(`/api/memories?pet_id=${petId}`)]);
+  const days = pet.birthday ? Math.round((Date.now() - new Date(pet.birthday).getTime()) / 86400000) : null;
+  const latest = memories[0];
+  $('view-memwall').innerHTML = `
+    <button class="back-link" onclick="go('memories')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg> 返回回忆集</button>
+    <div class="card wall-head">
+      <div class="pet-avatar detail-avatar">${esc(pet.avatar || TYPE_EMOJI[pet.type] || '🐾')}</div>
+      <div class="detail-info">
+        <div class="detail-name">${esc(pet.name)} 的回忆墙</div>
+        <div class="wall-sum">
+          ${days ? `已经一起走过 <b style="color:var(--accent)">${days.toLocaleString()}</b> 天 · ` : ''}
+          ${memories.length} 条回忆${latest ? ` · 最近一次：《${esc(latest.title)}》` : ''}</div>
+        <div class="wall-sum" style="opacity:.75">${esc(pet.personality || '')}</div>
+      </div>
+      <div class="detail-actions">
+        <button class="btn primary sm" onclick="openMemoryModal(null, ${petId})">＋ 新增回忆</button>
+        <button class="btn sm" onclick="go('detail',{petId:${petId},from:'memwall'})">查看档案</button>
+      </div>
+    </div>
+    ${memTimelineHTML(memories, false)}`;
+}
+
+/* ---------- 新增/编辑弹窗（含图片压缩） ---------- */
+function compressImage(file, maxEdge = 1280, quality = 0.8) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.width * scale));
+      c.height = Math.max(1, Math.round(img.height * scale));
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('图片读取失败')); };
+    img.src = url;
+  });
+}
+async function openMemoryModal(id, defaultPetId) {
+  const m = id ? state.memories.find(x => x.id === id) : null;
+  const today = new Date().toISOString().slice(0, 10);
+  state.memImg = m ? (m.image || '') : '';
+  openModal(`
+  <h3>${id ? '编辑回忆' : '新增回忆'}</h3>
+  <form id="mem-form" onsubmit="return submitMemory(event, ${id ?? 'null'})">
+    <div class="form-grid">
+      <div class="form-field"><label>所属宠物（可选）</label><select name="pet_id">
+        <option value="">不指定</option>
+        ${state.pets.map(p => `<option value="${p.id}" ${(m ? m.pet_id === p.id : defaultPetId === p.id) ? 'selected' : ''}>${esc(p.avatar || '')} ${esc(p.name)}</option>`).join('')}
+      </select></div>
+      <div class="form-field"><label>日期 <span class="req">*</span></label><input name="date" type="date" required value="${esc(m?.date || today)}"></div>
+      <div class="form-field full"><label>标题 <span class="req">*</span></label><input name="title" required maxlength="60" placeholder="如：第一次看海" value="${esc(m?.title || '')}"></div>
+      <div class="form-field full"><label>文字（可选）</label><textarea name="text" rows="3" maxlength="2000" placeholder="那一刻的细节、心情、想对TA说的话…">${esc(m?.text || '')}</textarea></div>
+      <div class="form-field full"><label>图片（可选，自动压缩后保存）</label>
+        <input type="file" accept="image/*" onchange="handleMemImage(this)">
+        <div class="img-preview-wrap ${state.memImg ? 'show' : ''}" id="mem-img-wrap">
+          <img class="img-preview" id="mem-img-prev" src="${state.memImg}">
+          <button type="button" class="img-remove" onclick="clearMemImage()" title="移除图片">✕</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn" onclick="closeModal()">取消</button>
+      <button type="submit" class="btn primary" id="mem-save-btn">${id ? '保存修改' : '写下这条回忆'}</button>
+    </div>
+  </form>`);
+}
+async function handleMemImage(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  try {
+    toast('正在压缩图片…');
+    state.memImg = await compressImage(file);
+    $('mem-img-prev').src = state.memImg;
+    $('mem-img-wrap').classList.add('show');
+  } catch (e) { toast(e.message, true); }
+}
+function clearMemImage() {
+  state.memImg = '';
+  $('mem-img-wrap').classList.remove('show');
+  $('mem-img-prev').src = '';
+}
+async function submitMemory(e, id) {
+  e.preventDefault();
+  const f = Object.fromEntries(new FormData(e.target).entries());
+  const body = {
+    date: f.date, title: f.title.trim(),
+    text: (f.text || '').trim(),
+    pet_id: f.pet_id ? +f.pet_id : null,
+    image: state.memImg || '',
+  };
+  if (!body.date || !body.title) return false;
+  try {
+    if (id) await api(`/api/memories/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+    else await api('/api/memories', { method: 'POST', body: JSON.stringify(body) });
+    flashSaved($('mem-save-btn'));
+    setTimeout(async () => {
+      closeModal();
+      toast(id ? '回忆已更新 ✓' : '回忆已写下 ✓');
+      if (currentView === 'memwall') await renderMemWall(state.memWallPetId);
+      else await renderMemories();
+    }, 450);
+  } catch (err) { toast(err.message, true); }
+  return false;
+}
+
+/* ---------- 大图预览 ---------- */
+function openMemoryLightbox(id) {
+  const m = state.memories.find(x => x.id === id);
+  if (!m) return;
+  openModal(`
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+    <div><div class="lb-title">${esc(m.title)}</div>
+    <div class="lb-date">${esc(m.date)}${m.pet_name ? ` · ${esc(m.pet_avatar || '')} ${esc(m.pet_name)}` : ''}</div></div>
+    <button class="btn ghost sm" onclick="closeModal()">✕</button>
+  </div>
+  ${m.image ? `<img class="lb-img" src="${m.image}" alt="">` : ''}
+  <div class="lb-text">${esc(m.text || '（这条回忆没有文字）')}</div>
+  <div class="lb-actions">
+    <button class="btn sm danger" onclick="deleteMemory(${m.id}, this)">删除</button>
+    <button class="btn sm" onclick="openMemoryModal(${m.id})">✎ 编辑</button>
+    ${m.pet_id ? `<button class="btn sm primary" onclick="go('memwall',{petId:${m.pet_id}})">TA 的回忆墙 →</button>` : ''}
+  </div>`, true);
+}
+async function deleteMemory(id, btn) {
+  btn.classList.add('shake');
+  try {
+    await api(`/api/memories/${id}`, { method: 'DELETE' });
+    closeModal();
+    if (currentView === 'memwall') await renderMemWall(state.memWallPetId);
+    else await renderMemories();
+    toast('回忆已删除');
+  } catch (e) { toast(e.message, true); btn.classList.remove('shake'); }
+}
 
 /* ============================================================
    AI 聊天

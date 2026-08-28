@@ -22,7 +22,7 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
   ;window.__T = {
     getState: () => state,
     go, renderLibrary, renderDashboard, switchTab, api, refreshData, sendChat,
-    toggleTheme, openDetail, $,
+    toggleTheme, openDetail, $, renderMemories, renderMemTimeline,
   };`;
   window.eval(script + epilogue);
   await sleep(1500);
@@ -72,6 +72,38 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
   await T.go('detail', { petId: 1, from: 'dashboard' });
   await sleep(600);
   check('back button says 返回仪表盘', (doc.querySelector('#view-detail .back-link') || {}).textContent?.includes('仪表盘'));
+
+  // ---------- 回忆集 ----------
+  const tabTexts = [...doc.querySelectorAll('#nav-tabs .tab-btn')].map(b => b.textContent.trim()).join('|');
+  check('nav order 宠物→回忆集→AI助手', tabTexts === '仪表盘|宠物|回忆集|AI 助手', tabTexts);
+  T.go('memories');
+  await sleep(700);
+  const memAll = (await (await fetch(BASE + '/api/memories')).json()).memories.length;
+  check('memories seeded (>=8)', memAll >= 8, 'got ' + memAll);
+  check('mem timeline lists all', n('#mem-timeline .mem-item') === memAll, n('#mem-timeline .mem-item') + ' vs ' + memAll);
+  check('year group headers', n('#mem-timeline .mem-year') >= 2);
+  check('thumbnails present', n('#mem-timeline .mem-thumb') >= 5);
+  check('pet chips = pets', n('#mem-pet-chips .mem-pet-chip') === state().pets.length);
+  const keke = state().pets.find(p => p.name === '可乐');
+  if (keke) {
+    T.$('mem-filter').value = String(keke.id);
+    T.renderMemTimeline();
+    const kekeMems = (await (await fetch(BASE + '/api/memories?pet_id=' + keke.id)).json()).memories.length;
+    check('mem filter by pet', n('#mem-timeline .mem-item') === kekeMems, n('#mem-timeline .mem-item') + ' vs ' + kekeMems);
+    T.$('mem-filter').value = ''; T.renderMemTimeline();
+    await T.go('memwall', { petId: keke.id });
+    await sleep(600);
+    check('wall shows 陪伴天数', (doc.querySelector('#view-memwall .wall-sum') || {}).textContent?.includes('天'));
+    check('wall lists own items', n('#view-memwall .mem-item') === kekeMems);
+    await T.api('/api/memories', { method: 'POST', body: JSON.stringify({ date: '2026-01-01', title: '__smoke_mem__', text: 'x', pet_id: keke.id }) });
+    const mm = (await (await fetch(BASE + '/api/memories')).json()).memories.find(x => x.title === '__smoke_mem__');
+    check('create memory via API', !!mm);
+    if (mm) { await T.api('/api/memories/' + mm.id, { method: 'DELETE' }); }
+    await T.renderMemories();
+    check('memory deleted', ![...doc.querySelectorAll('#mem-timeline .mem-title')].some(e => e.textContent === '__smoke_mem__'));
+  }
+  T.go('dashboard');
+  await sleep(300);
 
   T.go('library');
   const petTotal = state().pets.length;

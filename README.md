@@ -38,8 +38,9 @@ python main.py            # 启动 http://127.0.0.1:8000
 - **宠物档案**：卡片网格 + 搜索（名字/品种）+ 类型/状态筛选 + 排序；新增/编辑/删除（确认提示）；状态徽章与临期角标
 - **健康记录**：疫苗/体检/驱虫/喂药/就诊五类；下次日期驱动提醒；宠物详情含时间线与体重趋势 SVG 图
 - **到期提醒**：有"下次日期"的记录，≤7 天标"临期"、已过标"逾期"；示例数据采用相对日期，任何时候演示均有真实临期项
+- **回忆集**（增量模块）：情感向回忆时间轴——屏 1 全局时间轴（年份分组/宠物筛选/缩略图/大图预览），屏 2 单宠回忆墙（陪伴天数）；支持新增/编辑/删除，图片前端压缩为 base64 存库；AI 助手可通过 `query_memories` 工具回忆故事
 - **AI 助手（LangChain Agent）**：
-  - 五个工具：`query_pet` / `query_health_records` / `get_reminders` / `analyze_health` / `generate_report`
+  - 六个工具：`query_pet` / `query_health_records` / `get_reminders` / `analyze_health` / `generate_report` / `query_memories`（回忆集联动）
   - 有 Key：DeepSeek 原生 function calling 驱动工具调用循环，自主决定查库、多轮调用后作答（备选：通义千问文本 ReAct）
   - 无 Key：降级"示例回答"模式，解析关键词调用同一套工具、用数据库真实数据拼答案，全流程仍可演示
   - 报告答案支持 Markdown 渲染 + 复制 + 下载 `.md`
@@ -53,6 +54,8 @@ python main.py            # 启动 http://127.0.0.1:8000
 | GET/POST | `/api/pets/{id}/records` | 健康记录列表 / 新增（带体重则同步体重表） |
 | DELETE | `/api/records/{id}` | 删除记录 |
 | GET | `/api/pets/{id}/weights` | 体重历史 |
+| GET/POST | `/api/memories` | 回忆列表（`?pet_id=` 过滤）/ 新增（含 base64 图片） |
+| PUT/DELETE | `/api/memories/{id}` | 编辑 / 删除回忆 |
 | GET | `/api/reminders` · `/api/stats` | 临期/逾期列表 · 仪表盘统计 |
 | POST | `/api/chat` | `{message}` → `{reply, mode: agent|example}` |
 | GET | `/api/agent/status` | 当前 AI 运行模式探测 |
