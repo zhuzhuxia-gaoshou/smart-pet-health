@@ -225,9 +225,6 @@ html[data-theme="light"] .icon-sun { display: none; }
 .rec-pet { font-weight: 600; font-size: 13.5px; flex: none; }
 .rec-title { flex: 1; min-width: 0; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rec-next { flex: none; font-size: 12px; }
-.month-row { display: flex; justify-content: space-between; padding: 7px 2px; font-size: 13.5px; }
-.month-row + .month-row { border-top: 1px dashed var(--border); }
-.month-row b { font-family: var(--font-title); font-weight: 600; }
 
 /* ---------- 宠物库 ---------- */
 .library-bar { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
@@ -488,10 +485,6 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
             </button>
           </div>
         </div>
-        <div class="card card-pad" id="dash-month-card" style="display:none">
-          <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>本月概览</div>
-          <div id="dash-month-body"></div>
-        </div>
       </div>
     </div>
   </section>
@@ -520,6 +513,8 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
 
   <!-- 宠物库 -->
   <section class="view" id="view-library">
+    <button class="back-link" id="lib-back" style="display:none" onclick="go('dashboard')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg> 返回仪表盘</button>
     <div class="page-head">
       <div class="page-title">宠物档案</div>
       <div class="page-sub">管理所有宠物的基础信息与健康档案</div>
@@ -617,7 +612,10 @@ function go(view, opts) {
   document.querySelectorAll('#nav-tabs .tab-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.view === (view === 'detail' ? (tabMap[view] || view) : view)));
   if (view === 'dashboard') renderDashboard();
-  if (view === 'library') renderLibrary();
+  if (view === 'library') {
+    $('lib-back').style.display = (opts && opts.back) ? '' : 'none';
+    renderLibrary();
+  }
   if (view === 'detail' && opts?.petId) openDetail(opts.petId, opts.from || prev);
   if (view === 'records') renderRecords();
   if (view === 'reminders') renderRemindersView();
@@ -637,9 +635,9 @@ async function renderDashboard() {
   await refreshData();
   const st = state.stats;
   $('stat-row').innerHTML = [
-    statCard('a', '🐾', st.pet_count, '宠物总数', '<path d=\"M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><circle cx=\"9.5\" cy=\"7\" r=\"4\"/>', 'library', '查看宠物'),
-    statCard('g', '', st.record_count, '健康记录数', '<path d=\"M9 11l3 3L22 4\"/><path d=\"M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11\"/>', 'records', '查看全部'),
-    statCard('w', '', st.due_count, '临期/逾期项目', '<path d=\"M10.3 3.6L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0z\"/><path d=\"M12 9v4M12 17h.01\"/>', 'reminders', '处理提醒'),
+    statCard('a', '🐾', st.pet_count, '宠物总数', '<path d=\"M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><circle cx=\"9.5\" cy=\"7\" r=\"4\"/>', "go('library',{back:true})", '查看宠物'),
+    statCard('g', '', st.record_count, '健康记录数', '<path d=\"M9 11l3 3L22 4\"/><path d=\"M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11\"/>', "go('records')", '查看全部'),
+    statCard('w', '', st.due_count, '临期/逾期项目', '<path d=\"M10.3 3.6L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0z\"/><path d=\"M12 9v4M12 17h.01\"/>', "go('reminders')", '处理提醒'),
   ].join('');
   animateCount($('stat-row'));
 
@@ -667,16 +665,6 @@ async function renderDashboard() {
   const chips = ['可乐接下来要打什么疫苗？', '最近有哪些到期事项？', '生成布丁的健康报告'];
   $('suggest-chips').innerHTML = chips.map(c => `<button class="chip" onclick="askFromSuggest('${esc(c)}')">${esc(c)}</button>`).join('');
 
-  // 本月概览（由已有数据计算，无额外请求）
-  const ym = new Date().toISOString().slice(0, 7);
-  const monthRecs = state.recent.filter(a => (a.date || '').startsWith(ym));
-  const overdue = rem.filter(r => r.overdue).length;
-  const soon = rem.length - overdue;
-  $('dash-month-card').style.display = 'block';
-  $('dash-month-body').innerHTML = `
-    <div class="month-row"><span style="color:var(--text-2)">本月新记录</span><b>${monthRecs.length} 条</b></div>
-    <div class="month-row"><span style="color:var(--text-2)">逾期未处理</span><b style="color:${overdue ? 'var(--danger)' : 'var(--success)'}">${overdue ? overdue + ' 项' : '无'}</b></div>
-    <div class="month-row"><span style="color:var(--text-2)">7 日内临期</span><b style="color:${soon ? 'var(--warn)' : 'var(--success)'}">${soon ? soon + ' 项' : '无'}</b></div>`;
 }
 
 /* ---------- 全部健康记录页 ---------- */
@@ -722,9 +710,9 @@ function renderRemindersView() {
     </div>`).join('')
     : '<div class="empty-hint">🎉 没有临期或逾期项目，一切都在计划中</div>';
 }
-function statCard(cls, emoji, num, label, svg, route, hint) {
-  return `<div class="card stat-card clickable" role="button" tabindex="0" onclick="go('${route}')"
-      onkeydown="if(event.key==='Enter')go('${route}')">
+function statCard(cls, emoji, num, label, svg, nav, hint) {
+  return `<div class="card stat-card clickable" role="button" tabindex="0" onclick="${nav}"
+      onkeydown="if(event.key==='Enter')this.click()">
     <span class="stat-hint">${hint} →</span>
     <span class="stat-ico ${cls}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${svg}</svg></span>
     <div class="stat-num" data-num="${num}">0</div><div class="stat-label">${label}</div></div>`;

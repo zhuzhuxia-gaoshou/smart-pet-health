@@ -40,8 +40,12 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
   check('dash reminders capped at 4', n('#dash-reminders .reminder-item') <= 4 && n('#dash-reminders .reminder-item') >= 3,
     'got ' + n('#dash-reminders .reminder-item'));
   check('activity capped at 5', n('#dash-activity .activity-item') <= 5);
-  check('month overview shown', T.$('dash-month-card').style.display === 'block' && n('#dash-month-body .month-row') === 3);
+  check('month overview removed', !T.$('dash-month-card'));
   check('mini pets removed', !T.$('dash-pets-mini'));
+  T.go('library', { back: true });
+  check('lib back link shown from stat card', T.$('lib-back').style.display !== 'none');
+  T.go('library');
+  check('lib back link hidden via tab', T.$('lib-back').style.display === 'none');
 
   // 统计卡点击 → 新页面
   T.go('records');
