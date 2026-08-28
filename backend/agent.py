@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
-"""agent.py — LangChain ReAct Agent（通义千问）+ 无 Key 降级"示例回答"模式。
+"""agent.py — LangChain Agent（DeepSeek 工具调用 / 通义千问 ReAct）+ 无 Key 降级"示例回答"模式。
+
+- 配置 DEEPSEEK_API_KEY   → DeepSeek Chat（OpenAI 兼容端点，原生 function calling 驱动 ReAct 循环）
+- 仅配置 DASHSCOPE_API_KEY → 通义千问 ChatTongyi（若不支持工具调用则自动降级）
+- 都未配置                → ExampleAgent（解析关键词，调用同一套工具查数据库拼回答）
 
 对外入口：answer(message) -> {"reply": str, "mode": "agent"|"example"}
 """
@@ -23,36 +27,53 @@ def _load_env() -> None:
     _env_loaded = True
 
 
-def api_key() -> str:
+def _key(name: str) -> str:
     _load_env()
-    return os.environ.get("DASHSCOPE_API_KEY", "").strip()
+    v = os.environ.get(name, "").strip()
+    return "" if v.startswith("sk-xxx") else v
 
+
+def deepseek_key() -> str:
+    return _key("DEEPSEEK_API_KEY")
+
+
+def dashscope_key() -> str:
+    return _key("DASHSCOPE_API_KEY")
+
+
+def api_key() -> str:
+    """兼容旧接口：返回任一可用 Key（DeepSeek 优先）。"""
+    return deepseek_key() or dashscope_key()
+
+
+def provider() -> str | None:
+    """当前 LLM 提供方：deepseek / tongyi / None。"""
+    if deepseek_key():
+        return "deepseek"
+    if dashscope_key():
+        return "tongyi"
+    return None
+
+
+# ---------------------------------------------------------------- Prompt
+
+TOOLS_BRIEF = """可用工具：
+- query_pet(宠物名): 查该宠物的基本信息（品种/年龄/体重/健康状态）
+- query_health_records(宠物名): 查其健康记录（疫苗/体检/驱虫/喂药/就诊），按时间倒序
+- get_reminders(): 查所有临期（7天内）或已逾期事项，无需参数
+- analyze_health(宠物名): 综合记录与体重做健康分析
+- generate_report("宠物名,周期"): 生成 Markdown 健康报告；名字留空表示全部宠物，周期取 周/月/年"""
 
 SYSTEM_PROMPT = """你是「智能宠物健康管家」的 AI 助手，一个专业的宠物健康管理 Agent。
 你通过工具查询 SQLite 数据库中的真实宠物档案与健康记录，请遵循：
-1. 回答宠物、疫苗、体检、驱虫、喂药、就诊、提醒、体重、报告相关问题前，必须先调用相应工具获取真实数据，严禁编造数据。
-2. 用简体中文回答，语气专业、温暖、克制。
-3. 涉及医疗判断时，提醒用户以兽医意见为准。
-4. 数据不足时诚实说明，并建议补充记录。
-5. 生成报告时使用 Markdown 格式。
+1. 回答宠物、疫苗、体检、驱虫、喂药、就诊、提醒、体重、报告相关问题前，必须先调用工具获取真实数据，严禁编造数据。
+2. 需要多个信息时可以依次调用多个工具。
+3. 用简体中文回答，语气专业、温暖、克制，适当使用 Markdown 排版。
+4. 涉及医疗判断时，提醒用户以兽医意见为准。
+5. 数据不足时诚实说明，并建议补充记录。
+6. 生成报告时输出完整 Markdown 文本。
 
-可用工具：
-- query_pet: 按名字查宠物基本信息
-- query_health_records: 按名字查健康记录
-- get_reminders: 查所有临期/逾期事项
-- analyze_health: 按名字做健康分析
-- generate_report: 生成健康报告（参数格式 "宠物名,周期"，名字留空表示全部）
-
-按 ReAct 格式工作：
-Question: 用户问题
-Thought: 我需要调用什么工具
-Action: 工具名，如 query_pet
-Action Input: 工具参数
-Observation: 工具返回结果
-...（可多轮）
-Thought: 我已经掌握足够信息
-Final Answer: 最终中文回答"""
-
+""" + TOOLS_BRIEF
 
 # ---------------------------------------------------------------- LangChain Agent
 
@@ -60,22 +81,28 @@ _agent = None
 _agent_failed = False
 
 
-def _build_langchain_agent():
-    """构建 LangChain ReAct Agent；依赖缺失或构建失败时抛异常。"""
-    global _agent
-    if _agent is not None:
-        return _agent
-    from langchain_community.llms import Tongyi
-    from langchain_core.prompts import PromptTemplate
-    from langchain_core.tools import Tool
-    from langchain.agents import AgentExecutor, create_react_agent
-
-    llm = Tongyi(
+def _build_llm():
+    prov = provider()
+    if prov == "deepseek":
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(
+            model=os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"),
+            api_key=deepseek_key(),
+            base_url=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+            temperature=0.3,
+            timeout=60,
+        ), "deepseek"
+    from langchain_community.chat_models.tongyi import ChatTongyi
+    return ChatTongyi(
         model=os.environ.get("QWEN_MODEL", "qwen-plus"),
-        dashscope_api_key=api_key(),
+        dashscope_api_key=dashscope_key(),
         temperature=0.3,
-    )
-    langchain_tools = [
+    ), "tongyi"
+
+
+def _build_tools():
+    from langchain_core.tools import Tool
+    return [
         Tool(name="query_pet", description=tools.query_pet.__doc__.strip(), func=tools.query_pet),
         Tool(name="query_health_records",
              description=tools.query_health_records.__doc__.strip(),
@@ -87,23 +114,12 @@ def _build_langchain_agent():
         Tool(name="generate_report", description=tools.generate_report.__doc__.strip(),
              func=lambda _in="": _parse_report_args(_in)),
     ]
-    template = SYSTEM_PROMPT + """
-
-{chat_history}
-Question: {input}
-{agent_scratchpad}"""
-    prompt = PromptTemplate.from_template(
-        template, input_variables=["input", "agent_scratchpad", "chat_history"])
-    agent = create_react_agent(llm=llm, tools=langchain_tools, prompt=prompt)
-    _agent = AgentExecutor(agent=agent, tools=langchain_tools, handle_parsing_errors=True,
-                           max_iterations=6, verbose=False, return_intermediate_steps=False)
-    return _agent
 
 
 def _parse_report_args(arg: str) -> str:
-    """generate_report 的 Action Input 兼容 '名字,周期' / '名字' / 空。"""
+    """generate_report 的参数兼容 '名字,周期' / '名字' / 空。"""
     arg = (arg or "").strip()
-    if not arg:
+    if not arg or arg.lower() in ("all", "全部"):
         return tools.generate_report("", "月")
     parts = [p.strip() for p in re.split(r"[,，\s]+", arg) if p.strip()]
     if len(parts) == 1:
@@ -111,16 +127,32 @@ def _parse_report_args(arg: str) -> str:
     return tools.generate_report(parts[0], parts[1])
 
 
+def _build_langchain_agent():
+    """构建 LangChain 1.x create_agent 工具调用图；失败抛异常（由调用方降级）。"""
+    global _agent
+    if _agent is not None:
+        return _agent
+    from langchain.agents import create_agent
+
+    llm, _prov = _build_llm()
+    _agent = create_agent(model=llm, tools=_build_tools(), system_prompt=SYSTEM_PROMPT)
+    return _agent
+
+
 def _ask_agent(message: str) -> str:
     global _agent_failed
     try:
-        executor = _build_langchain_agent()
-        result = executor.invoke({"input": message, "chat_history": ""})
-        return str(result.get("output", "")).strip() or "（模型未返回内容，请重试）"
-    except Exception as e:  # LangChain 未装好 / API 报错 → 降级
+        agent = _build_langchain_agent()
+        result = agent.invoke({"messages": [{"role": "user", "content": message}]},
+                              config={"recursion_limit": 12})
+        for m in reversed(result.get("messages", [])):
+            if getattr(m, "type", "") in ("ai", "assistant") and str(getattr(m, "content", "")).strip():
+                return str(m.content).strip()
+        return "（模型未返回内容，请重试）"
+    except Exception as e:  # 依赖缺失 / API 报错 → 降级示例回答
         _agent_failed = True
-        return f"⚠️ Agent 调用失败（{type(e).__name__}: {e}），已自动切换到示例回答模式。\n\n" \
-               + _example_answer(message)
+        return (f"⚠️ Agent 调用失败（{type(e).__name__}: {e}），已自动切换到示例回答模式。\n\n"
+                + _example_answer(message))
 
 
 # ---------------------------------------------------------------- 无 Key 降级
@@ -132,6 +164,14 @@ def _find_pet_name(message: str) -> str | None:
         if p["name"] and p["name"] in message:
             return p["name"]
     return None
+
+
+def db_reminders_of(pet_name: str) -> list[dict]:
+    import db
+    pet = db.fetch_pet_by_name(pet_name)
+    if not pet:
+        return []
+    return [r for r in db.compute_reminders() if r["pet_id"] == pet["id"]]
 
 
 def _example_answer(message: str) -> str:
@@ -147,25 +187,24 @@ def _example_answer(message: str) -> str:
         return (tools.generate_report(pet or "", "月")
                 + "\n\n> 当前为示例回答模式（未配置 API Key），报告由数据库真实数据自动生成。")
     if pet and analyze_kw and not record_kw:
-        return (tools.analyze_health(pet)
-                + "\n\n> 当前为示例回答模式（未配置 API Key）。")
+        return tools.analyze_health(pet) + "\n\n> 当前为示例回答模式（未配置 API Key）。"
     if remind_kw and not pet:
-        return (tools.get_reminders()
-                + "\n\n> 当前为示例回答模式（未配置 API Key）。")
+        return tools.get_reminders() + "\n\n> 当前为示例回答模式（未配置 API Key）。"
     if pet and (record_kw or remind_kw):
         head = tools.query_pet(pet) + "\n\n" + tools.query_health_records(pet)
         if remind_kw:
-            head += "\n\n" + "\n".join(
-                f"- {r['title']}（{r['type_label']}）" +
-                (f"已逾期 {-r['days_left']} 天" if r["overdue"] else f"还剩 {r['days_left']} 天")
-                for r in db_reminders_of(pet)) or ""
+            rows = db_reminders_of(pet)
+            if rows:
+                head += "\n\n" + "\n".join(
+                    f"- {r['title']}（{r['type_label']}）" +
+                    (f"已逾期 {-r['days_left']} 天" if r["overdue"] else f"还剩 {r['days_left']} 天")
+                    for r in rows)
         return head + "\n\n> 当前为示例回答模式（未配置 API Key）。"
     if pet:
         return (tools.query_pet(pet) + "\n\n" + tools.analyze_health(pet)
                 + "\n\n> 当前为示例回答模式（未配置 API Key）。")
     if remind_kw:
-        return (tools.get_reminders()
-                + "\n\n> 当前为示例回答模式（未配置 API Key）。")
+        return tools.get_reminders() + "\n\n> 当前为示例回答模式（未配置 API Key）。"
 
     # 兜底：介绍能力 + 系统概览
     import db
@@ -178,33 +217,25 @@ def _example_answer(message: str) -> str:
             "- 「布丁的健康状况怎么样？」\n"
             "- 「最近有哪些到期的事项？」\n"
             "- 「生成一只宠物的健康报告」\n"
-            "配置 DASHSCOPE_API_KEY 后，我将作为 LangChain ReAct Agent 理解任意提问并自动调用工具。")
-
-
-def db_reminders_of(pet_name: str) -> list[dict]:
-    import db
-    pet = db.fetch_pet_by_name(pet_name)
-    if not pet:
-        return []
-    return [r for r in db.compute_reminders() if r["pet_id"] == pet["id"]]
+            "配置 DEEPSEEK_API_KEY（或 DASHSCOPE_API_KEY）后，我将作为 LangChain Agent 理解任意提问并自动调用工具。")
 
 
 # ---------------------------------------------------------------- 对外入口
 
 def answer(message: str) -> dict:
     """返回 {"reply": 回答文本, "mode": "agent"|"example"}。"""
-    key = api_key()
-    if key and not key.startswith("sk-xxx") and not _agent_failed:
+    if provider() and not _agent_failed:
         reply = _ask_agent(message)
-        if not reply.startswith("⚠️"):
-            return {"reply": reply, "mode": "agent"}
-        return {"reply": reply, "mode": "example"}
+        if reply.startswith("⚠️"):
+            return {"reply": reply, "mode": "example"}
+        return {"reply": reply, "mode": "agent"}
     return {"reply": _example_answer(message), "mode": "example"}
 
 
 def status() -> dict:
     """供前端探测当前运行模式。"""
-    key = api_key()
-    live = bool(key and not key.startswith("sk-xxx"))
-    return {"mode": "agent" if (live and not _agent_failed) else "example",
-            "has_key": live}
+    prov = provider()
+    live = bool(prov and not _agent_failed)
+    return {"mode": "agent" if live else "example",
+            "has_key": bool(prov),
+            "provider": prov}

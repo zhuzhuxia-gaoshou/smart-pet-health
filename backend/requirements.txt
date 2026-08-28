@@ -3,6 +3,7 @@ uvicorn
 langchain
 langchain-core
 langchain-community
+langchain-openai
 dashscope
 pydantic
 python-dotenv

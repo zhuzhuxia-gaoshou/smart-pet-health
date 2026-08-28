@@ -912,9 +912,10 @@ function renderChat() {
   sc.scrollTop = sc.scrollHeight;
   api('/api/agent/status').then(s => {
     state.agentMode = s.mode;
+    const name = s.provider === 'deepseek' ? 'DeepSeek' : s.provider === 'tongyi' ? '通义千问' : 'DeepSeek/通义千问';
     $('chat-sub').textContent = s.mode === 'agent'
-      ? 'LangChain ReAct Agent（通义千问）已连接 · 基于数据库回答'
-      : '当前为示例回答模式（未配置 API Key）· 配置后自动升级为 LangChain Agent';
+      ? `LangChain Agent（${name} · 工具调用）已连接 · 基于数据库回答`
+      : `当前为示例回答模式（未配置 API Key）· 配置 ${name} Key 后自动升级为 LangChain Agent`;
   }).catch(() => {});
   if (!state.chat.length && !sc.querySelector('.msg')) {
     sc.innerHTML = msgHTML({ role: 'bot', text: '你好，我是**智能宠物健康管家** 🐾\n\n我可以查询宠物档案与健康记录、计算到期提醒、分析健康状况，并一键生成健康报告。试试下方快捷问题，或直接输入你的问题。', mode: null });

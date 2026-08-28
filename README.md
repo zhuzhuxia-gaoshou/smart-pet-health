@@ -12,9 +12,9 @@
 |----|------|
 | 前端 | HTML + CSS + JS 单页应用（无框架，体重趋势图为手绘 SVG） |
 | 后端 | Python 3 + FastAPI + Uvicorn |
-| AI | LangChain ReAct Agent + 通义千问（DashScope, qwen-plus） |
+| AI | LangChain Agent + **DeepSeek**（OpenAI 兼容接口，原生 function calling）· 兼容通义千问（DashScope） |
 | 数据 | SQLite 本地持久化（首次运行自动建库并注入示例数据） |
-| Key | `.env`（`DASHSCOPE_API_KEY`，不进 git）· 无 Key 自动降级"示例回答"模式 |
+| Key | `.env`（`DEEPSEEK_API_KEY` 或 `DASHSCOPE_API_KEY`，不进 git）· 无 Key 自动降级"示例回答"模式 |
 
 ## 快速开始
 
@@ -24,8 +24,8 @@ python -m venv .venv
 # Windows: .venv\Scripts\activate   |   macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
 
-# 可选：配置真实大模型
-cp env.example .env       # 编辑 .env 填入 DASHSCOPE_API_KEY=sk-xxx
+# 可选：配置真实大模型（不配置也能完整演示，自动走"示例回答"模式）
+cp env.example .env       # 编辑 .env 填入 DEEPSEEK_API_KEY=sk-xxx
 
 python main.py            # 启动 http://127.0.0.1:8000
 ```
@@ -40,7 +40,7 @@ python main.py            # 启动 http://127.0.0.1:8000
 - **到期提醒**：有"下次日期"的记录，≤7 天标"临期"、已过标"逾期"；示例数据采用相对日期，任何时候演示均有真实临期项
 - **AI 助手（LangChain Agent）**：
   - 五个工具：`query_pet` / `query_health_records` / `get_reminders` / `analyze_health` / `generate_report`
-  - 有 Key：通义千问驱动 ReAct 循环，自主决定查库、多轮调用后作答
+  - 有 Key：DeepSeek 原生 function calling 驱动工具调用循环，自主决定查库、多轮调用后作答（备选：通义千问文本 ReAct）
   - 无 Key：降级"示例回答"模式，解析关键词调用同一套工具、用数据库真实数据拼答案，全流程仍可演示
   - 报告答案支持 Markdown 渲染 + 复制 + 下载 `.md`
 
@@ -68,7 +68,7 @@ python main.py            # 启动 http://127.0.0.1:8000
 6. 请求"生成布丁的健康报告" → Markdown 报告渲染 + 复制 / 下载 `.md`。
 7. 右上角一键切换亮/暗模式（偏好自动记忆）。
 
-> 注：未配置 `DASHSCOPE_API_KEY` 时，AI 回答自动走"示例回答"模式（数据库真实数据拼装），演示链路不中断；配置 Key 后自动升级为 LangChain ReAct Agent。涉及医疗判断的回答均附"以兽医意见为准"提示。
+> 注：未配置任何 Key 时，AI 回答自动走"示例回答"模式（数据库真实数据拼装），演示链路不中断；配置 `DEEPSEEK_API_KEY`（推荐）或 `DASHSCOPE_API_KEY` 后自动升级为 LangChain 工具调用 Agent。涉及医疗判断的回答均附"以兽医意见为准"提示。
 
 ## 项目结构
 
