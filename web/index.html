@@ -372,6 +372,11 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
 
 .saved-flash { background: var(--success) !important; border-color: var(--success) !important; color: #fff !important; }
 
+/* ---------- 无障碍：系统减弱动效 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
 /* ---------- 响应式 ---------- */
 @media (max-width: 900px) {
   .dash-grid { grid-template-columns: 1fr; }
