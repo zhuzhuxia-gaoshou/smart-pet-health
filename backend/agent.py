@@ -8,7 +8,6 @@
 对外入口：answer(message) -> {"reply": str, "mode": "agent"|"example"}
 """
 import os
-import re
 
 import tools
 
@@ -62,7 +61,7 @@ TOOLS_BRIEF = """可用工具：
 - query_health_records(宠物名): 查其健康记录（疫苗/体检/驱虫/喂药/就诊），按时间倒序
 - get_reminders(): 查所有临期（7天内）或已逾期事项，无需参数
 - analyze_health(宠物名): 综合记录与体重做健康分析
-- generate_report("宠物名,周期"): 生成 Markdown 健康报告；名字留空表示全部宠物，周期取 周/月/年"""
+- generate_report(宠物名, 周期): 生成 Markdown 健康报告；名字留空表示全部宠物，周期取 周/月/年"""
 
 SYSTEM_PROMPT = """你是「智能宠物健康管家」的 AI 助手，一个专业的宠物健康管理 Agent。
 你通过工具查询 SQLite 数据库中的真实宠物档案与健康记录，请遵循：
@@ -101,30 +100,41 @@ def _build_llm():
 
 
 def _build_tools():
-    from langchain_core.tools import Tool
+    """StructuredTool + 显式 schema：适配 DeepSeek 原生 function calling 的结构化参数。"""
+    from langchain_core.tools import StructuredTool
+    from pydantic import BaseModel, Field
+
+    class NameIn(BaseModel):
+        name: str = Field(description="宠物的名字，如：可乐")
+
+    class Empty(BaseModel):
+        pass
+
+    class ReportIn(BaseModel):
+        name: str = Field(default="", description="宠物名字；留空表示生成全部宠物的报告")
+        period: str = Field(default="月", description="统计周期：周 / 月 / 年")
+
     return [
-        Tool(name="query_pet", description=tools.query_pet.__doc__.strip(), func=tools.query_pet),
-        Tool(name="query_health_records",
-             description=tools.query_health_records.__doc__.strip(),
-             func=tools.query_health_records),
-        Tool(name="get_reminders", description=tools.get_reminders.__doc__.strip(),
-             func=lambda _in="": tools.get_reminders()),
-        Tool(name="analyze_health", description=tools.analyze_health.__doc__.strip(),
-             func=tools.analyze_health),
-        Tool(name="generate_report", description=tools.generate_report.__doc__.strip(),
-             func=lambda _in="": _parse_report_args(_in)),
+        StructuredTool.from_function(tools.query_pet, name="query_pet",
+                                     description=tools.query_pet.__doc__.strip(),
+                                     args_schema=NameIn),
+        StructuredTool.from_function(tools.query_health_records,
+                                     name="query_health_records",
+                                     description=tools.query_health_records.__doc__.strip(),
+                                     args_schema=NameIn),
+        StructuredTool.from_function(lambda: tools.get_reminders(""),
+                                     name="get_reminders",
+                                     description=tools.get_reminders.__doc__.strip(),
+                                     args_schema=Empty),
+        StructuredTool.from_function(tools.analyze_health, name="analyze_health",
+                                     description=tools.analyze_health.__doc__.strip(),
+                                     args_schema=NameIn),
+        StructuredTool.from_function(
+            lambda name="", period="月": tools.generate_report(name, period),
+            name="generate_report",
+            description=tools.generate_report.__doc__.strip(),
+            args_schema=ReportIn),
     ]
-
-
-def _parse_report_args(arg: str) -> str:
-    """generate_report 的参数兼容 '名字,周期' / '名字' / 空。"""
-    arg = (arg or "").strip()
-    if not arg or arg.lower() in ("all", "全部"):
-        return tools.generate_report("", "月")
-    parts = [p.strip() for p in re.split(r"[,，\s]+", arg) if p.strip()]
-    if len(parts) == 1:
-        return tools.generate_report(parts[0], "月")
-    return tools.generate_report(parts[0], parts[1])
 
 
 def _build_langchain_agent():
@@ -143,15 +153,19 @@ def _ask_agent(message: str) -> str:
     global _agent_failed
     try:
         agent = _build_langchain_agent()
+    except Exception as e:  # 构建失败（依赖缺失/配置错误）→ 本进程内熔断
+        _agent_failed = True
+        return (f"⚠️ Agent 构建失败（{type(e).__name__}: {e}），已自动切换到示例回答模式。\n\n"
+                + _example_answer(message))
+    try:
         result = agent.invoke({"messages": [{"role": "user", "content": message}]},
                               config={"recursion_limit": 12})
         for m in reversed(result.get("messages", [])):
             if getattr(m, "type", "") in ("ai", "assistant") and str(getattr(m, "content", "")).strip():
                 return str(m.content).strip()
         return "（模型未返回内容，请重试）"
-    except Exception as e:  # 依赖缺失 / API 报错 → 降级示例回答
-        _agent_failed = True
-        return (f"⚠️ Agent 调用失败（{type(e).__name__}: {e}），已自动切换到示例回答模式。\n\n"
+    except Exception as e:  # 单次调用失败（网络/额度等）→ 本次降级，下次仍会重试 Agent
+        return (f"⚠️ Agent 本次调用失败（{type(e).__name__}: {e}），本条为示例回答。\n\n"
                 + _example_answer(message))
 
 
