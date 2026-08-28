@@ -1,0 +1,20 @@
+# 环境与密钥
+backend/.env
+.env
+
+# 数据库（运行时生成）
+backend/pets.db
+*.db
+
+# Python
+backend/.venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# 编辑器/系统
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
