@@ -228,8 +228,14 @@ html[data-theme="dark"] .wb-paws .paw-cream { fill: #171614; }
 .rem-days.danger { color: var(--danger); }
 .empty-hint { color: var(--text-2); font-size: 13.5px; padding: 14px 4px; text-align: center; }
 
-.activity-item { display: flex; gap: 11px; padding: 9px 2px; font-size: 13.5px; align-items: baseline; }
+.activity-item {
+  display: flex; gap: 11px; padding: 9px 8px; margin: 0 -8px; font-size: 13.5px; align-items: baseline;
+  cursor: pointer; border-radius: 9px; border: 1px solid transparent;
+  transition: background var(--dur), border-color var(--dur), transform var(--dur);
+}
+.activity-item:hover { background: var(--surface-2); border-color: var(--border); transform: translateX(2px); }
 .activity-item + .activity-item { border-top: 1px dashed var(--border); }
+.activity-item + .activity-item:hover { border-top-color: var(--border); }
 .activity-date { color: var(--text-2); font-variant-numeric: tabular-nums; flex: none; font-size: 12.5px; }
 .activity-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; align-self: center; }
 
