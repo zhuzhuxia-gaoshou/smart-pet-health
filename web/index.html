@@ -133,6 +133,20 @@ button.dis-chip:hover { border-color:var(--accent); color:var(--accent); backgro
 .care-note { font-size:12px; color:var(--text-2); margin-top:10px; }
 .tl-ops { display:flex; gap:10px; margin-top:8px; }
 
+/* ============ 会话侧边栏（历史会话查看/删除） ============ */
+.chat-layout { display:flex; gap:18px; align-items:stretch; }
+.chat-sessions { width:232px; flex:0 0 232px; display:flex; flex-direction:column; gap:8px; max-height:66vh; overflow-y:auto; padding-right:2px; }
+.sess-item { border:1px solid var(--border); background:var(--surface); border-radius:10px; padding:10px 12px; cursor:pointer; transition:all .15s ease-out; position:relative; }
+.sess-item:hover { border-color:var(--accent); transform:translateY(-1px); }
+.sess-item.active { border-color:var(--accent); background:var(--accent-soft); }
+.sess-title { font-size:13px; font-weight:600; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-right:22px; }
+.sess-time { font-size:11px; color:var(--text-2); margin-top:3px; }
+.sess-del { position:absolute; top:7px; right:7px; border:none; background:none; color:var(--text-2); cursor:pointer; font-size:13px; line-height:1; padding:3px 5px; border-radius:6px; opacity:0; transition:all .15s ease-out; font-family:inherit; }
+.sess-item:hover .sess-del { opacity:1; }
+.sess-del:hover { color:var(--danger); background:var(--danger-soft); }
+.sess-empty { font-size:12.5px; color:var(--text-2); text-align:center; padding:18px 8px; line-height:1.7; border:1px dashed var(--border); border-radius:10px; }
+@media (max-width: 920px){ .chat-sessions { display:none; } }
+
 /* ============ AI 今日简报 ============ */
 .briefing-card { padding:16px 20px; margin-bottom:18px; background:var(--accent-soft); border:none; }
 .brief-title { font-size:12.5px; font-weight:600; color:var(--accent); letter-spacing:1px; margin-bottom:8px; }
@@ -730,9 +744,11 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
         <div class="page-title">AI 智能助手</div>
         <div class="page-sub" id="chat-sub">LangChain Agent · 基于数据库回答 · 自动生成健康报告</div>
       </div>
-      <button class="btn sm" style="margin-left:auto" onclick="resetChat()">＋ 新对话</button>
+      <button class="btn sm" style="margin-left:auto" onclick="newChatSession()">＋ 新对话</button>
     </div>
-    <div class="chat-wrap">
+    <div class="chat-layout">
+      <aside class="chat-sessions" id="chat-sessions"></aside>
+      <div class="chat-wrap">
       <div class="chat-scroll" id="chat-scroll"></div>
       <div class="chat-composer">
         <div class="chat-quick" id="chat-quick"></div>
@@ -744,6 +760,7 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
             <span class="btn-label">发送</span>
           </button>
         </div>
+      </div>
       </div>
     </div>
   </section>
@@ -766,6 +783,7 @@ const state = {
   chat: [], agentMode: null, weightsCache: {},
   memories: [], memWallPetId: null, memImg: '',
   species: null,
+  chatSessions: [], chatSessionId: null,
 };
 const TYPE_LABEL = { vaccine:'疫苗', checkup:'体检', deworm:'驱虫', medication:'喂药', clinic:'就诊' };
 const TYPE_COLOR = { vaccine:'var(--success)', checkup:'var(--accent)', deworm:'var(--warn)', medication:'#8B6FC0', clinic:'var(--danger)' };
@@ -1511,6 +1529,16 @@ function renderChat() {
   if (!state.chat.length && !sc.querySelector('.msg')) {
     sc.innerHTML = msgHTML({ role: 'bot', text: '你好，我是**智能宠物健康管家** 🐾\n\n我可以查询宠物档案与健康记录、计算到期提醒、分析健康状况，并一键生成健康报告。试试下方快捷问题，或直接输入你的问题。', mode: null });
   }
+  if (!_chatBooted) {
+    _chatBooted = true;
+    loadChatSessions().then(() => {
+      if (!state.chat.length && state.chatSessionId === null && state.chatSessions.length) {
+        openChatSession(state.chatSessions[0].id);
+      }
+    });
+  } else {
+    loadChatSessions();
+  }
 }
 function draftHTML(m, i) {
   const card = m.done
@@ -1572,16 +1600,18 @@ async function sendChat() {
   $('chat-send').disabled = true; $('chat-send').querySelector('.btn-label').textContent = '思考中…';
   let draft = null;
   try {
-    const r = await api('/api/chat', { method: 'POST', body: JSON.stringify({ message: msg }) });
+    const r = await api('/api/chat', { method: 'POST', body: JSON.stringify({ message: msg, session_id: state.chatSessionId }) });
     think.remove();
     state.chat.push({ role: 'bot', text: r.reply, mode: r.mode });
     draft = r.draft || null;
+    if (r.session_id) state.chatSessionId = r.session_id;
   } catch (e) {
     think.remove();
     state.chat.push({ role: 'bot', text: '抱歉，请求失败了：' + e.message, mode: null });
   }
   const el = document.createElement('div'); el.innerHTML = msgHTML(state.chat[state.chat.length - 1]);
   sc.appendChild(el.firstElementChild); sc.scrollTop = sc.scrollHeight;
+  loadChatSessions();
   // AI 起草的记录草稿：渲染确认卡片
   if (draft) {
     state.chat.push({ role: 'draft', ...draft });
@@ -1592,12 +1622,66 @@ async function sendChat() {
   $('chat-send').disabled = false; const lbl = $('chat-send').querySelector('.btn-label'); if (lbl) lbl.textContent = '发送';
 }
 function autoGrow(ta) { ta.style.height = 'auto'; ta.style.height = Math.min(120, ta.scrollHeight) + 'px'; }
-async function resetChat() {
-  try { await api('/api/chat/history', { method: 'DELETE' }); } catch (e) {}
+async function newChatSession() {
+  state.chatSessionId = null;
   state.chat = [];
   $('chat-scroll').innerHTML = '';
   renderChat();
-  toast('已开启新对话，AI 的对话记忆已清空');
+  toast('已开启新对话，发送第一条消息后自动保存');
+}
+
+/* ---------- 历史会话：查看 / 删除 ---------- */
+let _chatBooted = false;
+async function loadChatSessions() {
+  try {
+    const r = await api('/api/chat/sessions');
+    state.chatSessions = r.sessions || [];
+  } catch (e) { state.chatSessions = []; }
+  const box = $('chat-sessions'); if (!box) return;
+  if (!state.chatSessions.length) {
+    box.innerHTML = '<div class="sess-empty">暂无历史会话<br>聊过的话题会自动保存在这里</div>';
+    return;
+  }
+  box.innerHTML = state.chatSessions.map(s => `
+    <div class="sess-item ${s.id === state.chatSessionId ? 'active' : ''}" onclick="openChatSession(${s.id})">
+      <div class="sess-title">${esc(s.title || '未命名会话')}</div>
+      <div class="sess-time">${esc((s.updated_at || '').slice(5, 16))} · ${s.message_count} 条消息</div>
+      <button class="sess-del" title="删除此会话" onclick="event.stopPropagation();askDeleteSession(${s.id})">✕</button>
+    </div>`).join('');
+}
+async function openChatSession(id) {
+  const r = await api('/api/chat/history?session_id=' + id).catch(() => null);
+  if (!r || r.error) { toast('会话不存在', true); await loadChatSessions(); return; }
+  state.chatSessionId = id;
+  state.chat = r.messages.map(m => ({ role: m.role === 'user' ? 'user' : 'bot', text: m.content, mode: null }));
+  const sc = $('chat-scroll');
+  sc.innerHTML = state.chat.length
+    ? state.chat.map(m => msgHTML(m)).join('')
+    : msgHTML({ role: 'bot', text: '该会话暂无消息记录。', mode: null });
+  sc.scrollTop = sc.scrollHeight;
+  await loadChatSessions();
+}
+function askDeleteSession(id) {
+  openModal(`<h3>删除这个历史会话？</h3>
+    <p style="color:var(--text-2);font-size:14px;margin-bottom:4px">会话中的全部对话消息将一并删除，且不可恢复。</p>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">取消</button>
+      <button class="btn primary" style="background:var(--danger);border-color:var(--danger)" onclick="confirmDeleteSession(${id})">确认删除</button>
+    </div>`);
+}
+async function confirmDeleteSession(id) {
+  try {
+    await api(`/api/chat/sessions/${id}`, { method: 'DELETE' });
+    closeModal();
+    if (state.chatSessionId === id) {
+      state.chatSessionId = null; state.chat = [];
+      $('chat-scroll').innerHTML = '';
+      renderChat();
+    } else {
+      await loadChatSessions();
+    }
+    toast('会话已删除');
+  } catch (e) { toast(e.message, true); }
 }
 
 /* ---------- 仪表盘 AI 今日简报 ---------- */

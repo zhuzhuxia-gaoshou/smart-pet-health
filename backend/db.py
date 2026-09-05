@@ -57,11 +57,20 @@ CREATE TABLE IF NOT EXISTS memories(
   created_at TEXT DEFAULT (datetime('now','localtime')),
   FOREIGN KEY(pet_id) REFERENCES pets(id) ON DELETE SET NULL
 );
+CREATE TABLE IF NOT EXISTS chat_sessions(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now','localtime')),
+  updated_at TEXT DEFAULT (datetime('now','localtime'))
+);
 CREATE TABLE IF NOT EXISTS chat_history(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id INTEGER,
   role TEXT NOT NULL,
   content TEXT NOT NULL,
-  created_at TEXT DEFAULT (datetime('now','localtime'))
+  is_draft INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now','localtime')),
+  FOREIGN KEY(session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE
 );
 CREATE TABLE IF NOT EXISTS app_kv(
   key TEXT PRIMARY KEY,
@@ -86,6 +95,10 @@ def _placeholder_image(emoji: str, c1: str, c2: str) -> str:
 def init_db() -> None:
     conn = get_conn()
     try:
+        # 旧版 chat_history 无会话维度 → 重建（历史对话不迁移）
+        cols = [r["name"] for r in conn.execute("PRAGMA table_info(chat_history)").fetchall()]
+        if cols and "session_id" not in cols:
+            conn.execute("DROP TABLE chat_history")
         conn.executescript(SCHEMA)
         conn.commit()
     finally:
@@ -617,36 +630,97 @@ def seed_memories() -> None:
         conn.close()
 
 
-# ---------------------------------------------------------------- 对话记忆 / 键值缓存
+# ---------------------------------------------------------------- 对话会话 / 键值缓存
 
-def chat_history(limit: int = 6) -> list[dict]:
-    """最近 N 条对话记录，按时间正序返回（供 Agent 上下文）。"""
+def create_session(title: str) -> int:
+    conn = get_conn()
+    try:
+        cur = conn.execute("INSERT INTO chat_sessions(title) VALUES(?)", (title,))
+        conn.commit()
+        return cur.lastrowid
+    finally:
+        conn.close()
+
+
+def get_session(session_id: int) -> dict | None:
+    conn = get_conn()
+    try:
+        row = conn.execute("SELECT * FROM chat_sessions WHERE id=?", (session_id,)).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def list_sessions() -> list[dict]:
+    """会话列表（按最近更新倒序），附消息条数。"""
     conn = get_conn()
     try:
         rows = conn.execute(
-            "SELECT role, content FROM (SELECT * FROM chat_history ORDER BY id DESC LIMIT ?)"
-            " ORDER BY id ASC", (limit,)).fetchall()
+            "SELECT s.id, s.title, s.updated_at, COUNT(h.id) AS message_count"
+            " FROM chat_sessions s LEFT JOIN chat_history h ON h.session_id = s.id"
+            " GROUP BY s.id ORDER BY s.updated_at DESC, s.id DESC").fetchall()
         return [dict(r) for r in rows]
     finally:
         conn.close()
 
 
-def add_chat_message(role: str, content: str) -> None:
-    """追加一条对话记录，并只保留最近 60 条。"""
+def touch_session(session_id: int) -> None:
     conn = get_conn()
     try:
-        conn.execute("INSERT INTO chat_history(role, content) VALUES(?,?)", (role, content))
-        conn.execute("DELETE FROM chat_history WHERE id NOT IN"
-                     " (SELECT id FROM chat_history ORDER BY id DESC LIMIT 60)")
+        conn.execute("UPDATE chat_sessions SET updated_at=datetime('now','localtime') WHERE id=?",
+                     (session_id,))
         conn.commit()
     finally:
         conn.close()
 
 
-def clear_chat_history() -> None:
+def delete_session(session_id: int) -> bool:
     conn = get_conn()
     try:
-        conn.execute("DELETE FROM chat_history")
+        cur = conn.execute("DELETE FROM chat_sessions WHERE id=?", (session_id,))
+        conn.execute("DELETE FROM chat_history WHERE session_id=?", (session_id,))
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def session_messages(session_id: int, limit: int = 200) -> list[dict]:
+    """某会话的全部消息（时间正序），content 为原始显示文本。"""
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT role, content, is_draft FROM (SELECT * FROM chat_history"
+            " WHERE session_id=? ORDER BY id DESC LIMIT ?) ORDER BY id ASC",
+            (session_id, limit)).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def chat_history(session_id: int, limit: int = 6) -> list[dict]:
+    """某会话最近 N 条消息（供 Agent 上下文）；草稿消息替换为占位文本防止模仿。"""
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT role, content, is_draft FROM (SELECT * FROM chat_history"
+            " WHERE session_id=? ORDER BY id DESC LIMIT ?) ORDER BY id ASC",
+            (session_id, limit)).fetchall()
+        out = []
+        for r in rows:
+            content = "[已为用户起草记录草稿，等待确认]" if r["is_draft"] else r["content"]
+            out.append({"role": r["role"], "content": content})
+        return out
+    finally:
+        conn.close()
+
+
+def add_chat_message(role: str, content: str, session_id: int | None = None,
+                     is_draft: bool = False) -> None:
+    conn = get_conn()
+    try:
+        conn.execute("INSERT INTO chat_history(role, content, session_id, is_draft) VALUES(?,?,?,?)",
+                     (role, content, session_id, 1 if is_draft else 0))
         conn.commit()
     finally:
         conn.close()

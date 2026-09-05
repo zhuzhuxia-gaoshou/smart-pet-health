@@ -47,7 +47,7 @@ python main.py            # 启动 http://127.0.0.1:8000
 - **AI 助手（LangChain Agent）**：
   - 七个工具：`query_pet` / `query_health_records` / `get_reminders` / `analyze_health` / `generate_report` / `query_memories`（回忆集联动）/ `get_care_guide`（物种护理规范）
   - **自然语言建档**：对 AI 说"帮我记一下：可乐今天打了狂犬疫苗，明年这时候再打"，Agent 解析相对日期起草记录，前端确认卡片一键入库（AI 提议、人确认，物种校验兜底）
-  - **对话记忆**：最近多轮对话注入上下文（支持"那它的体重呢？"式追问），可一键开启新对话清空记忆
+  - **对话会话**：历史会话自动保存，AI 助手左侧列表随时回看、点击继续聊（支持"那它的体重呢？"式追问）；单个会话可删除，「新对话」另起炉灶不删历史
   - **仪表盘 AI 今日简报**：按天自动生成健康简报（临期/逾期逐条建议+体重提示），数据签名过期自动后台刷新，无 Key 降级规则拼接
   - 有 Key：DeepSeek 原生 function calling 驱动工具调用循环，自主决定查库、多轮调用后作答（备选：通义千问文本 ReAct）
   - 无 Key：降级"示例回答"模式，解析关键词调用同一套工具、用数据库真实数据拼答案，全流程仍可演示
@@ -66,8 +66,9 @@ python main.py            # 启动 http://127.0.0.1:8000
 | GET/POST | `/api/memories` | 回忆列表（`?pet_id=` 过滤）/ 新增（含 base64 图片） |
 | PUT/DELETE | `/api/memories/{id}` | 编辑 / 删除回忆 |
 | GET | `/api/reminders` · `/api/stats` | 临期/逾期列表 · 仪表盘统计 |
-| POST | `/api/chat` | `{message}` → `{reply, mode, draft?}`；带多轮记忆，返回 AI 起草的记录草稿 |
-| DELETE | `/api/chat/history` | 清空对话记忆（新对话） |
+| POST | `/api/chat` | `{message, session_id?}` → `{reply, mode, draft?, session_id}`；带会话内多轮记忆，返回 AI 起草的记录草稿 |
+| GET | `/api/chat/sessions` · `/api/chat/history?session_id=` | 历史会话列表 / 某会话的消息记录 |
+| DELETE | `/api/chat/sessions/{id}` | 删除单个历史会话及其全部消息 |
 | GET/POST | `/api/briefing` | 今日 AI 健康简报（按天+数据签名缓存）/ 手动重新生成 |
 | GET | `/api/agent/status` | 当前 AI 运行模式探测 |
 | GET | `/` | 欢迎页（入口） |

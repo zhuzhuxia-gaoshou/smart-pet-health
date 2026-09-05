@@ -63,6 +63,7 @@ class RecordIn(BaseModel):
 
 class ChatIn(BaseModel):
     message: str = Field(..., min_length=1, max_length=500)
+    session_id: int | None = Field(None, description="会话 id；为空则新建会话")
 
 
 class WeightIn(BaseModel):
@@ -286,8 +287,12 @@ DRAFT_INTENT_RE = re.compile(r"记一笔|记一下|记录一下|帮我记|帮我
 def api_chat(body: ChatIn):
     import agent
     import tools
-    # 带上最近多轮对话，支持追问（"那它的体重呢？"）
-    history = db.chat_history(6)
+    # 会话：无 id 则以首条消息为题新建
+    sid = body.session_id
+    if sid is None or db.get_session(sid) is None:
+        sid = db.create_session(title=body.message.strip()[:20])
+    # 记忆：当前会话最近多轮（草稿消息以占位符注入，防止模型模仿格式）
+    history = db.chat_history(sid, 6)
     result = agent.answer(body.message, history=history)
     # 提取 AI 起草的记录草稿（若有）：优先取工具暂存，标记行兜底
     draft = tools.take_last_draft()
@@ -309,18 +314,34 @@ def api_chat(body: ChatIn):
             m2 = DRAFT_RE.search(retry["reply"])
             text = DRAFT_RE.sub("", retry["reply"]).strip() if m2 else retry["reply"]
             result = {"reply": text, "mode": retry["mode"]}
-    db.add_chat_message("user", body.message)
-    # 草稿回复不入记忆，避免模型后续模仿格式而跳过工具
-    db.add_chat_message("assistant", "[已为用户起草记录草稿，等待确认]" if draft else result["reply"])
+    db.add_chat_message("user", body.message, sid)
+    db.add_chat_message("assistant", result["reply"], sid, is_draft=bool(draft))
+    db.touch_session(sid)
+    result["session_id"] = sid
     if draft:
         result["draft"] = draft
     return result
 
 
-@app.delete("/api/chat/history")
-def api_clear_chat_history():
-    """清空对话记忆（开启新对话）。"""
-    db.clear_chat_history()
+@app.get("/api/chat/sessions")
+def api_chat_sessions():
+    """历史会话列表（最近更新倒序）。"""
+    return {"sessions": db.list_sessions()}
+
+
+@app.get("/api/chat/history")
+def api_chat_history(session_id: int):
+    """某会话的历史消息（用于界面回看）。"""
+    if db.get_session(session_id) is None:
+        return {"error": "会话不存在"}
+    return {"session_id": session_id, "messages": db.session_messages(session_id)}
+
+
+@app.delete("/api/chat/sessions/{session_id}")
+def api_delete_session(session_id: int):
+    """删除一个历史会话及其全部消息。"""
+    if not db.delete_session(session_id):
+        return {"error": "会话不存在"}
     return {"ok": True}
 
 
