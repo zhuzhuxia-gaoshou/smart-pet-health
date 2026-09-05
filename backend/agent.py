@@ -260,6 +260,47 @@ def _example_answer(message: str) -> str:
             "配置 DEEPSEEK_API_KEY（或 DASHSCOPE_API_KEY）后，我将作为 LangChain Agent 理解任意提问并自动调用工具。")
 
 
+# ---------------------------------------------------------------- 今日健康简报
+
+BRIEFING_PROMPT = (
+    "请阅读数据库现状，生成一段 150 字以内的「今日健康简报」，要求："
+    "1) 一句话概述宠物与记录规模；"
+    "2) 逐条列出临期/逾期事项并各给一句具体建议；"
+    "3) 如有体重明显波动的宠物提一句；"
+    "4) 收尾一句温暖克制的总结。直接输出简报正文，不要大标题。"
+)
+
+
+def briefing_fallback() -> str:
+    """无 Key 时的规则拼接简报（数据同样来自真实库）。"""
+    import db
+    st = db.stats()
+    rem = db.compute_reminders()
+    lines = [f"目前共有 {st['pet_count']} 只宠物、{st['record_count']} 条健康记录。"]
+    if rem:
+        items = "；".join(
+            f"{r['pet_name']}的{r['type_label']}「{r['title']}」"
+            + (f"已逾期 {-r['days_left']} 天" if r["overdue"] else f"还剩 {r['days_left']} 天")
+            for r in rem[:4])
+        lines.append("需要关注：" + items + "，建议尽快安排处理。")
+    else:
+        lines.append("当前没有临期或逾期事项，一切都在计划内。")
+    lines.append("打开 AI 助手可以继续询问任意宠物的详细情况。")
+    return "\n".join(lines)
+
+
+def generate_briefing() -> dict:
+    """生成今日简报：有 Key 走 Agent（真实生成），无 Key 规则拼接。返回 {text, mode}。"""
+    if provider() and not _agent_failed:
+        try:
+            result = _ask_agent(BRIEFING_PROMPT)
+            if not result.startswith("⚠️"):
+                return {"text": result.strip(), "mode": "agent"}
+        except Exception:
+            pass
+    return {"text": briefing_fallback(), "mode": "example"}
+
+
 # ---------------------------------------------------------------- 对外入口
 
 def answer(message: str, history: list[dict] | None = None) -> dict:

@@ -3,8 +3,11 @@
 
 启动：python main.py  →  http://127.0.0.1:8000
 """
+import json
 import os
+import threading
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 import uvicorn
 from fastapi import FastAPI
@@ -185,6 +188,60 @@ def api_all_records(limit: int | None = None):
 def api_stats():
     return {"stats": db.stats(), "reminders": db.compute_reminders(),
             "recent": db.recent_activity()}
+
+
+# ---------------------------------------------------------------- AI 今日简报
+
+BRIEF_KEY = "briefing"
+
+
+def _briefing_signature() -> str:
+    """数据签名：宠物/记录/临期数任一变化即视为过期。"""
+    st = db.stats()
+    return f"{st['pet_count']}|{st['record_count']}|{st['due_count']}"
+
+
+def _start_briefing_generation() -> None:
+    """后台线程生成简报并写缓存（不阻塞请求）。"""
+    def work():
+        try:
+            import agent
+            payload = agent.generate_briefing()
+            payload["sig"] = _briefing_signature()
+            payload["date"] = datetime.now().strftime("%Y-%m-%d")
+            db.kv_set(BRIEF_KEY, json.dumps(payload, ensure_ascii=False))
+        except Exception:
+            pass
+    threading.Thread(target=work, daemon=True).start()
+
+
+@app.get("/api/briefing")
+def api_briefing():
+    """今日 AI 健康简报：按天+数据签名缓存；过期先返回旧内容并后台刷新。"""
+    meta = db.kv_get_meta(BRIEF_KEY)
+    sig = _briefing_signature()
+    today = datetime.now().strftime("%Y-%m-%d")
+    if meta:
+        try:
+            data = json.loads(meta["value"])
+        except Exception:
+            data = None
+        if data and data.get("text"):
+            fresh = data.get("sig") == sig and data.get("date") == today
+            if not fresh:
+                _start_briefing_generation()
+            return {"briefing": {"text": data["text"], "mode": data.get("mode"),
+                                 "generated_at": meta["updated_at"]},
+                    "fresh": fresh}
+    _start_briefing_generation()
+    return {"briefing": None, "fresh": False}
+
+
+@app.post("/api/briefing/refresh")
+def api_briefing_refresh():
+    """手动触发重新生成。"""
+    _start_briefing_generation()
+    return {"generating": True}
 
 
 # ---------------------------------------------------------------- 回忆集

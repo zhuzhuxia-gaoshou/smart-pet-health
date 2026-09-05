@@ -132,6 +132,12 @@ button.dis-chip:hover { border-color:var(--accent); color:var(--accent); backgro
 .care-extra { padding:16px 20px; margin-bottom:16px; }
 .care-note { font-size:12px; color:var(--text-2); margin-top:10px; }
 .tl-ops { display:flex; gap:10px; margin-top:8px; }
+
+/* ============ AI 今日简报 ============ */
+.briefing-card { padding:16px 20px; margin-bottom:18px; background:var(--accent-soft); border:none; }
+.brief-title { font-size:12.5px; font-weight:600; color:var(--accent); letter-spacing:1px; margin-bottom:8px; }
+.brief-text { font-size:13.5px; line-height:1.75; color:var(--text); }
+.brief-meta { margin-top:10px; font-size:12px; color:var(--text-2); display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .btn.sm { padding: 5px 11px; font-size: 13px; }
 .btn[disabled] { opacity: .55; pointer-events: none; }
 .ripple {
@@ -574,6 +580,7 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
       <div class="page-sub">一眼掌握所有宠物的健康概况与到期事项</div>
     </div>
     <div class="stat-row" id="stat-row"></div>
+    <div class="card briefing-card" id="briefing-box"><span class="typing"><i></i><i></i><i></i> AI 正在准备今日简报…</span></div>
     <div class="dash-grid">
       <div class="dash-col">
         <div class="card card-pad compact-card">
@@ -805,6 +812,7 @@ async function refreshData() {
    ============================================================ */
 async function renderDashboard() {
   await refreshData();
+  renderBriefing();
   const st = state.stats;
   $('stat-row').innerHTML = [
     statCard('a', '🐾', st.pet_count, '宠物总数', '<path d=\"M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><circle cx=\"9.5\" cy=\"7\" r=\"4\"/>', "go('library',{back:true})", '查看宠物'),
@@ -1540,6 +1548,32 @@ async function resetChat() {
   $('chat-scroll').innerHTML = '';
   renderChat();
   toast('已开启新对话，AI 的对话记忆已清空');
+}
+
+/* ---------- 仪表盘 AI 今日简报 ---------- */
+let _briefingPolls = 0;
+async function renderBriefing() {
+  const box = $('briefing-box'); if (!box) return;
+  try {
+    const r = await api('/api/briefing');
+    if (!r.briefing) {
+      if (++_briefingPolls < 24) setTimeout(renderBriefing, 5000);
+      return;
+    }
+    _briefingPolls = 0;
+    const tag = r.fresh ? '今日简报' : '简报 · 数据有更新，正在后台刷新';
+    box.innerHTML = `<div class="brief-title">✦ AI 今日健康简报</div>
+      <div class="brief-text">${mdLite(r.briefing.text)}</div>
+      <div class="brief-meta">生成于 ${r.briefing.generated_at} · ${tag}
+        <button class="btn ghost sm" onclick="refreshBriefing(this)">↻ 重新生成</button></div>`;
+  } catch (e) { box.innerHTML = ''; }
+}
+async function refreshBriefing(btn) {
+  btn.disabled = true; btn.textContent = '生成中…';
+  await api('/api/briefing/refresh', { method: 'POST' }).catch(() => {});
+  const box = $('briefing-box');
+  box.innerHTML = `<div class="brief-title">✦ AI 今日健康简报</div><span class="typing"><i></i><i></i><i></i> AI 正在重新生成…</span>`;
+  setTimeout(renderBriefing, 6000);
 }
 $('chat-input')?.addEventListener('input', e => autoGrow(e.target));
 
