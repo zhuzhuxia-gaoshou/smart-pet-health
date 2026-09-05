@@ -138,6 +138,16 @@ button.dis-chip:hover { border-color:var(--accent); color:var(--accent); backgro
 .brief-title { font-size:12.5px; font-weight:600; color:var(--accent); letter-spacing:1px; margin-bottom:8px; }
 .brief-text { font-size:13.5px; line-height:1.75; color:var(--text); }
 .brief-meta { margin-top:10px; font-size:12px; color:var(--text-2); display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+
+/* ============ AI 起草记录确认卡 ============ */
+.draft-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px 16px; max-width:440px; }
+.draft-card.done { border-style:dashed; }
+.draft-head { font-size:13px; font-weight:600; color:var(--accent); margin-bottom:10px; }
+.draft-card.done .draft-head { color:var(--text-2); }
+.draft-row { display:flex; justify-content:space-between; gap:16px; font-size:13px; padding:5px 0; border-bottom:1px dashed var(--border); }
+.draft-row span { color:var(--text-2); }
+.draft-row b { font-weight:500; text-align:right; }
+.draft-ops { display:flex; gap:10px; justify-content:flex-end; margin-top:12px; }
 .btn.sm { padding: 5px 11px; font-size: 13px; }
 .btn[disabled] { opacity: .55; pointer-events: none; }
 .ripple {
@@ -1489,7 +1499,7 @@ const QUICK_QS = ['最近有哪些到期或逾期的事项？', '可乐接下来
 function renderChat() {
   $('chat-quick').innerHTML = QUICK_QS.map(q => `<button class="chip" onclick="askFromSuggest('${esc(q)}')">${esc(q)}</button>`).join('');
   const sc = $('chat-scroll');
-  sc.innerHTML = state.chat.map(m => msgHTML(m)).join('');
+  sc.innerHTML = state.chat.map((m, i) => m.role === 'draft' ? draftHTML(m, i) : msgHTML(m)).join('');
   sc.scrollTop = sc.scrollHeight;
   api('/api/agent/status').then(s => {
     state.agentMode = s.mode;
@@ -1502,8 +1512,39 @@ function renderChat() {
     sc.innerHTML = msgHTML({ role: 'bot', text: '你好，我是**智能宠物健康管家** 🐾\n\n我可以查询宠物档案与健康记录、计算到期提醒、分析健康状况，并一键生成健康报告。试试下方快捷问题，或直接输入你的问题。', mode: null });
   }
 }
-function msgHTML(m) {
-  const av = m.role === 'user' ? '我' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z"/></svg>';
+function draftHTML(m, i) {
+  const card = m.done
+    ? `<div class="draft-card done"><div class="draft-head">${m.cancelled ? '已取消该草稿' : '✅ 草稿已确认入库'}</div></div>`
+    : `<div class="draft-card">
+      <div class="draft-head">📝 AI 起草的健康记录 · 确认后入库</div>
+      ${[['宠物', m.pet_name], ['类型', m.type_label], ['日期', m.date], ['标题', m.title],
+        ['下次日期', m.next_date || '—'], ['说明', m.note || '—'], ['体重', m.weight ? m.weight + ' kg' : '—']]
+        .map(([k, v]) => `<div class="draft-row"><span>${k}</span><b>${esc(v)}</b></div>`).join('')}
+      <div class="draft-ops">
+        <button class="btn sm" onclick="discardDraft(${i}, this)">取消</button>
+        <button class="btn primary sm" onclick="confirmDraft(${i}, this)">✓ 确认保存</button>
+      </div>
+    </div>`;
+  return `<div class="msg bot"><div class="msg-avatar">✦</div><div>${card}</div></div>`;
+}
+async function confirmDraft(i, btn) {
+  const d = state.chat[i];
+  btn.disabled = true; btn.textContent = '保存中…';
+  try {
+    const body = { type: d.type, date: d.date, title: d.title, note: d.note, next_date: d.next_date };
+    if (d.weight) body.weight = Number(d.weight);
+    await api(`/api/pets/${d.pet_id}/records`, { method: 'POST', body: JSON.stringify(body) });
+    state.chat[i] = { ...d, done: true };
+    const card = btn.closest('.draft-card');
+    card.outerHTML = `<div class="draft-card done"><div class="draft-head">✅ 记录已保存，提醒已生效</div></div>`;
+    toast('记录已保存 ✓');
+  } catch (e) { toast(e.message, true); btn.disabled = false; btn.textContent = '✓ 确认保存'; }
+}
+function discardDraft(i, btn) {
+  state.chat[i] = { ...state.chat[i], done: true, cancelled: true };
+  btn.closest('.draft-card').outerHTML = `<div class="draft-card done"><div class="draft-head">已取消该草稿</div></div>`;
+}
+function msgHTML(m) {  const av = m.role === 'user' ? '我' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z"/></svg>';
   const isReport = m.role === 'bot' && /(^#|\n#)\s/.test(m.text || '');
   const actions = m.role === 'bot' ? `<div class="msg-actions">
       <button class="btn ghost sm" onclick="copyAnswer(this)" data-text="${encodeURIComponent(m.text)}">⧉ 复制</button>
@@ -1529,16 +1570,25 @@ async function sendChat() {
   think.innerHTML = `<div class="msg-avatar">✦</div><div class="bubble"><span class="typing"><i></i><i></i><i></i> 思考中…</span></div>`;
   sc.appendChild(think); sc.scrollTop = sc.scrollHeight;
   $('chat-send').disabled = true; $('chat-send').querySelector('.btn-label').textContent = '思考中…';
+  let draft = null;
   try {
     const r = await api('/api/chat', { method: 'POST', body: JSON.stringify({ message: msg }) });
     think.remove();
     state.chat.push({ role: 'bot', text: r.reply, mode: r.mode });
+    draft = r.draft || null;
   } catch (e) {
     think.remove();
     state.chat.push({ role: 'bot', text: '抱歉，请求失败了：' + e.message, mode: null });
   }
   const el = document.createElement('div'); el.innerHTML = msgHTML(state.chat[state.chat.length - 1]);
   sc.appendChild(el.firstElementChild); sc.scrollTop = sc.scrollHeight;
+  // AI 起草的记录草稿：渲染确认卡片
+  if (draft) {
+    state.chat.push({ role: 'draft', ...draft });
+    const de = document.createElement('div');
+    de.innerHTML = draftHTML(state.chat[state.chat.length - 1], state.chat.length - 1);
+    sc.appendChild(de.firstElementChild); sc.scrollTop = sc.scrollHeight;
+  }
   $('chat-send').disabled = false; const lbl = $('chat-send').querySelector('.btn-label'); if (lbl) lbl.textContent = '发送';
 }
 function autoGrow(ta) { ta.style.height = 'auto'; ta.style.height = Math.min(120, ta.scrollHeight) + 'px'; }

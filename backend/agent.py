@@ -63,7 +63,8 @@ TOOLS_BRIEF = """可用工具：
 - analyze_health(宠物名): 综合记录与体重做健康分析
 - generate_report(宠物名, 周期): 生成 Markdown 健康报告；名字留空表示全部宠物，周期取 周/月/年
 - query_memories(宠物名): 查询主人为宠物手动写下的回忆故事（第一次郊游、纪念时刻等成长记录）；名字留空返回全部宠物的最新回忆
-- get_care_guide(宠物名或类型词): 查询物种护理规范——该物种适用的记录类型、该做的事、不该做的事（禁忌）与常见疾病；名字留空返回概览"""
+- get_care_guide(宠物名或类型词): 查询物种护理规范——该物种适用的记录类型、该做的事、不该做的事（禁忌）与常见疾病；名字留空返回概览
+- create_record_draft(宠物名, 类型, 日期, 标题, 说明, 下次日期, 体重): 用户口述要记一笔健康事项时调用，起草待确认的记录草稿（不直接入库）"""
 
 SYSTEM_PROMPT = """你是「智能宠物健康管家」的 AI 助手，一个专业的宠物健康管理 Agent。
 你通过工具查询 SQLite 数据库中的真实宠物档案与健康记录，请遵循：
@@ -74,6 +75,7 @@ SYSTEM_PROMPT = """你是「智能宠物健康管家」的 AI 助手，一个专
 5. 数据不足时诚实说明，并建议补充记录。
 6. 生成报告时输出完整 Markdown 文本。
 7. 物种边界：不同宠物生理差异极大。回答护理、疾病、饮食类问题前，先通过 query_pet 确认宠物类型，必要时调用 get_care_guide 获取该物种的护理规范；严禁把不适用的病症、处置或记录类型安到对应物种上（例如鱼类不存在"腹泻"这一常见病症框架、鸟类不接种常规疫苗）；当用户的问题与物种不符时，应温和指出并给出该物种的正确方向。
+8. 帮用户记录健康事项（如"帮我记一笔……"）时，必须调用 create_record_draft 工具起草草稿并请用户确认，严禁不调用工具就直接输出"草稿"样式的文字，严禁声称已直接保存；草稿中相对日期（昨天/下周四/下个月等）先按今天换算为 YYYY-MM-DD。
 
 """ + TOOLS_BRIEF
 
@@ -120,6 +122,15 @@ def _build_tools():
     class MemNameIn(BaseModel):
         name: str = Field(default="", description="宠物名字；留空表示查看全部宠物的回忆")
 
+    class DraftIn(BaseModel):
+        pet_name: str = Field(description="宠物名字")
+        record_type: str = Field(description="记录类型：vaccine|checkup|deworm|medication|clinic 或中文（疫苗/体检/驱虫/喂药/就诊）")
+        date: str = Field(description="记录日期 YYYY-MM-DD；相对日期先按今天换算")
+        title: str = Field(description="记录标题")
+        note: str = Field(default="", description="补充说明")
+        next_date: str = Field(default="", description="下次日期 YYYY-MM-DD，没有则留空")
+        weight: float | None = Field(default=None, description="当时体重 kg，没有则省略")
+
     return [
         StructuredTool.from_function(tools.query_pet, name="query_pet",
                                      description=tools.query_pet.__doc__.strip(),
@@ -150,6 +161,11 @@ def _build_tools():
             name="get_care_guide",
             description=tools.get_care_guide.__doc__.strip(),
             args_schema=MemNameIn),
+        StructuredTool.from_function(
+            tools.create_record_draft,
+            name="create_record_draft",
+            description=tools.create_record_draft.__doc__.strip(),
+            args_schema=DraftIn),
     ]
 
 
@@ -175,7 +191,9 @@ def _ask_agent(message: str, history: list[dict] | None = None) -> str:
                 + _example_answer(message))
     try:
         msgs = [{"role": h["role"], "content": h["content"]} for h in (history or [])]
-        msgs.append({"role": "user", "content": message})
+        from datetime import date as _date
+        msgs.append({"role": "user",
+                     "content": f"[系统注：今天是 {_date.today().isoformat()}]\n{message}"})
         result = agent.invoke({"messages": msgs}, config={"recursion_limit": 12})
         for m in reversed(result.get("messages", [])):
             if getattr(m, "type", "") in ("ai", "assistant") and str(getattr(m, "content", "")).strip():

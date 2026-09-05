@@ -264,6 +264,60 @@ def get_care_guide(name: str = "") -> str:
     return "\n".join(lines)
 
 
+DRAFT_MARKER = "@@DRAFT@@"
+
+# 最近一次起草的草稿（/api/chat 取走后附到响应，取走即清空）
+LAST_DRAFT: dict | None = None
+
+
+def take_last_draft() -> dict | None:
+    global LAST_DRAFT
+    d = LAST_DRAFT
+    LAST_DRAFT = None
+    return d
+
+
+def create_record_draft(pet_name: str, record_type: str, date: str, title: str,
+                        note: str = "", next_date: str = "", weight: float | None = None) -> str:
+    """根据用户口语描述起草一条健康记录（不直接入库，待用户在前端确认后保存）。
+    相对日期（昨天/下周四等）应先按今天换算为 YYYY-MM-DD。"""
+    import species
+    pet = db.fetch_pet_by_name(pet_name)
+    if not pet:
+        return _pet_missing_text(pet_name)
+    rtype = (record_type or "").strip().lower()
+    if rtype not in db.RECORD_TYPES:
+        rev = {v: k for k, v in db.RECORD_TYPES.items()}
+        rtype = rev.get((record_type or "").strip(), "")
+        if not rtype:
+            return (f"记录类型「{record_type}」无效。可用类型："
+                    + "、".join(db.RECORD_TYPES.values()) + "。")
+    ok, msg = species.record_type_allowed(pet["type"], rtype)
+    if not ok:
+        return msg + "。请向用户说明该物种不适用此记录类型，不要起草。"
+    title = (title or "").strip()
+    if not title:
+        return "缺少记录标题。请先向用户询问具体事项名称，再重新起草。"
+    draft = {
+        "pet_id": pet["id"], "pet_name": pet["name"],
+        "type": rtype, "type_label": db.RECORD_TYPES[rtype],
+        "date": (date or "").strip() or db.today_str(),
+        "title": title,
+        "note": (note or "").strip(),
+        "next_date": (next_date or "").strip() or None,
+        "weight": weight,
+    }
+    line = json.dumps(draft, ensure_ascii=False)
+    global LAST_DRAFT
+    LAST_DRAFT = draft
+    summary = (f"{draft['pet_name']} · {draft['type_label']} · {draft['date']} · {draft['title']}"
+               + (f" · 下次 {draft['next_date']}" if draft["next_date"] else ""))
+    return (f"已起草记录（等待用户确认）：{summary}\n"
+            f"{DRAFT_MARKER}{line}@@END@@\n"
+            "请用一两句话告诉用户草稿已准备好、请在下方卡片中确认或取消；"
+            "标记行是给系统的，不要在回答中原样输出。")
+
+
 # 供 agent.py 注册 LangChain 工具用的元信息
 TOOL_META = [
     ("query_pet", "按宠物名字查询该宠物的基本信息（品种/年龄/体重/健康状态）"),
@@ -273,4 +327,5 @@ TOOL_META = [
     ("generate_report", "生成健康报告（Markdown）。参数：宠物名（可为空表示全部）、周期（周/月/年）"),
     ("query_memories", "查询宠物回忆故事/成长记录。参数：宠物名（可为空表示全部）"),
     ("get_care_guide", "查询物种护理规范：该物种适用的记录类型、该做与不该做的事、常见疾病。参数：宠物名或类型词（可为空表示概览）"),
+    ("create_record_draft", "根据用户口语描述起草健康记录草稿（不入库，用户确认后保存）。参数：宠物名、类型、日期、标题、说明、下次日期、体重"),
 ]

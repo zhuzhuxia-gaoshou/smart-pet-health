@@ -5,6 +5,7 @@
 """
 import json
 import os
+import re
 import threading
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -276,14 +277,43 @@ def api_delete_memory(mem_id: int):
 
 # ---------------------------------------------------------------- AI 对话（P2 接入 Agent）
 
+DRAFT_RE = re.compile(r"@@DRAFT@@(\{.*?\})@@END@@", re.S)
+# 建档意图：用户口述"记一笔/记一下/打完疫苗"等，用于草稿兜底重试
+DRAFT_INTENT_RE = re.compile(r"记一笔|记一下|记录一下|帮我记|帮我登记|登记一下|补充一条|添加一条记录")
+
+
 @app.post("/api/chat")
 def api_chat(body: ChatIn):
     import agent
+    import tools
     # 带上最近多轮对话，支持追问（"那它的体重呢？"）
     history = db.chat_history(6)
     result = agent.answer(body.message, history=history)
+    # 提取 AI 起草的记录草稿（若有）：优先取工具暂存，标记行兜底
+    draft = tools.take_last_draft()
+    m = DRAFT_RE.search(result["reply"])
+    if m:
+        if draft is None:
+            try:
+                draft = json.loads(m.group(1))
+            except Exception:
+                draft = None
+        result["reply"] = DRAFT_RE.sub("", result["reply"]).strip()
+    # 兜底：检测到建档意图但模型没调起草工具（偶发模仿历史格式）→ 明确指令重试一次
+    if draft is None and DRAFT_INTENT_RE.search(body.message):
+        retry = agent.answer("请立即调用 create_record_draft 工具，为以下需求起草记录（不要只用文字描述）："
+                             + body.message)
+        d2 = tools.take_last_draft()
+        if d2:
+            draft = d2
+            m2 = DRAFT_RE.search(retry["reply"])
+            text = DRAFT_RE.sub("", retry["reply"]).strip() if m2 else retry["reply"]
+            result = {"reply": text, "mode": retry["mode"]}
     db.add_chat_message("user", body.message)
-    db.add_chat_message("assistant", result["reply"])
+    # 草稿回复不入记忆，避免模型后续模仿格式而跳过工具
+    db.add_chat_message("assistant", "[已为用户起草记录草稿，等待确认]" if draft else result["reply"])
+    if draft:
+        result["draft"] = draft
     return result
 
 
