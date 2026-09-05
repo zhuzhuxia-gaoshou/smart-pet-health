@@ -57,6 +57,17 @@ CREATE TABLE IF NOT EXISTS memories(
   created_at TEXT DEFAULT (datetime('now','localtime')),
   FOREIGN KEY(pet_id) REFERENCES pets(id) ON DELETE SET NULL
 );
+CREATE TABLE IF NOT EXISTS chat_history(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  role TEXT NOT NULL,
+  content TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE IF NOT EXISTS app_kv(
+  key TEXT PRIMARY KEY,
+  value TEXT,
+  updated_at TEXT DEFAULT (datetime('now','localtime'))
+);
 """
 
 
@@ -601,6 +612,71 @@ def seed_memories() -> None:
             conn.execute(
                 "INSERT INTO memories(pet_id,date,title,text,image) VALUES(?,?,?,?,?)",
                 (pid, _d(off), title, text, _placeholder_image(emoji, c1, c2)))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------- 对话记忆 / 键值缓存
+
+def chat_history(limit: int = 6) -> list[dict]:
+    """最近 N 条对话记录，按时间正序返回（供 Agent 上下文）。"""
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT role, content FROM (SELECT * FROM chat_history ORDER BY id DESC LIMIT ?)"
+            " ORDER BY id ASC", (limit,)).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def add_chat_message(role: str, content: str) -> None:
+    """追加一条对话记录，并只保留最近 60 条。"""
+    conn = get_conn()
+    try:
+        conn.execute("INSERT INTO chat_history(role, content) VALUES(?,?)", (role, content))
+        conn.execute("DELETE FROM chat_history WHERE id NOT IN"
+                     " (SELECT id FROM chat_history ORDER BY id DESC LIMIT 60)")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def clear_chat_history() -> None:
+    conn = get_conn()
+    try:
+        conn.execute("DELETE FROM chat_history")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def kv_get(key: str) -> str | None:
+    conn = get_conn()
+    try:
+        row = conn.execute("SELECT value FROM app_kv WHERE key=?", (key,)).fetchone()
+        return row["value"] if row else None
+    finally:
+        conn.close()
+
+
+def kv_get_meta(key: str) -> dict | None:
+    conn = get_conn()
+    try:
+        row = conn.execute("SELECT value, updated_at FROM app_kv WHERE key=?", (key,)).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def kv_set(key: str, value: str) -> None:
+    conn = get_conn()
+    try:
+        conn.execute(
+            "INSERT INTO app_kv(key, value, updated_at) VALUES(?, ?, datetime('now','localtime'))"
+            " ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
+            (key, value))
         conn.commit()
     finally:
         conn.close()

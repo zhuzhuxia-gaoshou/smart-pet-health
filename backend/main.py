@@ -222,7 +222,19 @@ def api_delete_memory(mem_id: int):
 @app.post("/api/chat")
 def api_chat(body: ChatIn):
     import agent
-    return agent.answer(body.message)
+    # 带上最近多轮对话，支持追问（"那它的体重呢？"）
+    history = db.chat_history(6)
+    result = agent.answer(body.message, history=history)
+    db.add_chat_message("user", body.message)
+    db.add_chat_message("assistant", result["reply"])
+    return result
+
+
+@app.delete("/api/chat/history")
+def api_clear_chat_history():
+    """清空对话记忆（开启新对话）。"""
+    db.clear_chat_history()
+    return {"ok": True}
 
 
 @app.get("/api/agent/status")

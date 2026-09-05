@@ -708,9 +708,12 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
 
   <!-- AI 助手 -->
   <section class="view" id="view-chat">
-    <div class="page-head">
-      <div class="page-title">AI 智能助手</div>
-      <div class="page-sub" id="chat-sub">LangChain Agent · 基于数据库回答 · 自动生成健康报告</div>
+    <div class="page-head" style="display:flex;align-items:flex-start;gap:16px">
+      <div>
+        <div class="page-title">AI 智能助手</div>
+        <div class="page-sub" id="chat-sub">LangChain Agent · 基于数据库回答 · 自动生成健康报告</div>
+      </div>
+      <button class="btn sm" style="margin-left:auto" onclick="resetChat()">＋ 新对话</button>
     </div>
     <div class="chat-wrap">
       <div class="chat-scroll" id="chat-scroll"></div>
@@ -1531,6 +1534,13 @@ async function sendChat() {
   $('chat-send').disabled = false; const lbl = $('chat-send').querySelector('.btn-label'); if (lbl) lbl.textContent = '发送';
 }
 function autoGrow(ta) { ta.style.height = 'auto'; ta.style.height = Math.min(120, ta.scrollHeight) + 'px'; }
+async function resetChat() {
+  try { await api('/api/chat/history', { method: 'DELETE' }); } catch (e) {}
+  state.chat = [];
+  $('chat-scroll').innerHTML = '';
+  renderChat();
+  toast('已开启新对话，AI 的对话记忆已清空');
+}
 $('chat-input')?.addEventListener('input', e => autoGrow(e.target));
 
 /* 轻量 Markdown：标题/加粗/行内代码/列表/引用 */

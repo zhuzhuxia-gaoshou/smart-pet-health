@@ -165,7 +165,7 @@ def _build_langchain_agent():
     return _agent
 
 
-def _ask_agent(message: str) -> str:
+def _ask_agent(message: str, history: list[dict] | None = None) -> str:
     global _agent_failed
     try:
         agent = _build_langchain_agent()
@@ -174,8 +174,9 @@ def _ask_agent(message: str) -> str:
         return (f"⚠️ Agent 构建失败（{type(e).__name__}: {e}），已自动切换到示例回答模式。\n\n"
                 + _example_answer(message))
     try:
-        result = agent.invoke({"messages": [{"role": "user", "content": message}]},
-                              config={"recursion_limit": 12})
+        msgs = [{"role": h["role"], "content": h["content"]} for h in (history or [])]
+        msgs.append({"role": "user", "content": message})
+        result = agent.invoke({"messages": msgs}, config={"recursion_limit": 12})
         for m in reversed(result.get("messages", [])):
             if getattr(m, "type", "") in ("ai", "assistant") and str(getattr(m, "content", "")).strip():
                 return str(m.content).strip()
@@ -261,10 +262,14 @@ def _example_answer(message: str) -> str:
 
 # ---------------------------------------------------------------- 对外入口
 
-def answer(message: str) -> dict:
-    """返回 {"reply": 回答文本, "mode": "agent"|"example"}。"""
+def answer(message: str, history: list[dict] | None = None) -> dict:
+    """返回 {"reply": 回答文本, "mode": "agent"|"example"}。
+
+    history：最近多轮对话 [{role: user|assistant, content}, ...]（时间正序），
+    让 Agent 支持追问（如"那它的体重呢？"）；示例回答模式为单轮，忽略历史。
+    """
     if provider() and not _agent_failed:
-        reply = _ask_agent(message)
+        reply = _ask_agent(message, history)
         if reply.startswith("⚠️"):
             return {"reply": reply, "mode": "example"}
         return {"reply": reply, "mode": "agent"}
