@@ -18,3 +18,8 @@ __pycache__/
 .idea/
 Thumbs.db
 .DS_Store
+
+# Node（dev 冒烟测试依赖，按 README 手动安装）
+node_modules/
+package.json
+package-lock.json

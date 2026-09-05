@@ -62,7 +62,8 @@ TOOLS_BRIEF = """可用工具：
 - get_reminders(): 查所有临期（7天内）或已逾期事项，无需参数
 - analyze_health(宠物名): 综合记录与体重做健康分析
 - generate_report(宠物名, 周期): 生成 Markdown 健康报告；名字留空表示全部宠物，周期取 周/月/年
-- query_memories(宠物名): 查询主人为宠物手动写下的回忆故事（第一次郊游、纪念时刻等成长记录）；名字留空返回全部宠物的最新回忆"""
+- query_memories(宠物名): 查询主人为宠物手动写下的回忆故事（第一次郊游、纪念时刻等成长记录）；名字留空返回全部宠物的最新回忆
+- get_care_guide(宠物名或类型词): 查询物种护理规范——该物种适用的记录类型、该做的事、不该做的事（禁忌）与常见疾病；名字留空返回概览"""
 
 SYSTEM_PROMPT = """你是「智能宠物健康管家」的 AI 助手，一个专业的宠物健康管理 Agent。
 你通过工具查询 SQLite 数据库中的真实宠物档案与健康记录，请遵循：
@@ -72,6 +73,7 @@ SYSTEM_PROMPT = """你是「智能宠物健康管家」的 AI 助手，一个专
 4. 涉及医疗判断时，提醒用户以兽医意见为准。
 5. 数据不足时诚实说明，并建议补充记录。
 6. 生成报告时输出完整 Markdown 文本。
+7. 物种边界：不同宠物生理差异极大。回答护理、疾病、饮食类问题前，先通过 query_pet 确认宠物类型，必要时调用 get_care_guide 获取该物种的护理规范；严禁把不适用的病症、处置或记录类型安到对应物种上（例如鱼类不存在"腹泻"这一常见病症框架、鸟类不接种常规疫苗）；当用户的问题与物种不符时，应温和指出并给出该物种的正确方向。
 
 """ + TOOLS_BRIEF
 
@@ -143,6 +145,11 @@ def _build_tools():
             name="query_memories",
             description=tools.query_memories.__doc__.strip(),
             args_schema=MemNameIn),
+        StructuredTool.from_function(
+            lambda name="": tools.get_care_guide(name),
+            name="get_care_guide",
+            description=tools.get_care_guide.__doc__.strip(),
+            args_schema=MemNameIn),
     ]
 
 
@@ -206,6 +213,11 @@ def _example_answer(message: str) -> str:
     remind_kw = any(k in msg for k in ("提醒", "到期", "临期", "逾期", "该做", "什么时候"))
     analyze_kw = any(k in msg for k in ("分析", "怎么样", "健康吗", "体重", "状态如何", "评估"))
     record_kw = any(k in msg for k in ("疫苗", "驱虫", "体检", "喂药", "就诊", "记录", "打过", "接种"))
+    care_kw = any(k in msg for k in ("该做", "不该做", "禁忌", "能吃", "不能吃", "注意什么", "护理", "照顾", "规范"))
+
+    if care_kw:
+        return (tools.get_care_guide(pet or "")
+                + "\n\n> 当前为示例回答模式（未配置 API Key）。")
 
     if memory_kw and not report_kw:
         return (tools.query_memories(pet or "")

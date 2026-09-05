@@ -241,6 +241,29 @@ def _report_one(pet: dict, period: str, heading_level: int = 1) -> str:
     return "\n".join(lines)
 
 
+def get_care_guide(name: str = "") -> str:
+    """查询物种护理规范：该物种适用的记录类型、该做的事、不该做的事（禁忌）与常见疾病。
+    name 可传宠物名（自动识别其类型）或直接传类型词（如：鱼/鸟类/fish），留空返回概览。"""
+    import species
+    from db import PET_TYPES
+    q = (name or "").strip()
+    if q:
+        pet = db.fetch_pet_by_name(q)
+        if pet:
+            return species.care_guide_text(pet["type"], pet["name"])
+        # 非宠物名：尝试按类型词匹配（支持中文标签或英文 key）
+        for key, sp in species.SPECIES.items():
+            if q in (key, sp["label"]) or q in PET_TYPES and PET_TYPES.get(q) == sp["label"]:
+                return species.care_guide_text(key)
+        return (f"未找到名为「{q}」的宠物，也不是有效的类型词（可用："
+                + "、".join(sp["label"] for sp in species.SPECIES.values()) + "）。")
+    lines = ["物种护理规范概览："]
+    for key, sp in species.SPECIES.items():
+        lines.append(f"- {sp['label']}：适用记录 {'、'.join(sp['record_types'])}"
+                     f"；禁忌 {sp['care_dont'][0]}")
+    return "\n".join(lines)
+
+
 # 供 agent.py 注册 LangChain 工具用的元信息
 TOOL_META = [
     ("query_pet", "按宠物名字查询该宠物的基本信息（品种/年龄/体重/健康状态）"),
@@ -249,4 +272,5 @@ TOOL_META = [
     ("analyze_health", "按宠物名字做健康分析：记录概况、提醒、体重变化与结论"),
     ("generate_report", "生成健康报告（Markdown）。参数：宠物名（可为空表示全部）、周期（周/月/年）"),
     ("query_memories", "查询宠物回忆故事/成长记录。参数：宠物名（可为空表示全部）"),
+    ("get_care_guide", "查询物种护理规范：该物种适用的记录类型、该做与不该做的事、常见疾病。参数：宠物名或类型词（可为空表示概览）"),
 ]

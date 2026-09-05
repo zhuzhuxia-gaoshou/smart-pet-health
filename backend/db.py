@@ -19,7 +19,7 @@ RECORD_TYPES = {
     "medication": "喂药",
     "clinic": "就诊",
 }
-PET_TYPES = {"cat": "猫", "dog": "狗", "bird": "鸟", "other": "其他"}
+PET_TYPES = {"cat": "猫", "dog": "狗", "bird": "鸟", "fish": "鱼", "other": "其他"}
 PET_STATUS = {"healthy": "健康", "attention": "需关注", "ill": "治疗中"}
 GENDERS = {"male": "公", "female": "母", "unknown": "未知"}
 
@@ -344,6 +344,63 @@ def add_record(pet_id: int, data: dict) -> dict | None:
         d = dict(row)
         d["type_label"] = RECORD_TYPES.get(d["type"], d["type"])
         return d
+    finally:
+        conn.close()
+
+
+def get_record(record_id: int) -> dict | None:
+    conn = get_conn()
+    try:
+        row = conn.execute("SELECT * FROM health_records WHERE id=?", (record_id,)).fetchone()
+        if row is None:
+            return None
+        d = dict(row)
+        d["type_label"] = RECORD_TYPES.get(d["type"], d["type"])
+        return d
+    finally:
+        conn.close()
+
+
+def update_record(record_id: int, data: dict) -> dict | None:
+    """编辑健康记录；带体重时与新增记录同样同步体重表与宠物当前体重。"""
+    conn = get_conn()
+    try:
+        row = conn.execute("SELECT * FROM health_records WHERE id=?", (record_id,)).fetchone()
+        if row is None:
+            return None
+        cur_type = data.get("type") or row["type"]
+        cur_date = data.get("date") or row["date"]
+        conn.execute(
+            "UPDATE health_records SET type=?, date=?, title=?, note=?, next_date=? WHERE id=?",
+            (cur_type, cur_date or today_str(),
+             data.get("title") if data.get("title") is not None else row["title"],
+             data.get("note") if data.get("note") is not None else row["note"],
+             data.get("next_date") or None, record_id))
+        if data.get("weight"):
+            conn.execute("INSERT INTO weight_logs(pet_id,date,weight) VALUES(?,?,?)",
+                         (row["pet_id"], cur_date or today_str(), float(data["weight"])))
+            conn.execute("UPDATE pets SET weight=? WHERE id=?",
+                         (float(data["weight"]), row["pet_id"]))
+        conn.commit()
+        d = dict(conn.execute("SELECT * FROM health_records WHERE id=?", (record_id,)).fetchone())
+        d["type_label"] = RECORD_TYPES.get(d["type"], d["type"])
+        return d
+    finally:
+        conn.close()
+
+
+def add_weight_log(pet_id: int, data: dict) -> dict | None:
+    """独立的体重补录：写入体重表并更新宠物当前体重。"""
+    if get_pet(pet_id) is None:
+        return None
+    conn = get_conn()
+    try:
+        conn.execute("INSERT INTO weight_logs(pet_id,date,weight) VALUES(?,?,?)",
+                     (pet_id, data.get("date") or today_str(), float(data["weight"])))
+        conn.execute("UPDATE pets SET weight=? WHERE id=?", (float(data["weight"]), pet_id))
+        conn.commit()
+        return {"pet_id": pet_id, "date": data.get("date") or today_str(),
+                "weight": float(data["weight"])}
     finally:
         conn.close()
 

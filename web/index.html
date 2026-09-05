@@ -113,6 +113,25 @@ a { color: var(--accent); }
 .btn.ghost:hover { background: var(--surface-2); color: var(--text); box-shadow: none; }
 .btn.danger { color: var(--danger); }
 .btn.danger:hover { background: var(--danger-soft); border-color: color-mix(in srgb, var(--danger) 35%, var(--border)); box-shadow: none; }
+
+/* ============ 物种档案：护理要点 / 疾病快捷标签 ============ */
+.dis-chips { display:flex; flex-wrap:wrap; gap:8px; }
+.dis-chip { border:1px solid var(--border); background:var(--surface-2); color:var(--text-2); border-radius:999px; padding:5px 12px; font-size:12.5px; cursor:pointer; transition:all .15s ease-out; font-family:inherit; }
+button.dis-chip:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
+.dis-chip.static { cursor:default; }
+.sp-note { font-size:12px; color:var(--accent); background:var(--accent-soft); border-radius:8px; padding:6px 10px; grid-column:1/-1; }
+.care-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
+.care-card { border-radius:14px; padding:18px 20px; }
+.care-do { background:var(--success-soft); }
+.care-dont { background:var(--danger-soft); }
+.care-head { font-weight:600; font-size:15px; margin-bottom:10px; color:var(--text); }
+.care-do .care-head { color:var(--success); }
+.care-dont .care-head { color:var(--danger); }
+.care-card ul { margin:0; padding-left:18px; display:grid; gap:7px; }
+.care-card li { font-size:13.5px; color:var(--text); line-height:1.55; }
+.care-extra { padding:16px 20px; margin-bottom:16px; }
+.care-note { font-size:12px; color:var(--text-2); margin-top:10px; }
+.tl-ops { display:flex; gap:10px; margin-top:8px; }
 .btn.sm { padding: 5px 11px; font-size: 13px; }
 .btn[disabled] { opacity: .55; pointer-events: none; }
 .ripple {
@@ -643,7 +662,7 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
         <input id="lib-search" placeholder="搜索名字或品种…" oninput="renderLibrary()">
       </div>
       <select class="filter" id="lib-type" onchange="renderLibrary()">
-        <option value="">全部类型</option><option value="dog">狗</option><option value="cat">猫</option><option value="bird">鸟</option><option value="other">其他</option>
+        <option value="">全部类型</option><option value="dog">狗</option><option value="cat">猫</option><option value="bird">鸟</option><option value="fish">鱼</option><option value="other">其他</option>
       </select>
       <select class="filter" id="lib-status" onchange="renderLibrary()">
         <option value="">全部状态</option><option value="healthy">健康</option><option value="attention">需关注</option><option value="ill">治疗中</option>
@@ -723,14 +742,16 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
 const API = '';           // 同源部署（FastAPI 托管），跨端口调试时改为 http://127.0.0.1:8000
 const state = {
   pets: [], reminders: [], stats: null, recent: [],
-  detailPetId: null, detailTab: 'timeline',
+  detailPetId: null, detailTab: 'timeline', detailRecords: [],
   chat: [], agentMode: null, weightsCache: {},
   memories: [], memWallPetId: null, memImg: '',
+  species: null,
 };
 const TYPE_LABEL = { vaccine:'疫苗', checkup:'体检', deworm:'驱虫', medication:'喂药', clinic:'就诊' };
 const TYPE_COLOR = { vaccine:'var(--success)', checkup:'var(--accent)', deworm:'var(--warn)', medication:'#8B6FC0', clinic:'var(--danger)' };
 const STATUS_LABEL = { healthy:'健康', attention:'需关注', ill:'治疗中' };
-const TYPE_EMOJI = { cat:'🐱', dog:'🐶', bird:'🦜', other:'🐾' };
+const TYPE_EMOJI = { cat:'🐱', dog:'🐶', bird:'🦜', fish:'🐟', other:'🐾' };
+const PET_TYPE_LABEL = { cat:'猫', dog:'狗', bird:'鸟', fish:'鱼', other:'其他' };
 const $ = id => document.getElementById(id);
 
 async function api(path, opts) {
@@ -771,6 +792,9 @@ function go(view, opts) {
 async function refreshData() {
   const [p, r, s] = await Promise.all([api('/api/pets'), api('/api/reminders'), api('/api/stats')]);
   state.pets = p.pets; state.reminders = r.reminders; state.stats = s.stats; state.recent = s.recent;
+  if (!state.species) {
+    api('/api/species').then(d => { state.species = d.species; }).catch(() => {});
+  }
 }
 
 /* ============================================================
@@ -920,6 +944,7 @@ async function openDetail(petId, from) {
     pet = a.pet; records = b.records; weights = c.weights;
   } catch (e) { toast(e.message || '宠物不存在', true); go('library'); return; }
   state.weightsCache[petId] = weights;
+  state.detailRecords = records;
   const p = pet;
   const worst = (p.upcoming || []).reduce((m, r) => Math.min(m, r.days_left), 999);
   $('view-detail').innerHTML = `
@@ -937,6 +962,7 @@ async function openDetail(petId, from) {
       </div>
       <div class="detail-actions">
         <button class="btn primary sm" onclick="openRecordModal()">＋ 新增记录</button>
+        <button class="btn sm" onclick="openWeightModal(${p.id})">＋ 记体重</button>
         <button class="btn sm" onclick="openPetModal(${p.id})">编辑</button>
         <button class="btn sm danger" onclick="askDeletePet(${p.id}, this)">删除</button>
       </div>
@@ -944,10 +970,12 @@ async function openDetail(petId, from) {
     <div class="detail-tabs">
       <button class="detail-tab active" data-tab="timeline" onclick="switchTab('timeline', this)">健康时间线</button>
       <button class="detail-tab" data-tab="weight" onclick="switchTab('weight', this)">体重趋势</button>
+      <button class="detail-tab" data-tab="care" onclick="switchTab('care', this)">护理要点</button>
       <button class="detail-tab" data-tab="props" onclick="switchTab('props', this)">资料</button>
     </div>
     <div class="tab-pane active" id="pane-timeline">${timelineHTML(records)}</div>
     <div class="tab-pane" id="pane-weight"><div class="card card-pad" id="weight-chart"></div></div>
+    <div class="tab-pane" id="pane-care">${careHTML(p)}</div>
     <div class="tab-pane" id="pane-props">${propsHTML(p)}</div>`;
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   currentView = 'detail';
@@ -981,14 +1009,17 @@ function timelineHTML(records) {
       </div>
       ${r.note ? `<div class="tl-note">${esc(r.note)}</div>` : ''}
       ${nextBadge}
-      <button class="tl-del" onclick="deleteRecord(${r.id}, this)">删除此条</button>
+      <div class="tl-ops">
+        <button class="tl-del" onclick="openRecordEditModal(${r.id})">编辑</button>
+        <button class="tl-del" onclick="deleteRecord(${r.id}, this)">删除此条</button>
+      </div>
     </div>`;
   }).join('') + `</div>`;
 }
 function propsHTML(p) {
   const cell = (k, v) => `<div class="prop-cell"><div class="prop-k">${k}</div><div class="prop-v">${v ?? '—'}</div></div>`;
   return `<div class="props-grid">
-    ${cell('名字', esc(p.name))}${cell('类型', { cat:'猫', dog:'狗', bird:'鸟', other:'其他' }[p.type] || '—')}
+    ${cell('名字', esc(p.name))}${cell('类型', PET_TYPE_LABEL[p.type] || '—')}
     ${cell('品种', esc(p.breed))}${cell('性别', { male:'公', female:'母', unknown:'未知' }[p.gender] || '—')}
     ${cell('生日', esc(p.birthday))}${cell('年龄', p.age)}
     ${cell('体重 (kg)', p.weight ?? p.latest_weight)}${cell('健康状态', STATUS_LABEL[p.status] || p.status)}
@@ -1052,7 +1083,7 @@ function openPetModal(id) {
       <div class="form-field"><label>名字 <span class="req">*</span></label><input name="name" required maxlength="30" value="${esc(p.name || '')}"></div>
       <div class="form-field"><label>头像 Emoji</label><input name="avatar" maxlength="4" placeholder="🐶" value="${esc(p.avatar || '')}"></div>
       <div class="form-field"><label>类型</label><select name="type">
-        ${[['cat','猫'],['dog','狗'],['bird','鸟'],['other','其他']].map(([v, l]) => `<option value="${v}" ${p.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+        ${[['cat','猫'],['dog','狗'],['bird','鸟'],['fish','鱼'],['other','其他']].map(([v, l]) => `<option value="${v}" ${p.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
       <div class="form-field"><label>品种</label><input name="breed" value="${esc(p.breed || '')}" placeholder="如：柯基 / 英短"></div>
       <div class="form-field"><label>性别</label><select name="gender">
         ${[['unknown','未知'],['male','公'],['female','母']].map(([v, l]) => `<option value="${v}" ${(p.gender || 'unknown') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
@@ -1105,16 +1136,32 @@ async function confirmDeletePet(id, btn) {
 }
 
 /* ---------- 新增健康记录 ---------- */
+function recTypeOptions(pet, selected) {
+  /* 按物种过滤可用的记录类型；物种档案未加载时回退为全部类型 */
+  const sp = (state.species && pet && state.species[pet.type]) || null;
+  const allowed = (sp ? sp.record_types : null) || Object.keys(TYPE_LABEL);
+  return allowed.map(v => `<option value="${v}" ${selected === v ? 'selected' : ''}>${TYPE_LABEL[v] || v}</option>`).join('');
+}
 function openRecordModal() {
   const today = new Date().toISOString().slice(0, 10);
+  const pet = state.pets.find(x => x.id === state.detailPetId);
+  const sp = (state.species && pet && state.species[pet.type]) || null;
+  const filtered = sp && sp.record_types.length < Object.keys(TYPE_LABEL).length;
+  const note = filtered ? `<div class="sp-note">已按「${sp.label}」过滤：疫苗、驱虫等不适用的记录类型不再显示</div>` : '';
+  const chips = (sp && sp.diseases.length) ? `
+      <div class="form-field full"><label>常见病症快捷填入</label><div class="dis-chips">
+        ${sp.diseases.map(d => `<button type="button" class="dis-chip" onclick="chipTitle(this)">${esc(d)}</button>`).join('')}
+      </div></div>` : '';
   openModal(`
-  <h3>新增健康记录</h3>
+  <h3>新增健康记录${pet ? ` · ${esc(pet.name)}` : ''}</h3>
   <form id="rec-form" onsubmit="return submitRecord(event)">
     <div class="form-grid">
+      ${note}
       <div class="form-field"><label>类型</label><select name="type">
-        ${Object.entries(TYPE_LABEL).map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></div>
+        ${recTypeOptions(pet)}</select></div>
       <div class="form-field"><label>日期</label><input name="date" type="date" value="${today}"></div>
-      <div class="form-field full"><label>标题 <span class="req">*</span></label><input name="title" required maxlength="60" placeholder="如：狂犬疫苗（第2年）"></div>
+      <div class="form-field full"><label>标题 <span class="req">*</span></label><input name="title" required maxlength="60" placeholder="${sp ? `如：${esc(sp.diseases[0])}观察与处理` : '如：狂犬疫苗（第2年）'}"></div>
+      ${chips}
       <div class="form-field full"><label>说明</label><textarea name="note" rows="2" maxlength="300" placeholder="医生嘱托、剂量、反应观察…"></textarea></div>
       <div class="form-field"><label>下次日期（选填，用于提醒）</label><input name="next_date" type="date"></div>
       <div class="form-field"><label>当时体重 kg（选填，记录进趋势）</label><input name="weight" type="number" step="0.01" min="0"></div>
@@ -1124,6 +1171,10 @@ function openRecordModal() {
       <button type="submit" class="btn primary" id="rec-save-btn">保存记录</button>
     </div>
   </form>`);
+}
+function chipTitle(btn) {
+  const input = document.querySelector('#rec-form input[name="title"], #rec-edit-form input[name="title"]');
+  if (input) { input.value = btn.textContent; input.focus(); }
 }
 async function submitRecord(e) {
   e.preventDefault();
@@ -1144,6 +1195,86 @@ async function deleteRecord(rid, btn) {
   } catch (e) { toast(e.message, true); btn.classList.remove('shake'); }
 }
 function flashSaved(btn) { btn.classList.add('saved-flash'); btn.innerHTML = '✓ 已保存'; btn.disabled = true; }
+
+/* ---------- 编辑健康记录 ---------- */
+function openRecordEditModal(rid) {
+  const r = (state.detailRecords || []).find(x => x.id === rid);
+  if (!r) return;
+  const pet = state.pets.find(x => x.id === state.detailPetId);
+  openModal(`
+  <h3>编辑健康记录</h3>
+  <form id="rec-edit-form" onsubmit="return submitRecordEdit(event, ${rid})">
+    <div class="form-grid">
+      <div class="form-field"><label>类型</label><select name="type">
+        ${recTypeOptions(pet, r.type)}</select></div>
+      <div class="form-field"><label>日期</label><input name="date" type="date" value="${esc(r.date || '')}"></div>
+      <div class="form-field full"><label>标题 <span class="req">*</span></label><input name="title" required maxlength="60" value="${esc(r.title || '')}"></div>
+      <div class="form-field full"><label>说明</label><textarea name="note" rows="2" maxlength="300">${esc(r.note || '')}</textarea></div>
+      <div class="form-field"><label>下次日期（选填，用于提醒）</label><input name="next_date" type="date" value="${esc(r.next_date || '')}"></div>
+      <div class="form-field"><label>补充体重 kg（选填，留空不改）</label><input name="weight" type="number" step="0.01" min="0" placeholder="不修改请留空"></div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn" onclick="closeModal()">取消</button>
+      <button type="submit" class="btn primary" id="rec-edit-btn">保存修改</button>
+    </div>
+  </form>`);
+}
+async function submitRecordEdit(e, rid) {
+  e.preventDefault();
+  const f = Object.fromEntries(new FormData(e.target).entries());
+  Object.keys(f).forEach(k => { if (f[k] === '') delete f[k]; });
+  try {
+    await api(`/api/records/${rid}`, { method: 'PUT', body: JSON.stringify(f) });
+    flashSaved($('rec-edit-btn'));
+    setTimeout(() => { closeModal(); openDetail(state.detailPetId); toast('记录已更新 ✓'); }, 450);
+  } catch (err) { toast(err.message, true); }
+  return false;
+}
+
+/* ---------- 快捷记体重 ---------- */
+function openWeightModal(pid) {
+  const p = state.pets.find(x => x.id === pid) || {};
+  const today = new Date().toISOString().slice(0, 10);
+  openModal(`
+  <h3>为「${esc(p.name || '')}」记录体重</h3>
+  <form id="wt-form" onsubmit="return submitWeight(event, ${pid})">
+    <div class="form-grid">
+      <div class="form-field"><label>日期</label><input name="date" type="date" value="${today}"></div>
+      <div class="form-field"><label>体重 kg <span class="req">*</span></label><input name="weight" type="number" step="0.01" min="0.01" required placeholder="如：11.2"></div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn" onclick="closeModal()">取消</button>
+      <button type="submit" class="btn primary" id="wt-save-btn">保存</button>
+    </div>
+  </form>`);
+}
+async function submitWeight(e, pid) {
+  e.preventDefault();
+  const f = Object.fromEntries(new FormData(e.target).entries());
+  Object.keys(f).forEach(k => { if (f[k] === '') delete f[k]; });
+  try {
+    await api(`/api/pets/${pid}/weights`, { method: 'POST', body: JSON.stringify(f) });
+    flashSaved($('wt-save-btn'));
+    setTimeout(() => { closeModal(); openDetail(pid); toast('体重已记录 ✓'); }, 450);
+  } catch (err) { toast(err.message, true); }
+  return false;
+}
+
+/* ---------- 护理要点（物种档案） ---------- */
+function careHTML(p) {
+  const sp = (state.species && state.species[p.type]) || null;
+  if (!sp) return '<div class="empty-hint">物种档案加载中，请关闭本页重新进入；若仍为空请确认后端为最新版本。</div>';
+  return `<div class="care-grid">
+    <div class="care-card care-do"><div class="care-head">✓ 该做的事</div><ul>${sp.care_do.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>
+    <div class="care-card care-dont"><div class="care-head">✗ 不该做的事</div><ul>${sp.care_dont.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>
+  </div>
+  <div class="care-extra card">
+    <div class="care-head">该物种常见病症</div>
+    <div class="dis-chips">${sp.diseases.map(d => `<span class="dis-chip static">${esc(d)}</span>`).join('')}</div>
+    <div class="care-note">适用记录类型：${sp.record_types.map(t => TYPE_LABEL[t] || t).join(' / ')}${sp.record_types.length < Object.keys(TYPE_LABEL).length ? ' —— 不适用的类型已在新增记录时自动隐藏' : ''}</div>
+    <div class="care-note">以上内容由物种档案自动生成，个体差异请以兽医意见为准。</div>
+  </div>`;
+}
 
 /* ============================================================
    回忆集

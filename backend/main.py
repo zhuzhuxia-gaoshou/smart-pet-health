@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 import db
+import species
 
 WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "web")
 
@@ -58,6 +59,11 @@ class RecordIn(BaseModel):
 
 class ChatIn(BaseModel):
     message: str = Field(..., min_length=1, max_length=500)
+
+
+class WeightIn(BaseModel):
+    weight: float = Field(..., gt=0, description="体重 kg")
+    date: str | None = None
 
 
 class MemoryIn(BaseModel):
@@ -113,9 +119,27 @@ def api_list_records(pet_id: int):
 
 @app.post("/api/pets/{pet_id}/records")
 def api_add_record(pet_id: int, rec: RecordIn):
-    result = db.add_record(pet_id, rec.model_dump(exclude_none=True))
-    if result is None:
+    pet = db.get_pet(pet_id)
+    if pet is None:
         return {"error": "宠物不存在"}
+    # 物种校验：不适用的记录类型直接拒绝（如给鱼记疫苗）
+    ok, msg = species.record_type_allowed(pet["type"], rec.type)
+    if not ok:
+        return {"error": msg}
+    result = db.add_record(pet_id, rec.model_dump(exclude_none=True))
+    return {"record": result}
+
+
+@app.put("/api/records/{record_id}")
+def api_update_record(record_id: int, rec: RecordIn):
+    old = db.get_record(record_id)
+    if old is None:
+        return {"error": "记录不存在"}
+    pet = db.get_pet(old["pet_id"])
+    ok, msg = species.record_type_allowed(pet["type"] if pet else None, rec.type)
+    if not ok:
+        return {"error": msg}
+    result = db.update_record(record_id, rec.model_dump(exclude_none=True))
     return {"record": result}
 
 
@@ -131,6 +155,20 @@ def api_delete_record(record_id: int):
 @app.get("/api/pets/{pet_id}/weights")
 def api_list_weights(pet_id: int):
     return {"weights": db.list_weight_logs(pet_id)}
+
+
+@app.post("/api/pets/{pet_id}/weights")
+def api_add_weight(pet_id: int, body: WeightIn):
+    result = db.add_weight_log(pet_id, body.model_dump(exclude_none=True))
+    if result is None:
+        return {"error": "宠物不存在"}
+    return {"weight_log": result}
+
+
+@app.get("/api/species")
+def api_species():
+    """物种档案：各类型适用的记录类型、常见疾病、该做与不该做的事。"""
+    return {"species": species.api_payload()}
 
 
 @app.get("/api/reminders")

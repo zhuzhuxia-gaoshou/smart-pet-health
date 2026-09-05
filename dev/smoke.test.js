@@ -2,7 +2,8 @@
 const fs = require('fs');
 const { JSDOM } = require('jsdom');
 
-const html = fs.readFileSync('C:/Users/Administrator/Desktop/项目/smart-pet-health/web/index.html', 'utf8');
+const path = require('path');
+const html = fs.readFileSync(path.join(__dirname, '..', 'web', 'index.html'), 'utf8');
 const BASE = 'http://127.0.0.1:8000';
 
 const dom = new JSDOM(html, { url: BASE + '/app', pretendToBeVisual: true, runScripts: 'outside-only' });
