@@ -6,6 +6,27 @@
 - **设计语言**：Notion 暖色极简 · 陶土橙强调（#C2703D）· Fraunces 衬线标题 · 亮暗双模式
 - **核心闭环**：档案管理 → 健康记录 → 到期提醒 → AI 问答 → 自动健康报告
 
+## 界面预览
+
+**仪表盘 · AI 今日健康简报**——统计卡、到期提醒，外加每天自动生成的健康简报（逐条列逾期建议、点出体重异常）：
+
+<img src="docs/images/dashboard-briefing.png" width="100%" alt="仪表盘与AI简报">
+
+**AI 自然语言建档**——说"帮我记一下：布丁明天做体外驱虫"，Agent 解析相对日期起草记录，弹出确认卡片，用户拍板才入库；左侧历史会话可随时回看：
+
+<img src="docs/images/chat-draft.png" width="100%" alt="AI起草记录确认卡">
+
+**物种档案 · 护理要点**——不同宠物区别对待：鱼没有"腹泻"、不接种疫苗；详情页明确展示各物种该做与不该做的事：
+
+<img src="docs/images/care-species.png" width="100%" alt="鱼类护理要点">
+
+**宠物档案 · 欢迎页**
+
+<table><tr>
+<td width="50%"><img src="docs/images/library.png" width="100%" alt="宠物档案"></td>
+<td width="50%"><img src="docs/images/welcome.png" width="100%" alt="欢迎页"></td>
+</tr></table>
+
 ## 技术栈
 
 | 层 | 技术 |
