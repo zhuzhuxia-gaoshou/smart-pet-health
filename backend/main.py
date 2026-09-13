@@ -169,6 +169,13 @@ def api_weight_insight(pet_id: int):
     return agent.weight_insight(pet_id)
 
 
+@app.get("/api/care-plan/{pet_id}")
+def api_care_plan(pet_id: int):
+    """AI 月度护理计划：结构化计划项 + AI 总结，可逐项转为记录。"""
+    import agent
+    return agent.generate_care_plan(pet_id)
+
+
 @app.post("/api/pets/{pet_id}/weights")
 def api_add_weight(pet_id: int, body: WeightIn):
     result = db.add_weight_log(pet_id, body.model_dump(exclude_none=True))

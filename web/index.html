@@ -150,6 +150,11 @@ button.dis-chip:hover { border-color:var(--accent); color:var(--accent); backgro
 .wi-box { margin-top:12px; border-left:3px solid var(--accent); background:var(--accent-soft); border-radius:0 10px 10px 0; padding:12px 16px; min-height:20px; }
 .wi-text { font-size:13.5px; line-height:1.75; color:var(--text); }
 .wi-text ul { margin:4px 0; padding-left:18px; }
+
+/* ============ AI 护理计划 ============ */
+.cp-item { border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:10px; }
+.cp-head { display:flex; gap:8px; align-items:center; font-size:13.5px; color:var(--text); }
+.cp-meta { font-size:12px; color:var(--text-2); margin:6px 0 10px; }
 @media (max-width: 920px){ .chat-sessions { display:none; } }
 
 /* ============ AI 今日简报 ============ */
@@ -1006,6 +1011,7 @@ async function openDetail(petId, from) {
       </div>
       <div class="detail-actions">
         <button class="btn primary sm" onclick="openRecordModal()">＋ 新增记录</button>
+        <button class="btn sm" onclick="openCarePlanModal(${p.id})">✦ 护理计划</button>
         <button class="btn sm" onclick="openWeightModal(${p.id})">＋ 记体重</button>
         <button class="btn sm" onclick="openPetModal(${p.id})">编辑</button>
         <button class="btn sm danger" onclick="askDeletePet(${p.id}, this)">删除</button>
@@ -1123,6 +1129,38 @@ async function weightInsight(btn) {
     toast(e.message, true);
   }
   btn.disabled = false; btn.textContent = '✦ AI 解读';
+}
+
+/* ---------- AI 护理计划：生成 + 逐项转记录 ---------- */
+async function openCarePlanModal(pid) {
+  const p = state.pets.find(x => x.id === pid) || {};
+  openModal(`<h3>✦ AI 护理计划 · ${esc(p.name || '')}</h3>
+    <div id="careplan-body"><span class="typing"><i></i><i></i><i></i> 正在结合物种习性与健康记录生成…</span></div>
+    <div class="modal-actions"><button class="btn" onclick="closeModal()">关闭</button></div>`);
+  const r = await api(`/api/care-plan/${pid}`).catch(e => ({ error: e.message }));
+  const box = $('careplan-body'); if (!box) return;
+  if (r.error) { box.innerHTML = `<div class="empty-hint">${esc(r.error)}</div>`; return; }
+  window._carePlan = r.items || [];
+  box.innerHTML = `
+    <div class="wi-text" style="margin-bottom:14px">✦ ${mdLite(r.summary)}</div>
+    ${window._carePlan.length ? window._carePlan.map((it, i) => `
+      <div class="cp-item">
+        <div class="cp-head"><span class="rec-type" style="background:${TYPE_COLOR[it.type] || 'var(--accent)'}">${esc(it.type_label)}</span><b>${esc(it.title)}</b></div>
+        <div class="cp-meta">建议日期 ${esc(it.date)}${it.next_date ? ` · 下次 ${esc(it.next_date)}` : ''}${it.note ? ` · ${esc(it.note)}` : ''}</div>
+        <button class="btn sm primary" onclick="applyPlanItem(${pid}, ${i}, this)">转为记录</button>
+      </div>`).join('')
+      : '<div class="empty-hint">未来 30 天没有需要安排的事项，保持得很好 ✅</div>'}`;
+}
+async function applyPlanItem(pid, i, btn) {
+  const it = (window._carePlan || [])[i]; if (!it) return;
+  btn.disabled = true; btn.textContent = '保存中…';
+  try {
+    const body = { type: it.type, date: it.date, title: it.title, note: it.note || '' };
+    if (it.next_date) body.next_date = it.next_date;
+    await api(`/api/pets/${pid}/records`, { method: 'POST', body: JSON.stringify(body) });
+    btn.outerHTML = '<span class="badge plain">✓ 已入库</span>';
+    toast('记录已保存，提醒已生效 ✓');
+  } catch (e) { toast(e.message, true); btn.disabled = false; btn.textContent = '转为记录'; }
 }
 
 /* ============================================================

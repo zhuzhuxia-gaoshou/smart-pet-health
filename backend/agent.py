@@ -377,6 +377,79 @@ def weight_insight(pet_id: int) -> dict:
     return {"text": text, "mode": mode, "cached": False}
 
 
+# ---------------------------------------------------------------- AI 护理计划
+
+# 各记录类型的默认复做周期（天）
+PLAN_CYCLE = {"vaccine": 365, "checkup": 365, "deworm": 30, "medication": 7, "clinic": 14}
+
+
+def _plan_fallback_summary() -> str:
+    return "已根据物种习性与历史记录生成本月护理计划，请逐项核对后转为正式记录。"
+
+
+def generate_care_plan(pet_id: int) -> dict:
+    """月度护理计划：规则引擎生成结构化计划项（可一键转记录），AI 补一段总结评语。"""
+    import db
+    import species
+    from datetime import date, timedelta
+    pet = db.get_pet(pet_id)
+    if not pet:
+        return {"error": "宠物不存在"}
+    today = date.today()
+    records = db.list_records(pet_id)
+    allowed = species.allowed_record_types(pet["type"])
+    items, seen = [], set()
+
+    # ① 未来 30 天内到期的记录：安排在到期日复做，并按周期预排下一次
+    for r in records:
+        if not r.get("next_date"):
+            continue
+        left = db.days_until(r["next_date"])
+        if r["type"] in allowed and 0 <= left <= 30:
+            nxt = (today + timedelta(days=PLAN_CYCLE.get(r["type"], 30))).isoformat()
+            items.append({"type": r["type"], "type_label": r["type_label"],
+                          "date": r["next_date"], "title": f"{r['title']}（到期复做）",
+                          "note": f"原记录安排于 {r['next_date']}，到期复做",
+                          "next_date": nxt})
+            seen.add(r["type"])
+
+    # ② 超过默认周期未做的类型：3 天内补做一次
+    last_by_type: dict[str, str] = {}
+    for r in records:
+        if r["date"] and (r["type"] not in last_by_type or r["date"] > last_by_type[r["type"]]):
+            last_by_type[r["type"]] = r["date"]
+    for t, cycle in PLAN_CYCLE.items():
+        if t in seen or t not in allowed:
+            continue
+        last = last_by_type.get(t)
+        if not last:
+            continue  # 从未做过的类型不强行推送
+        gap = (today - date.fromisoformat(last)).days
+        if gap > cycle * 1.2:
+            d = (today + timedelta(days=3)).isoformat()
+            nxt = (today + timedelta(days=3 + cycle)).isoformat()
+            items.append({"type": t, "type_label": db.RECORD_TYPES.get(t, t),
+                          "date": d, "title": f"{db.RECORD_TYPES.get(t, t)}（超期补做）",
+                          "note": f"距上次已 {gap} 天，超出常规 {cycle} 天周期",
+                          "next_date": nxt})
+
+    items.sort(key=lambda x: x["date"])
+    # AI 总结评语（有 Key 才生成；失败静默降级）
+    summary, mode = _plan_fallback_summary(), "example"
+    if provider() and not _agent_failed and items:
+        it_lines = "\n".join(f"- {x['date']}【{x['type_label']}】{x['title']}" for x in items)
+        prompt = (f"宠物「{pet['name']}」的月度护理计划如下：\n{it_lines}\n"
+                  "请写一段 60 字以内的引言：点出本月护理重点与排序理由，语气温暖克制，直接输出正文。")
+        try:
+            result = _ask_agent(prompt)
+            if not result.startswith("⚠️"):
+                summary, mode = result.strip(), "agent"
+        except Exception:
+            pass
+    return {"pet_id": pet_id, "pet_name": pet["name"], "summary": summary,
+            "mode": mode, "items": items}
+
+
 # ---------------------------------------------------------------- 对外入口
 
 def answer(message: str, history: list[dict] | None = None) -> dict:
