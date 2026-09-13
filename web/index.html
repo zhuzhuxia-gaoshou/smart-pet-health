@@ -151,6 +151,9 @@ button.dis-chip:hover { border-color:var(--accent); color:var(--accent); backgro
 .wi-text { font-size:13.5px; line-height:1.75; color:var(--text); }
 .wi-text ul { margin:4px 0; padding-left:18px; }
 
+/* ============ 浏览器通知按钮 ============ */
+#notify-btn.on { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: var(--accent-soft); }
+
 /* ============ AI 护理计划 ============ */
 .cp-item { border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:10px; }
 .cp-head { display:flex; gap:8px; align-items:center; font-size:13.5px; color:var(--text); }
@@ -593,6 +596,9 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
     <button class="tab-btn" data-view="chat" onclick="go('chat')">AI 助手</button>
   </nav>
   <div class="topbar-right">
+    <button class="theme-toggle" id="notify-btn" onclick="toggleNotify()" title="开启到期提醒通知" aria-label="到期提醒通知开关">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    </button>
     <button class="theme-toggle" onclick="toggleTheme()" title="切换亮暗模式" aria-label="切换亮暗模式">
       <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
       <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
@@ -851,6 +857,7 @@ async function refreshData() {
 async function renderDashboard() {
   await refreshData();
   renderBriefing();
+  checkNotify();
   const st = state.stats;
   $('stat-row').innerHTML = [
     statCard('a', '🐾', st.pet_count, '宠物总数', '<path d=\"M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><circle cx=\"9.5\" cy=\"7\" r=\"4\"/>', "go('library',{back:true})", '查看宠物'),
@@ -1840,10 +1847,65 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal()
 /* ============================================================
    启动
    ============================================================ */
+/* ---------- 浏览器通知提醒 ---------- */
+let _notifySnapshot = null, _notifyTimer = null;
+function notifyEnabled() {
+  return localStorage.getItem('pet-notify') === 'on' && 'Notification' in window && Notification.permission === 'granted';
+}
+function renderNotifyBtn() {
+  const btn = $('notify-btn'); if (!btn) return;
+  const on = notifyEnabled();
+  btn.classList.toggle('on', on);
+  btn.title = on ? '到期提醒通知已开启（点击关闭）' : '开启到期提醒通知';
+}
+async function toggleNotify() {
+  if (!('Notification' in window)) { toast('当前浏览器不支持桌面通知', true); return; }
+  if (notifyEnabled()) {
+    localStorage.removeItem('pet-notify');
+    if (_notifyTimer) { clearInterval(_notifyTimer); _notifyTimer = null; }
+    renderNotifyBtn();
+    toast('已关闭到期提醒通知');
+    return;
+  }
+  const perm = await Notification.requestPermission();
+  if (perm !== 'granted') { toast('通知权限被拒绝，可在浏览器地址栏设置中允许', true); return; }
+  localStorage.setItem('pet-notify', 'on');
+  await refreshNotifySnapshot();
+  if (_notifyTimer) clearInterval(_notifyTimer);
+  _notifyTimer = setInterval(checkNotify, 10 * 60 * 1000);
+  renderNotifyBtn();
+  toast('已开启到期提醒，有新事项会弹窗通知');
+}
+async function refreshNotifySnapshot() {
+  try {
+    const r = await api('/api/reminders');
+    _notifySnapshot = new Set((r.reminders || []).map(x => x.record_id));
+  } catch (e) {}
+}
+async function checkNotify() {
+  if (!notifyEnabled()) return;
+  try {
+    const r = await api('/api/reminders');
+    const cur = r.reminders || [];
+    const base = _notifySnapshot || new Set();
+    const fresh = cur.filter(x => !base.has(x.record_id));
+    _notifySnapshot = new Set(cur.map(x => x.record_id));
+    fresh.slice(0, 2).forEach(x => {
+      const n = new Notification('🐾 宠物健康提醒', {
+        body: `${x.pet_name}的${x.type_label}「${x.title}」` + (x.overdue ? `已逾期 ${-x.days_left} 天` : `还剩 ${x.days_left} 天`),
+        tag: 'petcare-' + x.record_id,
+      });
+      n.onclick = () => { window.focus(); go('detail', { petId: x.pet_id }); n.close(); };
+    });
+  } catch (e) {}
+}
+
 (async function boot() {
   try {
     await refreshData();
     renderDashboard();
+    renderNotifyBtn();
+    if (notifyEnabled()) { refreshNotifySnapshot(); _notifyTimer = setInterval(checkNotify, 10 * 60 * 1000); }
   } catch (e) {
     document.body.insertAdjacentHTML('beforeend',
       '<div class="page"><div class="card card-pad empty-state"><div class="big">⚠️</div><h3>无法连接后端</h3><p>' + esc(e.message) + '<br>请先运行 <code>python backend/main.py</code> 再刷新本页。</p></div></div>');
