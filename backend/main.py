@@ -162,6 +162,13 @@ def api_list_weights(pet_id: int):
     return {"weights": db.list_weight_logs(pet_id)}
 
 
+@app.get("/api/pets/{pet_id}/weight-insight")
+def api_weight_insight(pet_id: int):
+    """体重趋势 AI 解读（按数据签名缓存）。"""
+    import agent
+    return agent.weight_insight(pet_id)
+
+
 @app.post("/api/pets/{pet_id}/weights")
 def api_add_weight(pet_id: int, body: WeightIn):
     result = db.add_weight_log(pet_id, body.model_dump(exclude_none=True))

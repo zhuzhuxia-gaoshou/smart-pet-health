@@ -145,6 +145,11 @@ button.dis-chip:hover { border-color:var(--accent); color:var(--accent); backgro
 .sess-item:hover .sess-del { opacity:1; }
 .sess-del:hover { color:var(--danger); background:var(--danger-soft); }
 .sess-empty { font-size:12.5px; color:var(--text-2); text-align:center; padding:18px 8px; line-height:1.7; border:1px dashed var(--border); border-radius:10px; }
+
+/* ============ 体重 AI 解读 ============ */
+.wi-box { margin-top:12px; border-left:3px solid var(--accent); background:var(--accent-soft); border-radius:0 10px 10px 0; padding:12px 16px; min-height:20px; }
+.wi-text { font-size:13.5px; line-height:1.75; color:var(--text); }
+.wi-text ul { margin:4px 0; padding-left:18px; }
 @media (max-width: 920px){ .chat-sessions { display:none; } }
 
 /* ============ AI 今日简报 ============ */
@@ -1067,8 +1072,7 @@ function propsHTML(p) {
 }
 
 /* ---------- 体重 SVG 折线图（手绘，无第三方库） ---------- */
-function drawWeightChart() {
-  const box = $('weight-chart'); if (!box) return;
+function drawWeightChart() {  const box = $('weight-chart'); if (!box) return;
   const logs = state.weightsCache[state.detailPetId] || [];
   if (logs.length < 2) { box.innerHTML = '<div class="empty-hint">体重记录不足两条，暂无趋势图。在「新增记录」中填写体重即可积累数据。</div>'; return; }
   const W = 640, H = 240, PL = 46, PR = 16, PT = 18, PB = 34;
@@ -1092,7 +1096,8 @@ function drawWeightChart() {
   const delta = ws[ws.length - 1] - ws[0];
   box.innerHTML = `<div class="card-title" style="margin-bottom:6px">体重趋势
       <span class="badge ${Math.abs(delta / (ws[0] || 1)) >= 0.1 ? 'attention' : 'plain'}" style="margin-left:8px;text-transform:none">
-      ${delta >= 0 ? '+' : ''}${delta.toFixed(2)} kg（近 ${logs.length} 次）</span></div>
+      ${delta >= 0 ? '+' : ''}${delta.toFixed(2)} kg（近 ${logs.length} 次）</span>
+      <button class="btn ghost sm" style="float:right" onclick="weightInsight(this)">✦ AI 解读</button></div>
     <div class="weight-chart-wrap"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="体重折线图">
       <defs><linearGradient id="warea" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0" stop-color="var(--accent)" stop-opacity=".22"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/>
@@ -1100,7 +1105,24 @@ function drawWeightChart() {
       ${grid}<path d="${area}" fill="url(#warea)"/>
       <path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
       ${dots}${xLabels}
-    </svg></div>`;
+    </svg></div>
+    <div class="wi-box" id="weight-insight-box"></div>`;
+}
+
+/* ---------- 体重 AI 解读 ---------- */
+async function weightInsight(btn) {
+  btn.disabled = true; btn.textContent = '解读中…';
+  const box = $('weight-insight-box');
+  if (box) box.innerHTML = '<span class="typing"><i></i><i></i><i></i> AI 正在解读体重趋势…</span>';
+  try {
+    const r = await api(`/api/pets/${state.detailPetId}/weight-insight`);
+    if (box) box.innerHTML = `<div class="wi-text">✦ ${mdLite(r.text)}</div>
+      <div class="care-note">AI 解读${r.cached ? ' · 缓存结果' : ''} · 仅供参考，请以兽医意见为准</div>`;
+  } catch (e) {
+    if (box) box.innerHTML = '';
+    toast(e.message, true);
+  }
+  btn.disabled = false; btn.textContent = '✦ AI 解读';
 }
 
 /* ============================================================

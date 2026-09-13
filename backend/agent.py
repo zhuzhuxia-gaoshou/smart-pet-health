@@ -7,6 +7,7 @@
 
 对外入口：answer(message) -> {"reply": str, "mode": "agent"|"example"}
 """
+import json
 import os
 
 import tools
@@ -317,6 +318,63 @@ def generate_briefing() -> dict:
         except Exception:
             pass
     return {"text": briefing_fallback(), "mode": "example"}
+
+
+# ---------------------------------------------------------------- 体重 AI 解读
+
+def _weight_fallback(pet: dict, weights: list) -> str:
+    """无 Key 时的规则版体重解读。"""
+    w0, w1 = weights[0], weights[-1]
+    delta = w1["weight"] - w0["weight"]
+    pct = abs(delta / w0["weight"] * 100) if w0["weight"] else 0
+    trend = "上升" if delta > 0.005 else ("下降" if delta < -0.005 else "平稳")
+    advice = ("体重波动较大，建议咨询兽医调整饮食与运动计划。"
+              if pct >= 10 else "波动幅度在正常范围内，建议继续保持定期称重与观察。")
+    return (f"体重从 {w0['weight']}kg 变化到 {w1['weight']}kg"
+            f"（{w0['date']} 至 {w1['date']}，{trend}约 {round(pct, 1)}%）。{advice}")
+
+
+def weight_insight(pet_id: int) -> dict:
+    """体重趋势 AI 解读：结合体重序列与近期记录生成，按数据签名缓存。"""
+    import db
+    import species
+    pet = db.get_pet(pet_id)
+    if not pet:
+        return {"text": "宠物不存在。", "mode": "example", "cached": True}
+    weights = db.list_weight_logs(pet_id)
+    records = db.list_records(pet_id)[:5]
+    if len(weights) < 2:
+        return {"text": "体重记录还不足两条，暂无趋势可解读。通过「＋ 记体重」积累几次数据后再来。",
+                "mode": "example", "cached": True}
+    sig = f"{len(weights)}|{weights[-1]['weight']}|{weights[-1]['date']}|{records[0]['id'] if records else 0}"
+    key = f"weight-insight:{pet_id}"
+    meta = db.kv_get_meta(key)
+    if meta:
+        try:
+            data = json.loads(meta["value"])
+            if data.get("sig") == sig:
+                return {"text": data["text"], "mode": data.get("mode", "agent"),
+                        "cached": True, "generated_at": meta["updated_at"]}
+        except Exception:
+            pass
+    if provider() and not _agent_failed:
+        w_lines = "\n".join(f"- {w['date']}：{w['weight']} kg" for w in weights)
+        r_lines = "\n".join(f"- {r['date']}【{r['type_label']}】{r['title']}" for r in records) or "- 暂无"
+        prompt = (f"请对宠物「{pet['name']}」（{species.type_label(pet['type'])}）的体重趋势给出 80 字以内的解读，"
+                  "内容包括：变化方向与幅度是否合理、可能原因、一条可执行的建议。直接输出解读正文。\n"
+                  f"体重记录：\n{w_lines}\n近期健康记录：\n{r_lines}")
+        try:
+            result = _ask_agent(prompt)
+            if result.startswith("⚠️"):
+                text, mode = _weight_fallback(pet, weights), "example"
+            else:
+                text, mode = result.strip(), "agent"
+        except Exception:
+            text, mode = _weight_fallback(pet, weights), "example"
+    else:
+        text, mode = _weight_fallback(pet, weights), "example"
+    db.kv_set(key, json.dumps({"text": text, "mode": mode, "sig": sig}, ensure_ascii=False))
+    return {"text": text, "mode": mode, "cached": False}
 
 
 # ---------------------------------------------------------------- 对外入口
