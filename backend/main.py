@@ -3,6 +3,8 @@
 
 启动：python main.py  →  http://127.0.0.1:8000
 """
+import csv
+import io
 import json
 import os
 import re
@@ -13,7 +15,7 @@ from datetime import datetime
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 import db
@@ -174,6 +176,51 @@ def api_care_plan(pet_id: int):
     """AI 月度护理计划：结构化计划项 + AI 总结，可逐项转为记录。"""
     import agent
     return agent.generate_care_plan(pet_id)
+
+
+# ---------------------------------------------------------------- 数据导出
+
+def _csv_response(filename: str, header: list, rows: list):
+    """生成带 BOM 的 CSV（Excel 直接打开中文不乱码）。"""
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(header)
+    w.writerows(rows)
+    data = b"\xef\xbb\xbf" + buf.getvalue().encode("utf-8")
+    return StreamingResponse(iter([data]), media_type="text/csv; charset=utf-8",
+                             headers={"Content-Disposition": f"attachment; filename={filename}"})
+
+
+@app.get("/api/export/pets.csv")
+def api_export_pets():
+    pets = db.list_pets()
+    rows = [[p["id"], p["name"], db.PET_TYPES.get(p["type"], p["type"]), p.get("breed") or "",
+             db.GENDERS.get(p.get("gender"), "未知"), p.get("birthday") or "", p.get("latest_weight") or "",
+             db.PET_STATUS.get(p.get("status"), p.get("status")), p.get("personality") or "",
+             p["record_count"], p.get("created_at") or ""] for p in pets]
+    return _csv_response("pets.csv",
+                         ["ID", "名字", "类型", "品种", "性别", "生日", "当前体重(kg)", "健康状态", "性格备注", "健康记录数", "创建时间"],
+                         rows)
+
+
+@app.get("/api/export/records.csv")
+def api_export_records():
+    from datetime import datetime
+    stamp = datetime.now().strftime("%Y%m%d")
+    rows = [[r["id"], r["pet_name"], r["type_label"], r["title"], r["date"],
+             r.get("next_date") or "", r.get("note") or ""] for r in db.list_all_records()]
+    return _csv_response(f"health-records-{stamp}.csv",
+                         ["ID", "宠物", "类型", "标题", "日期", "下次日期", "说明"],
+                         rows)
+
+
+@app.get("/api/export/db")
+def api_export_db():
+    """下载数据库文件备份。"""
+    from datetime import datetime
+    stamp = datetime.now().strftime("%Y%m%d-%H%M")
+    return FileResponse(db.DB_PATH, filename=f"petcare-backup-{stamp}.db",
+                        headers={"Cache-Control": "no-cache"})
 
 
 @app.post("/api/pets/{pet_id}/weights")
