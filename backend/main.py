@@ -223,6 +223,12 @@ def api_export_db():
                         headers={"Cache-Control": "no-cache"})
 
 
+@app.post("/api/admin/reset-demo")
+def api_reset_demo():
+    """清空全部数据并重建演示示例（危险操作，前端已有二次确认）。"""
+    return db.reset_demo_data()
+
+
 @app.post("/api/pets/{pet_id}/weights")
 def api_add_weight(pet_id: int, body: WeightIn):
     result = db.add_weight_log(pet_id, body.model_dump(exclude_none=True))
@@ -405,6 +411,17 @@ def api_delete_session(session_id: int):
     if not db.delete_session(session_id):
         return {"error": "会话不存在"}
     return {"ok": True}
+
+
+@app.put("/api/chat/sessions/{session_id}")
+def api_rename_session(session_id: int, body: ChatIn):
+    """重命名历史会话（复用 ChatIn 的 message 字段作为新标题）。"""
+    title = body.message.strip()[:30]
+    if not title:
+        return {"error": "标题不能为空"}
+    if not db.rename_session(session_id, title):
+        return {"error": "会话不存在"}
+    return {"ok": True, "title": title}
 
 
 @app.get("/api/agent/status")

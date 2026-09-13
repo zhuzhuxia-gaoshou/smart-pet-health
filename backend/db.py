@@ -726,6 +726,30 @@ def add_chat_message(role: str, content: str, session_id: int | None = None,
         conn.close()
 
 
+def rename_session(session_id: int, title: str) -> bool:
+    conn = get_conn()
+    try:
+        cur = conn.execute("UPDATE chat_sessions SET title=? WHERE id=?", (title, session_id))
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def reset_demo_data() -> dict:
+    """清空全部业务数据并重建示例（用于演示重置）。"""
+    conn = get_conn()
+    try:
+        for t in ("chat_history", "chat_sessions", "app_kv", "weight_logs",
+                  "health_records", "memories", "pets"):
+            conn.execute(f"DELETE FROM {t}")
+        conn.commit()
+    finally:
+        conn.close()
+    init_and_seed()
+    return {"ok": True}
+
+
 def kv_get(key: str) -> str | None:
     conn = get_conn()
     try:

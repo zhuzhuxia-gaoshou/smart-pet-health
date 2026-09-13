@@ -612,6 +612,7 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
         <a onclick="downloadFile('/api/export/records.csv')">⤓ 导出健康记录 CSV</a>
         <a onclick="exportSessionMd()">⤓ 导出当前会话 .md</a>
         <a onclick="downloadFile('/api/export/db')">⤓ 下载数据库备份</a>
+        <a style="color:var(--danger)" onclick="askResetDemo()">↺ 重置演示数据…</a>
       </div>
     </div>
     <button class="theme-toggle" id="notify-btn" onclick="toggleNotify()" title="开启到期提醒通知" aria-label="到期提醒通知开关">
@@ -1731,7 +1732,8 @@ async function loadChatSessions() {
     <div class="sess-item ${s.id === state.chatSessionId ? 'active' : ''}" onclick="openChatSession(${s.id})">
       <div class="sess-title">${esc(s.title || '未命名会话')}</div>
       <div class="sess-time">${esc((s.updated_at || '').slice(5, 16))} · ${s.message_count} 条消息</div>
-      <button class="sess-del" title="删除此会话" onclick="event.stopPropagation();askDeleteSession(${s.id})">✕</button>
+      <button class="sess-del" title="重命名" onclick="event.stopPropagation();openRenameSession(${s.id}, this)">✎</button>
+      <button class="sess-del" style="right:28px" title="删除此会话" onclick="event.stopPropagation();askDeleteSession(${s.id})">✕</button>
     </div>`).join('');
 }
 async function openChatSession(id) {
@@ -1753,6 +1755,51 @@ function askDeleteSession(id) {
       <button class="btn" onclick="closeModal()">取消</button>
       <button class="btn primary" style="background:var(--danger);border-color:var(--danger)" onclick="confirmDeleteSession(${id})">确认删除</button>
     </div>`);
+}
+function openRenameSession(id, btn) {
+  const s = state.chatSessions.find(x => x.id === id);
+  openModal(`<h3>重命名会话</h3>
+    <form onsubmit="return submitRenameSession(event, ${id})">
+      <div class="form-field"><label>会话标题</label><input name="title" required maxlength="30" value="${esc(s?.title || '')}"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn" onclick="closeModal()">取消</button>
+        <button type="submit" class="btn primary">保存</button>
+      </div>
+    </form>`);
+  const input = document.querySelector('#modal-box input[name="title"]');
+  if (input) { input.focus(); input.select(); }
+}
+async function submitRenameSession(e, id) {
+  e.preventDefault();
+  const title = new FormData(e.target).get('title')?.trim();
+  if (!title) return false;
+  try {
+    await api(`/api/chat/sessions/${id}`, { method: 'PUT', body: JSON.stringify({ message: title }) });
+    closeModal();
+    await loadChatSessions();
+    toast('会话已重命名 ✓');
+  } catch (err) { toast(err.message, true); }
+  return false;
+}
+async function askResetDemo() {
+  $('more-menu')?.classList.remove('open');
+  openModal(`<h3>重置演示数据？</h3>
+    <p style="color:var(--text-2);font-size:14px;margin-bottom:4px">将清空当前全部宠物、健康记录、回忆与 AI 会话，并重建初始示例数据。<b style="color:var(--danger)">此操作不可恢复。</b></p>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">取消</button>
+      <button class="btn primary" style="background:var(--danger);border-color:var(--danger)" id="reset-btn" onclick="confirmResetDemo()">确认重置</button>
+    </div>`);
+}
+async function confirmResetDemo() {
+  const btn = $('reset-btn'); btn.disabled = true; btn.textContent = '重置中…';
+  try {
+    await api('/api/admin/reset-demo', { method: 'POST' });
+    closeModal();
+    state.chatSessionId = null; state.chat = []; state.species = null; _chatBooted = false;
+    await refreshData();
+    go('dashboard');
+    toast('演示数据已重置 ✓');
+  } catch (e) { toast(e.message, true); btn.disabled = false; btn.textContent = '确认重置'; }
 }
 async function confirmDeleteSession(id) {
   try {
