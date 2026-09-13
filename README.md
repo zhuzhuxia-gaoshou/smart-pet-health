@@ -33,9 +33,9 @@
 |----|------|
 | 前端 | HTML + CSS + JS 单页应用（无框架，体重趋势图为手绘 SVG） |
 | 后端 | Python 3 + FastAPI + Uvicorn |
-| AI | LangChain Agent + **DeepSeek**（OpenAI 兼容接口，原生 function calling）· 兼容通义千问（DashScope） |
+| AI | LangChain Agent + **百炼通义千问 qwen3.8-flash**（Anthropic 兼容端点，原生工具调用）· 兼容 DeepSeek（OpenAI 接口）/ 通义 DashScope，供应商故障自动顺延 |
 | 数据 | SQLite 本地持久化（首次运行自动建库并注入示例数据） |
-| Key | `.env`（`DEEPSEEK_API_KEY` 或 `DASHSCOPE_API_KEY`，不进 git）· 无 Key 自动降级"示例回答"模式 |
+| Key | `.env`（`BAILIAN_API_KEY` / `DEEPSEEK_API_KEY` / `DASHSCOPE_API_KEY` 任配其一，不进 git）· 无 Key 自动降级"示例回答"模式 |
 
 ## 快速开始
 
@@ -75,7 +75,7 @@ python main.py            # 启动 http://127.0.0.1:8000
   - **多宠物关注优先级**：评分排序（逾期/临期/体重波动/记录陈旧度），直接回答"我该先管哪只"
   - **供应商容错**：DeepSeek 欠费/故障自动切换通义千问，全部不可用才降级示例回答
   - **仪表盘 AI 今日简报**：按天自动生成健康简报（临期/逾期逐条建议+体重提示），数据签名过期自动后台刷新，无 Key 降级规则拼接
-  - 有 Key：DeepSeek 原生 function calling 驱动工具调用循环，自主决定查库、多轮调用后作答（备选：通义千问文本 ReAct）
+  - 有 Key：大模型原生工具调用驱动循环，自主决定查库、多轮调用后作答；供应商优先级 百炼 qwen3.8-flash → DeepSeek → 通义，故障/欠费自动顺延
   - 无 Key：降级"示例回答"模式，解析关键词调用同一套工具、用数据库真实数据拼答案，全流程仍可演示
   - 报告答案支持 Markdown 渲染 + 复制 + 下载 `.md`
 
@@ -114,7 +114,7 @@ python main.py            # 启动 http://127.0.0.1:8000
 6. 请求"生成布丁的健康报告" → Markdown 报告渲染 + 复制 / 下载 `.md`。
 7. 右上角一键切换亮/暗模式（偏好自动记忆）。
 
-> 注：未配置任何 Key 时，AI 回答自动走"示例回答"模式（数据库真实数据拼装），演示链路不中断；配置 `DEEPSEEK_API_KEY`（推荐）或 `DASHSCOPE_API_KEY` 后自动升级为 LangChain 工具调用 Agent。涉及医疗判断的回答均附"以兽医意见为准"提示。
+> 注：未配置任何 Key 时，AI 回答自动走"示例回答"模式（数据库真实数据拼装），演示链路不中断；配置 `BAILIAN_API_KEY`（推荐）或 `DEEPSEEK_API_KEY` / `DASHSCOPE_API_KEY` 后自动升级为 LangChain 工具调用 Agent。涉及医疗判断的回答均附"以兽医意见为准"提示。
 
 ## 项目结构
 

@@ -4,6 +4,7 @@ langchain
 langchain-core
 langchain-community
 langchain-openai
+langchain-anthropic
 dashscope
 pydantic
 python-dotenv

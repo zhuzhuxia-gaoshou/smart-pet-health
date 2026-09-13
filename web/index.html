@@ -1607,7 +1607,7 @@ function renderChat() {
   sc.scrollTop = sc.scrollHeight;
   api('/api/agent/status').then(s => {
     state.agentMode = s.mode;
-    const name = s.provider === 'deepseek' ? 'DeepSeek' : s.provider === 'tongyi' ? '通义千问' : 'DeepSeek/通义千问';
+    const name = s.provider === 'deepseek' ? 'DeepSeek' : s.provider === 'tongyi' ? '通义千问' : s.provider === 'bailian' ? '百炼 Qwen' : '大模型';
     $('chat-sub').textContent = s.mode === 'agent'
       ? `LangChain Agent（${name} · 工具调用）已连接 · 基于数据库回答`
       : `当前为示例回答模式（未配置 API Key）· 配置 ${name} Key 后自动升级为 LangChain Agent`;
@@ -1663,7 +1663,7 @@ function msgHTML(m) {  const av = m.role === 'user' ? '我' : '<svg viewBox="0 0
   const actions = m.role === 'bot' ? `<div class="msg-actions">
       <button class="btn ghost sm" onclick="copyAnswer(this)" data-text="${encodeURIComponent(m.text)}">⧉ 复制</button>
       ${isReport ? `<button class="btn ghost sm" onclick='downloadMd(${JSON.stringify(m.text).replace(/'/g, "&#39;")},"健康报告")'>⤓ 下载 .md</button>` : ''}
-    </div>${m.mode ? `<div class="mode-tag ${m.mode === 'example' ? 'example' : ''}">${m.mode === 'example' ? '示例回答模式（未配置 API Key）' : 'LangChain Agent · ' + (m.provider === 'deepseek' ? 'DeepSeek' : m.provider === 'tongyi' ? '通义千问' : '大模型')}</div>` : ''}` : '';
+    </div>${m.mode ? `<div class="mode-tag ${m.mode === 'example' ? 'example' : ''}">${m.mode === 'example' ? '示例回答模式（未配置 API Key）' : 'LangChain Agent · ' + (m.provider === 'deepseek' ? 'DeepSeek' : m.provider === 'tongyi' ? '通义千问' : m.provider === 'bailian' ? '百炼 Qwen' : '大模型')}</div>` : ''}` : '';
   return `<div class="msg ${m.role}"><div class="msg-avatar">${av}</div>
     <div><div class="bubble">${mdLite(m.text)}</div>${actions}</div></div>`;
 }

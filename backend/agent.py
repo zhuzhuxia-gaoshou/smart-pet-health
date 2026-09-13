@@ -41,6 +41,10 @@ def dashscope_key() -> str:
     return _key("DASHSCOPE_API_KEY")
 
 
+def bailian_key() -> str:
+    return _key("BAILIAN_API_KEY")
+
+
 def api_key() -> str:
     """兼容旧接口：返回任一可用 Key（DeepSeek 优先）。"""
     return deepseek_key() or dashscope_key()
@@ -89,6 +93,17 @@ _agent_failed = False
 
 
 def _build_llm(prov: str):
+    if prov == "bailian":
+        # 百炼通义千问（Anthropic 兼容端点，如 qwen3.8-flash）
+        from langchain_anthropic import ChatAnthropic
+        return ChatAnthropic(
+            model=os.environ.get("BAILIAN_MODEL", "qwen3.8-flash"),
+            api_key=bailian_key(),
+            base_url=os.environ.get("BAILIAN_BASE_URL", "https://dashscope.aliyuncs.com/apps/anthropic"),
+            temperature=0.3,
+            timeout=60,
+            max_retries=1,
+        )
     if prov == "deepseek":
         from langchain_openai import ChatOpenAI
         return ChatOpenAI(
@@ -107,8 +122,10 @@ def _build_llm(prov: str):
 
 
 def _llm_candidates() -> list:
-    """按优先级返回可用供应商：DeepSeek 优先，失败自动切换通义。"""
+    """按优先级返回可用供应商：百炼优先 → DeepSeek → 通义，失败自动顺延。"""
     cands = []
+    if bailian_key():
+        cands.append("bailian")
     if deepseek_key():
         cands.append("deepseek")
     if dashscope_key():
@@ -210,8 +227,17 @@ def _ask_agent(message: str, history: list[dict] | None = None) -> str:
             agent = _get_agent(prov)
             result = agent.invoke({"messages": msgs}, config={"recursion_limit": 12})
             for m in reversed(result.get("messages", [])):
-                if getattr(m, "type", "") in ("ai", "assistant") and str(getattr(m, "content", "")).strip():
-                    return str(m.content).strip()
+                if getattr(m, "type", "") not in ("ai", "assistant"):
+                    continue
+                content = getattr(m, "content", "")
+                if isinstance(content, list):
+                    # Anthropic 风格块数组：只取 text 块（忽略 thinking 内部推理）
+                    text = "\n".join(b.get("text", "") for b in content
+                                     if isinstance(b, dict) and b.get("type") == "text").strip()
+                else:
+                    text = str(content).strip()
+                if text:
+                    return text
             return "（模型未返回内容，请重试）"
         except Exception as e:
             last_err = e
