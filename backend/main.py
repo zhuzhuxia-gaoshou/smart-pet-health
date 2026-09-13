@@ -332,6 +332,7 @@ def api_chat(body: ChatIn):
     db.add_chat_message("assistant", result["reply"], sid, is_draft=bool(draft))
     db.touch_session(sid)
     result["session_id"] = sid
+    result["provider"] = agent.current_provider()
     if draft:
         result["draft"] = draft
     return result

@@ -1637,7 +1637,7 @@ function msgHTML(m) {  const av = m.role === 'user' ? '我' : '<svg viewBox="0 0
   const actions = m.role === 'bot' ? `<div class="msg-actions">
       <button class="btn ghost sm" onclick="copyAnswer(this)" data-text="${encodeURIComponent(m.text)}">⧉ 复制</button>
       ${isReport ? `<button class="btn ghost sm" onclick='downloadMd(${JSON.stringify(m.text).replace(/'/g, "&#39;")},"健康报告")'>⤓ 下载 .md</button>` : ''}
-    </div>${m.mode ? `<div class="mode-tag ${m.mode === 'example' ? 'example' : ''}">${m.mode === 'example' ? '示例回答模式（未配置 API Key）' : 'LangChain Agent · 通义千问'}</div>` : ''}` : '';
+    </div>${m.mode ? `<div class="mode-tag ${m.mode === 'example' ? 'example' : ''}">${m.mode === 'example' ? '示例回答模式（未配置 API Key）' : 'LangChain Agent · ' + (m.provider === 'deepseek' ? 'DeepSeek' : m.provider === 'tongyi' ? '通义千问' : '大模型')}</div>` : ''}` : '';
   return `<div class="msg ${m.role}"><div class="msg-avatar">${av}</div>
     <div><div class="bubble">${mdLite(m.text)}</div>${actions}</div></div>`;
 }
@@ -1662,7 +1662,7 @@ async function sendChat() {
   try {
     const r = await api('/api/chat', { method: 'POST', body: JSON.stringify({ message: msg, session_id: state.chatSessionId }) });
     think.remove();
-    state.chat.push({ role: 'bot', text: r.reply, mode: r.mode });
+    state.chat.push({ role: 'bot', text: r.reply, mode: r.mode, provider: r.provider });
     draft = r.draft || null;
     if (r.session_id) state.chatSessionId = r.session_id;
   } catch (e) {

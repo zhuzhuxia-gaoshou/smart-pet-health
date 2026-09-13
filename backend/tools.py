@@ -318,6 +318,50 @@ def create_record_draft(pet_name: str, record_type: str, date: str, title: str,
             "标记行是给系统的，不要在回答中原样输出。")
 
 
+def get_attention_ranking() -> str:
+    """多宠物关注优先级：综合逾期、临期、体重波动与记录陈旧度评分排序，评分越高越紧急。无需参数。"""
+    pets = db.list_pets()
+    if not pets:
+        return "系统中暂无宠物。"
+    scored = []
+    for p in pets:
+        score, reasons = 0, []
+        overdue = [r for r in (p["upcoming"] or []) if r["days_left"] < 0]
+        due = [r for r in (p["upcoming"] or []) if 0 <= r["days_left"] <= 7]
+        if overdue:
+            score += len(overdue) * 3
+            reasons.append(f"{len(overdue)} 项逾期（{ '、'.join(r['title'] for r in overdue[:2]) }）")
+        if due:
+            score += len(due) * 2
+            reasons.append(f"{len(due)} 项临期")
+        weights = db.list_weight_logs(p["id"])
+        if len(weights) >= 2 and weights[0]["weight"]:
+            delta = abs(weights[-1]["weight"] - weights[0]["weight"])
+            if delta / weights[0]["weight"] >= 0.1:
+                score += 2
+                reasons.append(f"体重波动 {round(delta, 2)}kg 超 10%")
+        if p["record_count"] == 0:
+            score += 3
+            reasons.append("尚无任何健康记录")
+        else:
+            records = db.list_records(p["id"])
+            if records:
+                gap = db.days_until(records[0]["date"])
+                if -gap > 60:
+                    score += 2
+                    reasons.append(f"已 {-gap} 天无新记录")
+        if score > 0:
+            scored.append((score, p, reasons))
+    if not scored:
+        return "所有宠物状态都在计划内：无逾期、无临期、体重平稳、记录新鲜，暂时不需要特别关注谁。"
+    scored.sort(key=lambda x: -x[0])
+    lines = ["多宠物关注优先级（评分越高越紧急）："]
+    for i, (score, p, reasons) in enumerate(scored, 1):
+        lines.append(f"{i}. {p['name']}（{db.PET_TYPES.get(p['type'], p['type'])}）—— 评分 {score}："
+                     + "；".join(reasons))
+    return "\n".join(lines)
+
+
 # 供 agent.py 注册 LangChain 工具用的元信息
 TOOL_META = [
     ("query_pet", "按宠物名字查询该宠物的基本信息（品种/年龄/体重/健康状态）"),
@@ -328,4 +372,5 @@ TOOL_META = [
     ("query_memories", "查询宠物回忆故事/成长记录。参数：宠物名（可为空表示全部）"),
     ("get_care_guide", "查询物种护理规范：该物种适用的记录类型、该做与不该做的事、常见疾病。参数：宠物名或类型词（可为空表示概览）"),
     ("create_record_draft", "根据用户口语描述起草健康记录草稿（不入库，用户确认后保存）。参数：宠物名、类型、日期、标题、说明、下次日期、体重"),
+    ("get_attention_ranking", "多宠物关注优先级排序：综合逾期、临期、体重波动、记录陈旧度评分，回答'该先管哪只'类问题。无需参数"),
 ]

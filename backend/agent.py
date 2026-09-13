@@ -65,7 +65,8 @@ TOOLS_BRIEF = """可用工具：
 - generate_report(宠物名, 周期): 生成 Markdown 健康报告；名字留空表示全部宠物，周期取 周/月/年
 - query_memories(宠物名): 查询主人为宠物手动写下的回忆故事（第一次郊游、纪念时刻等成长记录）；名字留空返回全部宠物的最新回忆
 - get_care_guide(宠物名或类型词): 查询物种护理规范——该物种适用的记录类型、该做的事、不该做的事（禁忌）与常见疾病；名字留空返回概览
-- create_record_draft(宠物名, 类型, 日期, 标题, 说明, 下次日期, 体重): 用户口述要记一笔健康事项时调用，起草待确认的记录草稿（不直接入库）"""
+- create_record_draft(宠物名, 类型, 日期, 标题, 说明, 下次日期, 体重): 用户口述要记一笔健康事项时调用，起草待确认的记录草稿（不直接入库）
+- get_attention_ranking(): 多宠物关注优先级排序，回答"我该先管哪只"类问题；无需参数"""
 
 SYSTEM_PROMPT = """你是「智能宠物健康管家」的 AI 助手，一个专业的宠物健康管理 Agent。
 你通过工具查询 SQLite 数据库中的真实宠物档案与健康记录，请遵循：
@@ -82,12 +83,12 @@ SYSTEM_PROMPT = """你是「智能宠物健康管家」的 AI 助手，一个专
 
 # ---------------------------------------------------------------- LangChain Agent
 
-_agent = None
+_agent_cache: dict = {}          # 按 provider 缓存已构建的 Agent
+_dead_providers: set = set()     # 欠费等持续性错误 → 本进程内熔断该供应商
 _agent_failed = False
 
 
-def _build_llm():
-    prov = provider()
+def _build_llm(prov: str):
     if prov == "deepseek":
         from langchain_openai import ChatOpenAI
         return ChatOpenAI(
@@ -96,13 +97,23 @@ def _build_llm():
             base_url=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
             temperature=0.3,
             timeout=60,
-        ), "deepseek"
+        )
     from langchain_community.chat_models.tongyi import ChatTongyi
     return ChatTongyi(
         model=os.environ.get("QWEN_MODEL", "qwen-plus"),
         dashscope_api_key=dashscope_key(),
         temperature=0.3,
-    ), "tongyi"
+    )
+
+
+def _llm_candidates() -> list:
+    """按优先级返回可用供应商：DeepSeek 优先，失败自动切换通义。"""
+    cands = []
+    if deepseek_key():
+        cands.append("deepseek")
+    if dashscope_key():
+        cands.append("tongyi")
+    return cands
 
 
 def _build_tools():
@@ -144,6 +155,10 @@ def _build_tools():
                                      name="get_reminders",
                                      description=tools.get_reminders.__doc__.strip(),
                                      args_schema=Empty),
+        StructuredTool.from_function(lambda: tools.get_attention_ranking(),
+                                     name="get_attention_ranking",
+                                     description=tools.get_attention_ranking.__doc__.strip(),
+                                     args_schema=Empty),
         StructuredTool.from_function(tools.analyze_health, name="analyze_health",
                                      description=tools.analyze_health.__doc__.strip(),
                                      args_schema=NameIn),
@@ -170,39 +185,45 @@ def _build_tools():
     ]
 
 
-def _build_langchain_agent():
-    """构建 LangChain 1.x create_agent 工具调用图；失败抛异常（由调用方降级）。"""
-    global _agent
-    if _agent is not None:
-        return _agent
+def _get_agent(prov: str):
+    """按供应商构建并缓存 Agent；失败抛异常（由调用方处理）。"""
+    if prov in _agent_cache:
+        return _agent_cache[prov]
     from langchain.agents import create_agent
-
-    llm, _prov = _build_llm()
-    _agent = create_agent(model=llm, tools=_build_tools(), system_prompt=SYSTEM_PROMPT)
-    return _agent
+    obj = create_agent(model=_build_llm(prov), tools=_build_tools(), system_prompt=SYSTEM_PROMPT)
+    _agent_cache[prov] = obj
+    return obj
 
 
 def _ask_agent(message: str, history: list[dict] | None = None) -> str:
-    global _agent_failed
-    try:
-        agent = _build_langchain_agent()
-    except Exception as e:  # 构建失败（依赖缺失/配置错误）→ 本进程内熔断
-        _agent_failed = True
-        return (f"⚠️ Agent 构建失败（{type(e).__name__}: {e}），已自动切换到示例回答模式。\n\n"
+    """按优先级尝试每个可用供应商（DeepSeek → 通义）；
+    欠费等持续性错误熔断该供应商，其余错误仅跳过本次。全部失败则降级示例回答。"""
+    msgs = [{"role": h["role"], "content": h["content"]} for h in (history or [])]
+    from datetime import date as _date
+    msgs.append({"role": "user",
+                 "content": f"[系统注：今天是 {_date.today().isoformat()}]\n{message}"})
+    last_err = None
+    for prov in _llm_candidates():
+        if prov in _dead_providers:
+            continue
+        try:
+            agent = _get_agent(prov)
+            result = agent.invoke({"messages": msgs}, config={"recursion_limit": 12})
+            for m in reversed(result.get("messages", [])):
+                if getattr(m, "type", "") in ("ai", "assistant") and str(getattr(m, "content", "")).strip():
+                    return str(m.content).strip()
+            return "（模型未返回内容，请重试）"
+        except Exception as e:
+            last_err = e
+            text = str(e)
+            if "402" in text or "Insufficient Balance" in text or "Arrearage" in text:
+                _dead_providers.add(prov)  # 欠费是持续状态 → 本进程内熔断该供应商
+    _agent_failed = not _llm_candidates()
+    if last_err is not None:
+        return (f"⚠️ Agent 本次调用失败（{type(last_err).__name__}: {last_err}），本条为示例回答。\n\n"
                 + _example_answer(message))
-    try:
-        msgs = [{"role": h["role"], "content": h["content"]} for h in (history or [])]
-        from datetime import date as _date
-        msgs.append({"role": "user",
-                     "content": f"[系统注：今天是 {_date.today().isoformat()}]\n{message}"})
-        result = agent.invoke({"messages": msgs}, config={"recursion_limit": 12})
-        for m in reversed(result.get("messages", [])):
-            if getattr(m, "type", "") in ("ai", "assistant") and str(getattr(m, "content", "")).strip():
-                return str(m.content).strip()
-        return "（模型未返回内容，请重试）"
-    except Exception as e:  # 单次调用失败（网络/额度等）→ 本次降级，下次仍会重试 Agent
-        return (f"⚠️ Agent 本次调用失败（{type(e).__name__}: {e}），本条为示例回答。\n\n"
-                + _example_answer(message))
+    return ("⚠️ Agent 暂不可用（没有可用的模型供应商），本条为示例回答。\n\n"
+            + _example_answer(message))
 
 
 # ---------------------------------------------------------------- 无 Key 降级
@@ -286,7 +307,8 @@ BRIEFING_PROMPT = (
     "1) 一句话概述宠物与记录规模；"
     "2) 逐条列出临期/逾期事项并各给一句具体建议；"
     "3) 如有体重明显波动的宠物提一句；"
-    "4) 收尾一句温暖克制的总结。直接输出简报正文，不要大标题。"
+    "4) 可调用 get_attention_ranking 确定优先级，最后一行单独写「❗ 最需要关注：XX（一句理由）」；"
+    "5) 收尾一句温暖克制的总结。直接输出简报正文，不要大标题。"
 )
 
 
@@ -466,10 +488,15 @@ def answer(message: str, history: list[dict] | None = None) -> dict:
     return {"reply": _example_answer(message), "mode": "example"}
 
 
+def current_provider() -> str | None:
+    """当前实际可用的供应商（已熔断的不算）。"""
+    live = [p for p in _llm_candidates() if p not in _dead_providers]
+    return live[0] if live else None
+
+
 def status() -> dict:
     """供前端探测当前运行模式。"""
-    prov = provider()
-    live = bool(prov and not _agent_failed)
-    return {"mode": "agent" if live else "example",
-            "has_key": bool(prov),
+    prov = current_provider()
+    return {"mode": "agent" if prov else "example",
+            "has_key": bool(_llm_candidates()),
             "provider": prov}
