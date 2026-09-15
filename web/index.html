@@ -130,11 +130,9 @@ a { color: var(--accent); }
   display: inline-flex; align-items: center; gap: 7px;
   border: 1px solid var(--border); background: var(--surface); color: var(--text);
   padding: 8px 16px; border-radius: var(--r-btn); font-size: 14px; font-weight: 500;
-  transition: transform 120ms ease-out, box-shadow var(--dur), background var(--dur), border-color var(--dur);
   user-select: none; white-space: nowrap;
 }
 .btn:hover { border-color: color-mix(in srgb, var(--border) 40%, var(--text-2)); box-shadow: var(--shadow-sm); }
-.btn:active { transform: scale(.97); box-shadow: none; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .btn.primary:hover { background: color-mix(in srgb, var(--accent) 88%, #000); }
 .btn.ghost { background: transparent; border-color: transparent; color: var(--text-2); }
@@ -1005,9 +1003,13 @@ async function api(path, opts) {
   const res = await fetch(API + path, Object.assign({ headers: {'Content-Type':'application/json'} }, opts));
   const data = await res.json().catch(() => ({}));
   if (data.error) throw new Error(data.error);
+  if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : `请求失败（${res.status}）`);
   return data;
 }
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// 本地时区的 YYYY-MM-DD（后端全部按本地日期；toISOString 是 UTC，东八区 0~8 点会差一天）
+const localISO = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const todayISO = () => localISO(new Date());
 
 /* ============================================================
    路由 / 视图切换
@@ -1090,11 +1092,11 @@ async function renderRecords() {
     if (r.next_date) {
       const cls = r.days_left < 0 ? 'ill' : r.days_left <= 7 ? 'attention' : 'plain';
       const txt = r.days_left < 0 ? `逾期${-r.days_left}天` : `剩${r.days_left}天`;
-      nextChip = `<span class="badge ${cls} rec-next">⏰ ${r.next_date} · ${txt}</span>`;
+      nextChip = `<span class="badge ${cls} rec-next">⏰ ${esc(r.next_date)} · ${txt}</span>`;
     }
     return `<div class="rec-row" onclick="go('detail',{petId:${r.pet_id}})">
       <span class="rec-date">${esc((r.date || '').slice(5))}</span>
-      <span class="rec-type" style="background:${TYPE_COLOR[r.type] || 'var(--accent)'}">${r.type_label}</span>
+      <span class="rec-type" style="background:${TYPE_COLOR[r.type] || 'var(--accent)'}">${esc(r.type_label)}</span>
       <span class="rec-pet">${esc(r.pet_avatar || TYPE_EMOJI[r.pet_type] || '🐾')} ${esc(r.pet_name)}</span>
       <span class="rec-title">${esc(r.title)}</span>
       ${nextChip}
@@ -1109,7 +1111,7 @@ function reminderItemHTML(r) {
       <span class="rem-dot ${r.overdue ? 'danger' : 'warn'}"></span>
       <div class="rem-main">
         <div class="rem-title">${esc(r.pet_name)} · ${esc(r.title)}</div>
-        <div class="rem-meta">${r.type_label} · 下次日期 ${r.next_date}${r.repeat_label ? ' · 🔁 ' + r.repeat_label : ''}</div>
+        <div class="rem-meta">${esc(r.type_label)} · 下次日期 ${esc(r.next_date)}${r.repeat_label ? ' · 🔁 ' + esc(r.repeat_label) : ''}</div>
       </div>
       <span class="rem-days ${r.overdue ? 'danger' : 'warn'}">${r.overdue ? '逾期 ' + (-r.days_left) + ' 天' : '剩 ' + r.days_left + ' 天'}</span>
       <button class="btn sm rem-done" title="标记本轮已完成${r.repeat_label ? '，自动排下一轮' : ''}" onclick="event.stopPropagation(); completeReminder(${r.record_id}, this)">✓ 完成</button>
@@ -1260,12 +1262,12 @@ function timelineHTML(records) {
     if (r.next_date) {
       const d = r.days_left;
       const cls = d < 0 ? 'ill' : d <= 7 ? 'attention' : 'plain';
-      const txt = d < 0 ? `下次 ${r.next_date} · 已逾期 ${-d} 天` : `下次 ${r.next_date} · 剩 ${d} 天`;
-      nextBadge = `<div class="tl-next"><span class="badge ${cls}">⏰ ${txt}</span>${r.repeat_label ? `<span class="badge plain">🔁 ${r.repeat_label}</span>` : ''}</div>`;
+      const txt = d < 0 ? `下次 ${esc(r.next_date)} · 已逾期 ${-d} 天` : `下次 ${esc(r.next_date)} · 剩 ${d} 天`;
+      nextBadge = `<div class="tl-next"><span class="badge ${cls}">⏰ ${txt}</span>${r.repeat_label ? `<span class="badge plain">🔁 ${esc(r.repeat_label)}</span>` : ''}</div>`;
     }
     return `<div class="tl-item" style="--tcolor:${color}">
       <div class="tl-head">
-        <span class="tl-type" style="background:${color}">${r.type_label || TYPE_LABEL[r.type] || r.type}</span>
+        <span class="tl-type" style="background:${color}">${esc(r.type_label || TYPE_LABEL[r.type] || r.type)}</span>
         <span class="tl-title">${esc(r.title)}</span>
         <span class="tl-date">${esc(r.date)}</span>
       </div>
@@ -1302,7 +1304,7 @@ function medsHTML(meds) {
     <div class="empty-state"><div class="big" aria-hidden="true">💊</div><h3>还没有用药记录</h3>
     <p>记下药名、剂量和疗程，AI 健康分析会一并考虑在用药物，疗程到期也会在这里提示。</p>
     <button class="btn primary sm" onclick="openMedModal()">添加第一条用药</button></div></div>`;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   const item = m => {
     let prog;
     if (m.start_date && m.end_date) {
@@ -1342,7 +1344,7 @@ async function reloadMeds() {
 }
 function openMedModal(id) {
   const m = id ? (state.detailMeds || []).find(x => x.id === id) : null;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   const pet = state.pets.find(x => x.id === state.detailPetId);
   openModal(`
   <h3>${m ? '编辑用药' : '添加用药'}${pet ? ` · ${esc(pet.name)}` : ''}</h3>
@@ -1378,7 +1380,7 @@ async function submitMed(e, id) {
 }
 async function finishMed(id) {
   const m = (state.detailMeds || []).find(x => x.id === id); if (!m) return;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   try {
     await api(`/api/medications/${id}`, { method: 'PUT',
       body: JSON.stringify({ name: m.name, status: 'finished', end_date: (m.end_date && m.end_date <= today) ? m.end_date : today }) });
@@ -1402,7 +1404,7 @@ function drawWeightChart() {  const box = $('weight-chart'); if (!box) return;
     `<button class="wc-pill ${cur === v ? 'active' : ''}" aria-pressed="${cur === v}" onclick="setWeightRange('${v}')">${t}</button>`).join('') + `</div>`;
   if (all.length < 2) { box.innerHTML = pills + '<div class="empty-hint">体重记录不足两条，暂无趋势图。在「新增记录」中填写体重即可积累数据。</div>'; return; }
   const logs = cur === 'all' ? all
-    : all.filter(l => l.date >= new Date(Date.now() - (+cur) * 864e5).toISOString().slice(0, 10));
+    : all.filter(l => l.date >= localISO(new Date(Date.now() - (+cur) * 864e5)));
   if (logs.length < 2) { box.innerHTML = pills + '<div class="empty-hint">该区间内体重记录不足两条，试试更长的时间范围。</div>'; return; }
   const W = 640, H = 240, PL = 46, PR = 16, PT = 18, PB = 34;
   const ws = logs.map(l => l.weight), wMin = Math.min(...ws), wMax = Math.max(...ws);
@@ -1411,7 +1413,7 @@ function drawWeightChart() {  const box = $('weight-chart'); if (!box) return;
   const x = i => PL + (W - PL - PR) * (logs.length === 1 ? 0.5 : i / (logs.length - 1));
   const y = v => PT + (H - PT - PB) * (1 - (v - lo) / (hi - lo));
   const pts = logs.map((l, i) => [x(i), y(l.weight)]);
-  window._wcPts = { pts, logs, W, H };
+  box._wcPts = { pts, logs, W, H };
   const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
   const area = line + ` L ${x(logs.length - 1).toFixed(1)} ${H - PB} L ${x(0).toFixed(1)} ${H - PB} Z`;
   const gridN = 4, grid = [];
@@ -1430,7 +1432,7 @@ function drawWeightChart() {  const box = $('weight-chart'); if (!box) return;
       ${delta >= 0 ? '+' : ''}${delta.toFixed(2)} kg（近 ${logs.length} 次）</span>
       <button class="btn ghost sm" style="float:right" onclick="weightInsight(this)">✦ AI 解读</button></div>
     ${pills}
-    <div class="weight-chart-wrap" onpointermove="wcHover(event)" onpointerleave="wcLeave()">
+    <div class="weight-chart-wrap" onpointermove="wcHover(event)" onpointerleave="wcLeave(event)">
       <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="体重折线图">
         <defs><linearGradient id="warea" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stop-color="var(--accent)" stop-opacity=".22"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/>
@@ -1452,8 +1454,8 @@ function drawWeightChart() {  const box = $('weight-chart'); if (!box) return;
     <div class="wi-box" id="weight-insight-box"></div>`;
 }
 function wcHover(e) {
-  const d = window._wcPts;
-  const wrap = e.currentTarget, svg = wrap.querySelector('svg'), tip = wrap.querySelector('.wc-tip');
+  const wrap = e.currentTarget, box = wrap.closest('#weight-chart');
+  const d = box && box._wcPts, svg = wrap.querySelector('svg'), tip = wrap.querySelector('.wc-tip');
   if (!d || !svg || !tip || d.pts.length < 2) return;
   const rect = svg.getBoundingClientRect();
   if (!rect.width) return;
@@ -1461,7 +1463,7 @@ function wcHover(e) {
   let best = 0, bd = Infinity;
   d.pts.forEach((p, i) => { const dd = Math.abs(p[0] - sx); if (dd < bd) { bd = dd; best = i; } });
   const [px, py] = d.pts[best], log = d.logs[best];
-  const guide = document.getElementById('wc-guide'), hl = document.getElementById('wc-hl');
+  const guide = wrap.querySelector('#wc-guide'), hl = wrap.querySelector('#wc-hl');
   if (guide) { guide.setAttribute('x1', px); guide.setAttribute('x2', px); guide.style.opacity = 1; }
   if (hl) { hl.setAttribute('cx', px); hl.setAttribute('cy', py); hl.style.opacity = 1; }
   let sub = '起点';
@@ -1469,13 +1471,16 @@ function wcHover(e) {
     const diff = log.weight - d.logs[best - 1].weight;
     sub = `较上次 ${diff >= 0 ? '+' : ''}${diff.toFixed(2)} kg`;
   }
-  tip.innerHTML = `<b>${_fmtW(log.weight)} kg</b><div class="t-d">${log.date} · ${sub}</div>`;
-  tip.style.left = Math.min(Math.max(px / d.W * rect.width, 70), rect.width - 70) + 'px';
-  tip.style.top = (py / d.H * rect.height - 12) + 'px';
+  tip.innerHTML = `<b>${_fmtW(log.weight)} kg</b><div class="t-d">${esc(log.date)} · ${sub}</div>`;
+  // wrap 有 padding 8px 4px 0，svg 坐标换算到 wrap 定位坐标需补偿
+  const lx = px / d.W * rect.width + 4, ly = py / d.H * rect.height + 8;
+  tip.style.left = Math.max(0, Math.min(Math.max(lx, 70), rect.width - 70)) + 'px';
+  tip.style.top = (ly - 12) + 'px';
   tip.classList.add('show');
 }
-function wcLeave() {
-  const g = document.getElementById('wc-guide'), h = document.getElementById('wc-hl'), t = document.querySelector('#weight-chart .wc-tip');
+function wcLeave(e) {
+  const wrap = e.currentTarget;
+  const g = wrap.querySelector('#wc-guide'), h = wrap.querySelector('#wc-hl'), t = wrap.querySelector('.wc-tip');
   if (g) g.style.opacity = 0;
   if (h) h.style.opacity = 0;
   if (t) t.classList.remove('show');
@@ -1532,8 +1537,10 @@ async function applyPlanItem(pid, i, btn) {
 /* ============================================================
    弹窗：新增/编辑宠物
    ============================================================ */
+let modalCloseTimer = null;
 function openModal(html, wide) {
   const ov = $('modal-overlay');
+  clearTimeout(modalCloseTimer);
   ov.classList.remove('closing');
   $('modal-box').innerHTML = html;
   $('modal-box').classList.toggle('wide', !!wide);
@@ -1543,7 +1550,8 @@ function closeModal() {
   const ov = $('modal-overlay');
   if (!ov.classList.contains('open')) return;
   ov.classList.add('closing');
-  setTimeout(() => ov.classList.remove('open', 'closing'), 150);
+  clearTimeout(modalCloseTimer);
+  modalCloseTimer = setTimeout(() => ov.classList.remove('open', 'closing'), 150);
 }
 
 function openPetModal(id) {
@@ -1615,7 +1623,7 @@ function recTypeOptions(pet, selected) {
   return allowed.map(v => `<option value="${v}" ${selected === v ? 'selected' : ''}>${TYPE_LABEL[v] || v}</option>`).join('');
 }
 function openRecordModal() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   const pet = state.pets.find(x => x.id === state.detailPetId);
   const sp = (state.species && pet && state.species[pet.type]) || null;
   const filtered = sp && sp.record_types.length < Object.keys(TYPE_LABEL).length;
@@ -1709,7 +1717,7 @@ async function submitRecordEdit(e, rid) {
 /* ---------- 快捷记体重 ---------- */
 function openWeightModal(pid) {
   const p = state.pets.find(x => x.id === pid) || {};
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   openModal(`
   <h3>为「${esc(p.name || '')}」记录体重</h3>
   <form id="wt-form" onsubmit="return submitWeight(event, ${pid})">
@@ -1851,7 +1859,7 @@ function compressImage(file, maxEdge = 1280, quality = 0.8) {
 }
 async function openMemoryModal(id, defaultPetId) {
   const m = id ? state.memories.find(x => x.id === id) : null;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   state.memImg = m ? (m.image || '') : '';
   openModal(`
   <h3>${id ? '编辑回忆' : '新增回忆'}</h3>
@@ -2226,7 +2234,7 @@ function copyAnswer(btn) {
 function downloadMd(text, name) {
   const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = `${name}_${new Date().toISOString().slice(0, 10)}.md`; a.click();
+  a.download = `${name}_${todayISO()}.md`; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 
@@ -2244,8 +2252,8 @@ function toggleTheme() {
   document.documentElement.dataset.theme = saved || sys;
 })();
 function toast(text, level) {
-  // level: 'ok' | 'warn' | 'err'；兼容旧调用 toast(text, true) = 错误
-  const lv = level === true ? 'err' : (level || 'ok');
+  // level: 'ok' | 'warn' | 'err'；兼容旧调用 toast(text, true) = 错误；非法值回落 ok
+  const lv = level === true ? 'err' : ({ ok: 1, warn: 1, err: 1 }[level] ? level : 'ok');
   const t = document.createElement('div');
   t.className = 'toast' + (lv === 'ok' ? '' : ' ' + lv);
   t.innerHTML = `<span class="t-ico">${{ ok: '✓', warn: '!', err: '✕' }[lv]}</span>${esc(text)}`;

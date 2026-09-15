@@ -64,15 +64,34 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
     const created = await T.api('/api/pets/1/records', { method: 'POST',
       body: JSON.stringify({ type: 'deworm', title: '__smoke_repeat__', next_date: '2027-01-31', repeat_rule: 'monthly' }) });
     check('repeat record created', !!created.record && created.record.repeat_label === '每月');
-    const done = await T.api('/api/records/' + created.record.id + '/complete', { method: 'POST' });
-    check('complete clears next_date', !!done.record && done.record.next_date === null);
-    check('complete rolls next round (month-end clamp)', !!done.next && done.next.next_date === '2027-02-28', done.next && done.next.next_date);
-    check('next round inherits rule', !!done.next && done.next.repeat_rule === 'monthly');
-    await T.api('/api/records/' + created.record.id, { method: 'DELETE' });
-    if (done.next) await T.api('/api/records/' + done.next.id, { method: 'DELETE' });
+    if (created.record) {
+      const done = await T.api('/api/records/' + created.record.id + '/complete', { method: 'POST' });
+      check('complete clears next_date', !!done.record && done.record.next_date === null);
+      check('complete rolls next round (month-end clamp)', !!done.next && done.next.next_date === '2027-02-28', done.next && done.next.next_date);
+      check('next round inherits rule', !!done.next && done.next.repeat_rule === 'monthly');
+      // 二次完成同一条：已无到期日，不应再生成
+      const again = await T.api('/api/records/' + created.record.id + '/complete', { method: 'POST' });
+      check('complete is idempotent', again.next === null);
+      await T.api('/api/records/' + created.record.id, { method: 'DELETE' });
+      if (done.next) await T.api('/api/records/' + done.next.id, { method: 'DELETE' });
+    }
+    // 逾期完成：到期日在过去 → 下一轮从今天起算（weekly = 今天+7）
+    const late = await T.api('/api/pets/1/records', { method: 'POST',
+      body: JSON.stringify({ type: 'deworm', title: '__smoke_late__', next_date: '2020-01-01', repeat_rule: 'weekly' }) });
+    if (late.record) {
+      const d2 = await T.api('/api/records/' + late.record.id + '/complete', { method: 'POST' });
+      const exp = new Date(Date.now() + 7 * 864e5), pad = x => String(x).padStart(2, '0');
+      const expStr = `${exp.getFullYear()}-${pad(exp.getMonth() + 1)}-${pad(exp.getDate())}`;
+      check('overdue completion rolls from today', !!d2.next && d2.next.next_date === expStr, (d2.next && d2.next.next_date) + ' vs ' + expStr);
+      await T.api('/api/records/' + late.record.id, { method: 'DELETE' });
+      if (d2.next) await T.api('/api/records/' + d2.next.id, { method: 'DELETE' });
+    }
     const bad = await (await fetch(BASE + '/api/pets/1/records', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type: 'deworm', title: 'x', repeat_rule: 'hourly' }) })).json();
     check('invalid repeat rule rejected', !!bad.error);
+    const badDate = await (await fetch(BASE + '/api/pets/1/records', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'deworm', title: 'x', next_date: '2026/13/45' }) })).json();
+    check('invalid date rejected with zh message', !!badDate.error && badDate.error.includes('YYYY-MM-DD'));
     await T.refreshData();
   }
 
