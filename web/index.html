@@ -19,9 +19,10 @@
   --text: #221F1A;
   --text-2: #6B6358;
   --accent: #C2703D;
+  --accent-strong: #A85A2E;           /* 实色填充上的白字 / 小号强调文字用（白字对比 5.04:1）；品牌橙保留给边框/图标/图表 */
   --accent-2: #E9D5B8;
-  --success: #3E7C4F;
-  --warn: #B7811B;
+  --success: #387448;
+  --warn: #8F620E;
   --danger: #B94A3F;
   --accent-soft: rgba(194,112,61,.08);
   --warn-soft: rgba(183,129,27,.10);
@@ -38,9 +39,9 @@
   --font-title: 'Fraunces', Georgia, 'Songti SC', serif;
   --font-body: 'Inter', -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   /* 补全 token：此前散落为硬编码 */
-  --text-3: #8A7A66;                  /* 三级弱文字 */
+  --text-3: #7D6F5C;                  /* 三级弱文字（奶油底上 4.68:1） */
   --on-accent: #FFFFFF;               /* 强调色/实色填充之上的文字 */
-  --medication: #8B6FC0;              /* 记录类型色：喂药 */
+  --medication: #7559AE;              /* 记录类型色：喂药（白字 5.53:1） */
   --overlay: rgba(23,22,20,.45);      /* 模态遮罩 */
   --overlay-strong: rgba(0,0,0,.55);  /* 图片上的迷你遮罩按钮 */
   --shadow-xs: 0 1px 3px rgba(0,0,0,.08);
@@ -61,6 +62,7 @@ html[data-theme="dark"] {
   --text: #EDE8E0;
   --text-2: #A49A8B;
   --accent: #D98A57;
+  --accent-strong: #D98A57;
   --accent-2: #8A6D4E;
   --success: #6FBF8A;
   --warn: #E0B24E;
@@ -72,6 +74,7 @@ html[data-theme="dark"] {
   --shadow-card: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.5);
   --shadow-deep: 0 2px 6px rgba(0,0,0,.35), 0 18px 48px -10px rgba(0,0,0,.55);
   --text-3: #8F8375;
+  --on-accent: #171614;               /* 暗色下浅橙/状态色底配深字（白字仅 2.72:1 不达标） */
   --medication: #A78BD4;
   --overlay: rgba(0,0,0,.55); --overlay-strong: rgba(0,0,0,.65);
   --shadow-xs: 0 1px 3px rgba(0,0,0,.4);
@@ -133,8 +136,8 @@ a { color: var(--accent); }
   user-select: none; white-space: nowrap;
 }
 .btn:hover { border-color: color-mix(in srgb, var(--border) 40%, var(--text-2)); box-shadow: var(--shadow-sm); }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-.btn.primary:hover { background: color-mix(in srgb, var(--accent) 88%, #000); }
+.btn.primary { background: var(--accent-strong); border-color: var(--accent-strong); color: var(--on-accent); }
+.btn.primary:hover { background: color-mix(in srgb, var(--accent-strong) 88%, #000); }
 .btn.ghost { background: transparent; border-color: transparent; color: var(--text-2); }
 .btn.ghost:hover { background: var(--surface-2); color: var(--text); box-shadow: none; }
 .btn.danger { color: var(--danger); }
@@ -145,7 +148,7 @@ a { color: var(--accent); }
 .dis-chip { border:1px solid var(--border); background:var(--surface-2); color:var(--text-2); border-radius:999px; padding:5px 12px; font-size:12.5px; cursor:pointer; transition:all .15s ease-out; font-family:inherit; }
 button.dis-chip:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
 .dis-chip.static { cursor:default; }
-.sp-note { font-size:12px; color:var(--accent); background:var(--accent-soft); border-radius:8px; padding:6px 10px; grid-column:1/-1; }
+.sp-note { font-size:12px; color:var(--accent-strong); background:var(--accent-soft); border-radius:8px; padding:6px 10px; grid-column:1/-1; }
 .care-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
 .care-card { border-radius:14px; padding:18px 20px; }
 .care-do { background:var(--success-soft); }
@@ -198,14 +201,14 @@ button.dis-chip:hover { border-color:var(--accent); color:var(--accent); backgro
 
 /* ============ AI 今日简报 ============ */
 .briefing-card { padding:16px 20px; margin-bottom:18px; background:var(--accent-soft); border:none; }
-.brief-title { font-size:12.5px; font-weight:600; color:var(--accent); letter-spacing:1px; margin-bottom:8px; }
+.brief-title { font-size:12.5px; font-weight:600; color:var(--accent-strong); letter-spacing:1px; margin-bottom:8px; }
 .brief-text { font-size:13.5px; line-height:1.75; color:var(--text); }
 .brief-meta { margin-top:10px; font-size:12px; color:var(--text-2); display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 
 /* ============ AI 起草记录确认卡 ============ */
 .draft-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px 16px; max-width:440px; }
 .draft-card.done { border-style:dashed; }
-.draft-head { font-size:13px; font-weight:600; color:var(--accent); margin-bottom:10px; }
+.draft-head { font-size:13px; font-weight:600; color:var(--accent-strong); margin-bottom:10px; }
 .draft-card.done .draft-head { color:var(--text-2); }
 .draft-row { display:flex; justify-content:space-between; gap:16px; font-size:13px; padding:5px 0; border-bottom:1px dashed var(--border); }
 .draft-row span { color:var(--text-2); }
@@ -261,7 +264,7 @@ html[data-theme="light"] .icon-sun { display: none; }
   min-height: 170px; flex: 1 0 auto;
 }
 .wb-text { position: relative; z-index: 1; max-width: 78%; }
-.wb-kicker { font-size: 11px; font-weight: 600; letter-spacing: 1.6px; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+.wb-kicker { font-size: 11px; font-weight: 600; letter-spacing: 1.6px; text-transform: uppercase; color: var(--accent-strong); margin-bottom: 10px; }
 .wb-title {
   font-family: var(--font-title); font-weight: 700; font-size: 24px; line-height: 1.35;
   letter-spacing: -.4px; color: var(--text); font-feature-settings: "lnum";
@@ -345,7 +348,7 @@ html[data-theme="light"] .icon-sun { display: none; }
 .stat-card.clickable:hover .stat-hint { opacity: 1; }
 .compact-card { padding: 16px 18px; }
 .compact-card .card-title { margin-bottom: 8px; display: flex; align-items: center; }
-.view-all { margin-left: auto; border: none; background: none; color: var(--accent); font-size: 12.5px; font-weight: 600; padding: 2px 6px; border-radius: 6px; transition: background var(--dur); }
+.view-all { margin-left: auto; border: none; background: none; color: var(--accent-strong); font-size: 12.5px; font-weight: 600; padding: 2px 6px; border-radius: 6px; transition: background var(--dur); position: relative; }
 .view-all:hover { background: var(--accent-soft); }
 .compact-card .reminder-item { padding: 7px 8px; }
 
@@ -418,7 +421,7 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
 .detail-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin: 22px 0 18px; }
 .detail-tab { border: none; background: none; padding: 9px 18px; font-size: 14px; font-weight: 500; color: var(--text-2); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all var(--dur); }
 .detail-tab:hover { color: var(--text); }
-.detail-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.detail-tab.active { color: var(--accent-strong); border-bottom-color: var(--accent); font-weight: 600; }
 .tab-pane { display: none; animation: fade-up .2s ease-out; }
 .tab-pane.active { display: block; }
 
@@ -470,7 +473,7 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
 .wc-ranges { display: flex; gap: 4px; margin: 6px 0 10px; background: var(--surface-2); border-radius: var(--r-btn); padding: 3px; width: max-content; }
 .wc-pill { border: 0; background: transparent; color: var(--text-2); font-size: 12px; padding: 4px 10px; border-radius: 6px; cursor: pointer; transition: color var(--dur) ease-out, background-color var(--dur) ease-out, box-shadow var(--dur) ease-out; }
 .wc-pill:hover { color: var(--text); }
-.wc-pill.active { background: var(--surface); color: var(--accent); font-weight: 600; box-shadow: var(--shadow-xs); }
+.wc-pill.active { background: var(--surface); color: var(--accent-strong); font-weight: 600; box-shadow: var(--shadow-xs); }
 /* 区间统计行 */
 .wc-stats { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .wc-stat { flex: 1; min-width: 90px; background: var(--surface-2); border-radius: 10px; padding: 8px 12px; }
@@ -500,7 +503,7 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
   background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-card);
   font-size: 14.5px; line-height: 1.65; overflow-wrap: break-word;
 }
-.msg.user .bubble { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.msg.user .bubble { background: var(--accent-strong); border-color: var(--accent-strong); color: var(--on-accent); }
 .msg.bot .bubble { border-top-left-radius: 4px; }
 .msg.user .bubble { border-top-right-radius: 4px; }
 .bubble h1, .bubble h2, .bubble h3 { font-family: var(--font-title); margin: 12px 0 6px; line-height: 1.3; }
@@ -739,8 +742,18 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
 
 /* ---------- 无障碍：系统减弱动效 ---------- */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }
+/* ---------- 无障碍补丁（WCAG 2.2 AA） ---------- */
+/* 点击目标 ≥24px（2.5.8）：透明热区外扩，不影响布局 */
+.tl-del { position: relative; }
+.view-all::before, .tl-del::before, .sess-del::before { content: ''; position: absolute; inset: -4px; }
+.logo:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 8px; }
+.stat-card.clickable:focus-visible .stat-hint { opacity: 1; }
+/* 跳到主内容 */
+.skip-link { position: fixed; left: 12px; top: -52px; z-index: 300; background: var(--surface); color: var(--text);
+  border: 1px solid var(--accent); border-radius: 8px; padding: 8px 14px; font-size: 13px; transition: top var(--dur-fast) var(--ease); }
+.skip-link:focus { top: 12px; }
 
 /* ---------- 响应式 ---------- */
 @media (max-width: 900px) {
@@ -769,17 +782,17 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
 
 <!-- ======================= 顶栏 ======================= -->
 <header class="topbar">
-  <div class="logo" onclick="go('dashboard')">
+  <div class="logo" role="button" tabindex="0" onclick="go('dashboard')">
     <span class="logo-mark" aria-hidden="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21c-4.5 0-7.5-2.8-7.5-6.2 0-2.4 1.6-4 3.3-5C9 8.6 10.4 7 10.4 5.3c0-1 .4-1.8 1.1-2.3.4.9 1.3 1.4 2.4 1.4 1.6 0 2.8 1.2 2.8 2.8 0 .4-.1.8-.2 1.1 1.9.9 3.2 2.6 3.2 4.7 0 4.9-4 8-7.7 8z"/><circle cx="7.2" cy="9.8" r=".9" fill="currentColor" stroke="none"/><circle cx="16.8" cy="9.8" r=".9" fill="currentColor" stroke="none"/><circle cx="9.5" cy="6.5" r=".9" fill="currentColor" stroke="none"/><circle cx="14.5" cy="6.5" r=".9" fill="currentColor" stroke="none"/></svg>
     </span>
     <span class="logo-name">宠物健康管家</span>
   </div>
-  <nav class="tabs" id="nav-tabs">
-    <button class="tab-btn active" data-view="dashboard" onclick="go('dashboard')">仪表盘</button>
-    <button class="tab-btn" data-view="library" onclick="go('library')">宠物</button>
-    <button class="tab-btn" data-view="memories" onclick="go('memories')">回忆集</button>
-    <button class="tab-btn" data-view="chat" onclick="go('chat')">AI 助手</button>
+  <nav class="tabs" id="nav-tabs" role="tablist" aria-label="主导航">
+    <button class="tab-btn active" role="tab" aria-selected="true" data-view="dashboard" onclick="go('dashboard')">仪表盘</button>
+    <button class="tab-btn" role="tab" aria-selected="false" data-view="library" onclick="go('library')">宠物</button>
+    <button class="tab-btn" role="tab" aria-selected="false" data-view="memories" onclick="go('memories')">回忆集</button>
+    <button class="tab-btn" role="tab" aria-selected="false" data-view="chat" onclick="go('chat')">AI 助手</button>
   </nav>
   <div class="topbar-right">
     <div class="menu-wrap">
@@ -787,11 +800,11 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
         <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
       </button>
       <div class="dropdown" id="more-menu">
-        <a onclick="downloadFile('/api/export/pets.csv')">导出宠物 CSV</a>
-        <a onclick="downloadFile('/api/export/records.csv')">导出健康记录 CSV</a>
-        <a onclick="exportSessionMd()">导出当前会话 .md</a>
-        <a onclick="downloadFile('/api/export/db')">下载数据库备份</a>
-        <a style="color:var(--danger)" onclick="askResetDemo()">清空全部数据并重建示例…</a>
+        <a role="button" tabindex="0" onclick="downloadFile('/api/export/pets.csv')">导出宠物 CSV</a>
+        <a role="button" tabindex="0" onclick="downloadFile('/api/export/records.csv')">导出健康记录 CSV</a>
+        <a role="button" tabindex="0" onclick="exportSessionMd()">导出当前会话 .md</a>
+        <a role="button" tabindex="0" onclick="downloadFile('/api/export/db')">下载数据库备份</a>
+        <a role="button" tabindex="0" style="color:var(--danger)" onclick="askResetDemo()">清空全部数据并重建示例…</a>
       </div>
     </div>
     <button class="theme-toggle" id="notify-btn" onclick="toggleNotify()" title="开启到期提醒通知" aria-label="到期提醒通知开关">
@@ -842,8 +855,8 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
             </button>
           </div>
         </div>
-        <div class="welcome-banner" aria-hidden="true">
-          <svg class="wb-paws" viewBox="0 0 480 200" preserveAspectRatio="xMidYMid slice">
+        <div class="welcome-banner">
+          <svg class="wb-paws" aria-hidden="true" viewBox="0 0 480 200" preserveAspectRatio="xMidYMid slice">
             <defs>
               <g id="wb-paw">
                 <ellipse cx="0" cy="6.4" rx="7.4" ry="6.2"/>
@@ -911,15 +924,15 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
     <div class="library-bar">
       <div class="search-box">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-        <input id="lib-search" placeholder="搜索名字或品种…" oninput="renderLibrary()">
+        <input id="lib-search" aria-label="搜索宠物名字或品种" placeholder="搜索名字或品种…" oninput="renderLibrary()">
       </div>
-      <select class="filter" id="lib-type" onchange="renderLibrary()">
+      <select class="filter" id="lib-type" aria-label="按类型筛选" onchange="renderLibrary()">
         <option value="">全部类型</option><option value="dog">狗</option><option value="cat">猫</option><option value="bird">鸟</option><option value="fish">鱼</option><option value="other">其他</option>
       </select>
-      <select class="filter" id="lib-status" onchange="renderLibrary()">
+      <select class="filter" id="lib-status" aria-label="按健康状态筛选" onchange="renderLibrary()">
         <option value="">全部状态</option><option value="healthy">健康</option><option value="attention">需关注</option><option value="ill">治疗中</option>
       </select>
-      <select class="filter" id="lib-sort" onchange="renderLibrary()">
+      <select class="filter" id="lib-sort" aria-label="排序方式" onchange="renderLibrary()">
         <option value="id">最近添加</option><option value="name">按名称</option><option value="birthday">按生日</option>
       </select>
     </div>
@@ -938,7 +951,7 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
         <div class="page-sub">那些值得反复想起的瞬间 · 按时间倒序</div>
       </div>
       <div class="mem-tools">
-        <select class="filter" id="mem-filter" onchange="renderMemTimeline()">
+        <select class="filter" id="mem-filter" aria-label="按宠物筛选回忆" onchange="renderMemTimeline()">
           <option value="">全部宠物</option>
         </select>
         <button class="btn primary" onclick="openMemoryModal()">
@@ -971,7 +984,7 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
       <div class="chat-composer">
         <div class="chat-quick" id="chat-quick"></div>
         <div class="chat-input-row">
-          <textarea id="chat-input" rows="1" placeholder="问我任何关于宠物健康的问题，例如「可乐接下来要打什么疫苗？」"
+          <textarea id="chat-input" rows="1" aria-label="输入想问 AI 的问题" placeholder="问我任何关于宠物健康的问题，例如「可乐接下来要打什么疫苗？」"
             onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat();}"></textarea>
           <button class="btn primary" id="chat-send" onclick="sendChat()">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg>
@@ -1006,7 +1019,7 @@ const state = {
 const TYPE_LABEL = { vaccine:'疫苗', checkup:'体检', deworm:'驱虫', medication:'喂药', clinic:'就诊' };
 const REPEAT_LABEL = { '': '不重复', daily: '每天', weekly: '每周', monthly: '每月', yearly: '每年' };
 const repeatOptions = sel => Object.entries(REPEAT_LABEL).map(([v, t]) => `<option value="${v}" ${(sel || '') === v ? 'selected' : ''}>${t}</option>`).join('');
-const TYPE_COLOR = { vaccine:'var(--success)', checkup:'var(--accent)', deworm:'var(--warn)', medication:'var(--medication)', clinic:'var(--danger)' };
+const TYPE_COLOR = { vaccine:'var(--success)', checkup:'var(--accent-strong)', deworm:'var(--warn)', medication:'var(--medication)', clinic:'var(--danger)' };
 const STATUS_LABEL = { healthy:'健康', attention:'需关注', ill:'治疗中' };
 const TYPE_EMOJI = { cat:'🐱', dog:'🐶', bird:'🦜', fish:'🐟', other:'🐾' };
 const PET_TYPE_LABEL = { cat:'猫', dog:'狗', bird:'鸟', fish:'鱼', other:'其他' };
@@ -1085,7 +1098,7 @@ async function renderDashboard() {
 
   const dotColor = t => TYPE_COLOR[t] || 'var(--text-2)';
   $('dash-activity').innerHTML = state.recent.length ? state.recent.map(a => `
-    <div class="activity-item" onclick="go('detail',{petId:${a.pet_id}})" style="cursor:pointer">
+    <div class="activity-item" role="button" tabindex="0" onclick="go('detail',{petId:${a.pet_id}})" style="cursor:pointer">
       <span class="activity-dot" style="background:${dotColor(a.type)}"></span>
       <span class="activity-date">${esc((a.date||'').slice(5))}</span>
       <span><b>${esc(a.pet_name)}</b> ${esc(a.title)} <span style="color:var(--text-2)">· ${a.type_label}</span></span>
@@ -1132,7 +1145,7 @@ async function renderRecords() {
       const txt = r.days_left < 0 ? `逾期${-r.days_left}天` : `剩${r.days_left}天`;
       nextChip = `<span class="badge ${cls} rec-next">下次 ${esc(r.next_date)} · ${txt}</span>`;
     }
-    return `<div class="rec-row" onclick="go('detail',{petId:${r.pet_id}})">
+    return `<div class="rec-row" role="button" tabindex="0" onclick="go('detail',{petId:${r.pet_id}})">
       <span class="rec-date">${esc((r.date || '').slice(5))}</span>
       <span class="rec-type" style="background:${TYPE_COLOR[r.type] || 'var(--accent)'}">${esc(r.type_label)}</span>
       <span class="rec-pet">${esc(r.pet_avatar || TYPE_EMOJI[r.pet_type] || '🐾')} ${esc(r.pet_name)}</span>
@@ -1145,7 +1158,7 @@ async function renderRecords() {
 /* ---------- 全部到期提醒页 ---------- */
 function reminderItemHTML(r) {
   return `
-    <div class="reminder-item" onclick="go('detail',{petId:${r.pet_id}})">
+    <div class="reminder-item" role="button" tabindex="0" onclick="go('detail',{petId:${r.pet_id}})">
       <span class="rem-dot ${r.overdue ? 'danger' : 'warn'}"></span>
       <div class="rem-main">
         <div class="rem-title">${esc(r.pet_name)} · ${esc(r.title)}</div>
@@ -1180,8 +1193,7 @@ function renderRemindersView() {
     : `<div class="empty-state"><div class="big" aria-hidden="true">✓</div><h3>没有临期或逾期项目</h3><p>一切都在计划中。给记录填上「下次日期」，到期前 7 天会出现在这里。</p></div>`;
 }
 function statCard(cls, emoji, num, label, svg, nav, hint) {
-  return `<div class="card stat-card clickable" role="button" tabindex="0" onclick="${nav}"
-      onkeydown="if(event.key==='Enter')this.click()">
+  return `<div class="card stat-card clickable" role="button" tabindex="0" onclick="${nav}">
     <span class="stat-hint">${hint} →</span>
     <span class="stat-ico ${cls}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${svg}</svg></span>
     <div class="stat-num" data-num="${num}">0</div><div class="stat-label">${label}</div></div>`;
@@ -1218,7 +1230,7 @@ function renderLibrary() {
     const worst = (p.upcoming || []).reduce((m, r) => Math.min(m, r.days_left), 999);
     const corner = worst < 0 ? `<span class="pet-corner danger">逾期${-worst}天</span>`
       : worst <= 7 ? `<span class="pet-corner warn">${worst}天后到期</span>` : '';
-    return `<div class="card pet-card" onclick="go('detail',{petId:${p.id}})">
+    return `<div class="card pet-card" role="button" tabindex="0" onclick="go('detail',{petId:${p.id}})">
       ${corner}
       <div class="pet-card-top">
         <div class="pet-avatar">${esc(p.avatar || TYPE_EMOJI[p.type] || '🐾')}</div>
@@ -1287,18 +1299,18 @@ async function openDetail(petId, from) {
         <button class="btn sm danger" onclick="askDeletePet(${p.id}, this)">删除</button>
       </div>
     </div>
-    <div class="detail-tabs">
-      <button class="detail-tab active" data-tab="timeline" onclick="switchTab('timeline', this)">健康时间线</button>
-      <button class="detail-tab" data-tab="weight" onclick="switchTab('weight', this)">体重趋势</button>
-      <button class="detail-tab" data-tab="meds" onclick="switchTab('meds', this)">${medTabLabel(meds)}</button>
-      <button class="detail-tab" data-tab="care" onclick="switchTab('care', this)">护理要点</button>
-      <button class="detail-tab" data-tab="props" onclick="switchTab('props', this)">资料</button>
+    <div class="detail-tabs" role="tablist" aria-label="宠物详情分区">
+      <button class="detail-tab active" role="tab" aria-selected="true" data-tab="timeline" onclick="switchTab('timeline', this)">健康时间线</button>
+      <button class="detail-tab" role="tab" aria-selected="false" data-tab="weight" onclick="switchTab('weight', this)">体重趋势</button>
+      <button class="detail-tab" role="tab" aria-selected="false" data-tab="meds" onclick="switchTab('meds', this)">${medTabLabel(meds)}</button>
+      <button class="detail-tab" role="tab" aria-selected="false" data-tab="care" onclick="switchTab('care', this)">护理要点</button>
+      <button class="detail-tab" role="tab" aria-selected="false" data-tab="props" onclick="switchTab('props', this)">资料</button>
     </div>
-    <div class="tab-pane active" id="pane-timeline">${timelineHTML(records)}</div>
-    <div class="tab-pane" id="pane-weight"><div class="card card-pad" id="weight-chart"></div></div>
-    <div class="tab-pane" id="pane-meds">${medsHTML(meds)}</div>
-    <div class="tab-pane" id="pane-care">${careHTML(p)}</div>
-    <div class="tab-pane" id="pane-props">${propsHTML(p)}</div>`;
+    <div class="tab-pane active" id="pane-timeline" role="tabpanel">${timelineHTML(records)}</div>
+    <div class="tab-pane" id="pane-weight" role="tabpanel"><div class="card card-pad" id="weight-chart"></div></div>
+    <div class="tab-pane" id="pane-meds" role="tabpanel">${medsHTML(meds)}</div>
+    <div class="tab-pane" id="pane-care" role="tabpanel">${careHTML(p)}</div>
+    <div class="tab-pane" id="pane-props" role="tabpanel">${propsHTML(p)}</div>`;
   document.querySelectorAll('#nav-tabs .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.view === 'library'));
   drawWeightChart();
 }
@@ -1368,7 +1380,7 @@ function medsHTML(meds) {
       const left = m.days_left;
       const tag = left < 0 ? `<span class="badge ill">已超出计划 ${-left} 天</span>`
         : left <= 2 ? `<span class="badge attention">剩 ${left} 天</span>` : `<span class="badge plain">剩 ${left} 天</span>`;
-      prog = `<div class="med-bar" role="progressbar" aria-valuenow="${pct.toFixed(0)}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct.toFixed(0)}%"></i></div>
+      prog = `<div class="med-bar" role="progressbar" aria-label="疗程进度" aria-valuenow="${pct.toFixed(0)}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct.toFixed(0)}%"></i></div>
         <div class="med-meta">${esc(m.start_date)} → ${esc(m.end_date)} ${tag}</div>`;
     } else {
       prog = `<div class="med-meta" style="margin-top:7px">自 ${esc(m.start_date || '—')} 起 · 长期 / 未设结束日期</div>`;
@@ -1482,13 +1494,14 @@ function drawWeightChart() {  const box = $('weight-chart'); if (!box) return;
   const dots = pts.map((p, i) => `<circle class="wc-dot" cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="4" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"><title>${logs[i].date}: ${logs[i].weight} kg</title></circle>`).join('');
   const delta = ws[ws.length - 1] - ws[0];
   const avg = ws.reduce((a, b) => a + b, 0) / ws.length;
+  const petName = (state.pets.find(x => x.id === state.detailPetId) || {}).name || '宠物';
   box.innerHTML = `<div class="card-title" style="margin-bottom:6px">体重趋势
       <span class="badge ${Math.abs(delta / (ws[0] || 1)) >= 0.1 ? 'attention' : 'plain'}" style="margin-left:8px;text-transform:none">
       ${delta >= 0 ? '+' : ''}${delta.toFixed(2)} kg（近 ${logs.length} 次）</span>
       <button class="btn ghost sm" style="float:right" onclick="weightInsight(this)">✦ AI 解读</button></div>
     ${pills}
     <div class="weight-chart-wrap" onpointermove="wcHover(event)" onpointerleave="wcLeave(event)">
-      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="体重折线图">
+      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(petName)} 的体重折线图，数值见下方统计">
         <defs><linearGradient id="warea" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stop-color="var(--accent)" stop-opacity=".22"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/>
         </linearGradient></defs>
@@ -1878,7 +1891,7 @@ function renderMemTimeline() {
 function memTimelineHTML(list, showPet) {
   if (!list.length) return `
     <div class="card empty-state">
-      <div class="big">📖</div>
+      <div class="big" aria-hidden="true">📖</div>
       <h3>还没有回忆</h3>
       <p style="margin-bottom:18px">写下第一个故事吧——那些瞬间值得被记住</p>
       <button class="btn primary" onclick="openMemoryModal()">＋ 新增第一条回忆</button>
@@ -1888,7 +1901,7 @@ function memTimelineHTML(list, showPet) {
   for (const m of list) {
     const y = (m.date || '').slice(0, 4);
     if (y && y !== lastYear) { html += `<div class="mem-year">${y}</div>`; lastYear = y; }
-    html += `<div class="mem-item"><div class="card mem-card" onclick="openMemoryLightbox(${m.id})">
+    html += `<div class="mem-item"><div class="card mem-card" role="button" tabindex="0" onclick="openMemoryLightbox(${m.id})">
       ${m.image ? `<img class="mem-thumb" src="${m.image}" alt="" loading="lazy">` : ''}
       <div class="mem-body">
         <div class="mem-date">${esc(m.date)}</div>
@@ -2022,7 +2035,7 @@ function openMemoryLightbox(id) {
     <div class="lb-date">${esc(m.date)}${m.pet_name ? ` · ${esc(m.pet_avatar || '')} ${esc(m.pet_name)}` : ''}</div></div>
     <button class="btn ghost sm" onclick="closeModal()">✕</button>
   </div>
-  ${m.image ? `<img class="lb-img" src="${m.image}" alt="">` : ''}
+  ${m.image ? `<img class="lb-img" src="${m.image}" alt="${esc(m.title)}">` : ''}
   <div class="lb-text">${esc(m.text || '（这条回忆没有文字）')}</div>
   <div class="lb-actions">
     <button class="btn sm danger" onclick="deleteMemory(${m.id}, this)">删除</button>
@@ -2178,7 +2191,7 @@ let _chatBooted = false;
 function openSessionsModal() {
   const list = state.chatSessions || [];
   const items = list.length ? list.map(s => `
-    <div class="sess-item ${s.id === state.chatSessionId ? 'active' : ''}" onclick="closeModal(); openChatSession(${s.id})">
+    <div class="sess-item ${s.id === state.chatSessionId ? 'active' : ''}" role="button" tabindex="0" onclick="closeModal(); openChatSession(${s.id})">
       <div class="sess-title">${esc(s.title || '未命名会话')}</div>
       <div class="sess-time">${esc((s.updated_at || '').slice(5, 16))} · ${s.message_count} 条消息</div>
       <button class="sess-del" style="opacity:1" title="重命名" onclick="event.stopPropagation(); openRenameSession(${s.id}, this)">✎</button>
@@ -2198,7 +2211,7 @@ async function loadChatSessions() {
     return;
   }
   box.innerHTML = state.chatSessions.map(s => `
-    <div class="sess-item ${s.id === state.chatSessionId ? 'active' : ''}" onclick="openChatSession(${s.id})">
+    <div class="sess-item ${s.id === state.chatSessionId ? 'active' : ''}" role="button" tabindex="0" onclick="openChatSession(${s.id})">
       <div class="sess-title">${esc(s.title || '未命名会话')}</div>
       <div class="sess-time">${esc((s.updated_at || '').slice(5, 16))} · ${s.message_count} 条消息</div>
       <button class="sess-del" title="重命名" onclick="event.stopPropagation();openRenameSession(${s.id}, this)">✎</button>
@@ -2468,8 +2481,109 @@ async function checkNotify() {
     if (notifyEnabled()) { refreshNotifySnapshot(); _notifyTimer = setInterval(checkNotify, 10 * 60 * 1000); }
   } catch (e) {
     document.body.insertAdjacentHTML('beforeend',
-      '<div class="page"><div class="card card-pad empty-state"><div class="big">⚠️</div><h3>无法连接后端</h3><p>' + esc(e.message) + '<br>请先运行 <code>python backend/main.py</code> 再刷新本页。</p></div></div>');
+      '<div class="page"><div class="card card-pad empty-state"><div class="big" aria-hidden="true">⚠️</div><h3>无法连接后端</h3><p>' + esc(e.message) + '<br>请先运行 <code>python backend/main.py</code> 再刷新本页。</p></div></div>');
   }
+})();
+
+/* ============================================================
+   无障碍补丁（WCAG 2.2 AA）：键盘委托 / 弹窗焦点管理 / ARIA 同步
+   全部为追加式包装，不改动上方任何函数实现
+   ============================================================ */
+(function () {
+  const REDUCE = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
+
+  /* 1. 可点卡片类元素：Enter / Space 统一触发（行内真按钮/链接/输入不拦截） */
+  const CARD = '.logo,.stat-card.clickable,.reminder-item,.activity-item,.rec-row,.sess-item,.pet-card,.mem-card,.dropdown a';
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const el = e.target.closest && e.target.closest(CARD);
+    if (!el || (el !== e.target && e.target.closest('button,a,input,select,textarea'))) return;
+    e.preventDefault(); el.click();
+  });
+
+  /* 2. 渲染出的卡片自动补 role/tabindex（模板遗漏的兜底，rAF 节流） */
+  let pend = false;
+  new MutationObserver(() => {
+    if (pend) return; pend = true;
+    requestAnimationFrame(() => {
+      pend = false;
+      document.querySelectorAll(CARD).forEach(el => {
+        if (!el.hasAttribute('role')) { el.setAttribute('role', 'button'); el.setAttribute('tabindex', '0'); }
+      });
+    });
+  }).observe(document.body, { childList: true, subtree: true });
+
+  /* 3. 弹窗：dialog 语义 + 焦点进入 / Tab 陷阱 / 关闭回焦（包装原函数） */
+  const _open = openModal, _close = closeModal; let _last = null;
+  openModal = function (html, wide) {
+    _last = document.activeElement;
+    _open(html, wide);
+    const box = $('modal-box');
+    box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('tabindex', '-1');
+    const h = box.querySelector('h3');
+    if (h) { if (!h.id) h.id = 'modal-title'; box.setAttribute('aria-labelledby', h.id); }
+    setTimeout(() => {  // 无输入控件的弹窗（确认框/大图预览）把焦点交给容器
+      if (!$('modal-box').querySelector('input:not([type=hidden]):not([type=file]),select,textarea')) box.focus();
+    }, 40);
+  };
+  closeModal = function () {
+    _close();
+    if (_last && document.contains(_last) && typeof _last.focus === 'function') _last.focus();
+    _last = null;
+  };
+  document.addEventListener('keydown', e => {          // Tab 循环限制在弹窗内
+    const ov = $('modal-overlay');
+    if (e.key !== 'Tab' || !ov || !ov.classList.contains('open')) return;
+    const f = [...ov.querySelectorAll('button,[href],input:not([type=hidden]),select,textarea,[tabindex="0"]')]
+      .filter(el => !el.disabled && el.getClientRects().length);
+    if (!f.length) { e.preventDefault(); $('modal-box').focus(); return; }
+    const first = f[0], last = f[f.length - 1], cur = document.activeElement;
+    if (e.shiftKey && (cur === first || !ov.contains(cur))) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && (cur === last || !ov.contains(cur))) { e.preventDefault(); first.focus(); }
+  });
+
+  /* 4. 弹窗表单 label 自动关联（生成 id + for） */
+  new MutationObserver(() => {
+    document.querySelectorAll('#modal-box .form-field').forEach(f => {
+      const lab = f.querySelector('label'), ctl = f.querySelector('input,select,textarea');
+      if (lab && ctl && !ctl.id) { ctl.id = 'af-' + Math.random().toString(36).slice(2, 8); lab.setAttribute('for', ctl.id); }
+    });
+  }).observe($('modal-box'), { childList: true, subtree: true });
+
+  /* 5. 动态区域播报 */
+  const tr = $('toast-root'); if (tr) tr.setAttribute('aria-live', 'polite');
+  const sc = $('chat-scroll');
+  if (sc) { sc.setAttribute('role', 'log'); sc.setAttribute('aria-live', 'polite'); sc.setAttribute('aria-relevant', 'additions'); }
+
+  /* 6. 状态同步（class → ARIA）：更多菜单 / 通知开关 / 两处页签 */
+  const mm = $('more-menu'), mb = mm && mm.previousElementSibling;
+  if (mm && mb) {
+    mb.setAttribute('aria-haspopup', 'true'); mb.setAttribute('aria-expanded', 'false');
+    new MutationObserver(() => mb.setAttribute('aria-expanded', mm.classList.contains('open')))
+      .observe(mm, { attributes: true, attributeFilter: ['class'] });
+  }
+  const nb = $('notify-btn');
+  if (nb) {
+    nb.setAttribute('aria-pressed', String(nb.classList.contains('on')));
+    new MutationObserver(() => nb.setAttribute('aria-pressed', nb.classList.contains('on')))
+      .observe(nb, { attributes: true, attributeFilter: ['class'] });
+  }
+  const syncTab = t => { if (t.matches && t.matches('.tab-btn,.detail-tab')) t.setAttribute('aria-selected', t.classList.contains('active')); };
+  document.querySelectorAll('.tab-btn,.detail-tab').forEach(syncTab);
+  new MutationObserver(muts => muts.forEach(m => syncTab(m.target)))
+    .observe(document.body, { attributes: true, attributeFilter: ['class'], subtree: true });
+
+  /* 7. 减弱动效：数字滚动直接落定（rAF 动画不受 CSS reduce 控制） */
+  if (REDUCE.matches) {
+    animateCount = function (root) { root.querySelectorAll('.stat-num').forEach(el => { el.textContent = el.dataset.num; }); };
+  }
+
+  /* 8. 跳到主内容 */
+  const mainEl = document.querySelector('main.page');
+  if (mainEl && !mainEl.id) mainEl.id = 'main-content';
+  const skip = document.createElement('a');
+  skip.className = 'skip-link'; skip.href = '#main-content'; skip.textContent = '跳到主内容';
+  document.body.prepend(skip);
 })();
 </script>
 </body>

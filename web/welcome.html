@@ -16,7 +16,7 @@
   --surface-2:   #ffffff;   /* 更亮的面（气泡） */
   --text:        #141413;   /* 主文字·暖黑 */
   --text-2:      #5e5d59;   /* 次要文字·橄榄灰 */
-  --text-3:      #87867f;   /* 弱文字·石灰 */
+  --text-3:      #6f6e66;   /* 弱文字·石灰（奶油底上 4.91:1） */
   --border:      #f0eee6;   /* 细边框 */
   --border-2:    #e8e6dc;   /* 强边框 */
   --accent:      #C2703D;   /* 品牌陶土橙（PRD 指定） */
@@ -128,7 +128,7 @@ h1 em{font-family:'Fraunces',var(--serif);font-style:italic;font-weight:500;
 .lede .q{color:var(--text);border-bottom:1px dashed var(--ring)}
 
 .cta-row{display:flex;align-items:center;gap:14px;margin-top:34px;flex-wrap:wrap}
-.btn{display:inline-flex;align-items:center;gap:9px;background:var(--accent);color:#faf9f5;
+.btn{display:inline-flex;align-items:center;gap:9px;background:var(--accent-strong);color:#faf9f5;
   font-size:15px;font-weight:500;padding:13px 26px;border-radius:8px;position:relative;
   overflow:hidden;box-shadow:var(--shadow);transition:transform .2s,background-color .2s,box-shadow .2s}
 .btn svg{width:16px;height:16px;transition:transform .25s}
@@ -505,7 +505,12 @@ document.getElementById('startBtn').addEventListener('click', e => {
   try { localStorage.setItem(SEEN_KEY, '1'); } catch (_) {}
   gate.classList.add('show');
   gate.setAttribute('aria-hidden', 'false');
-  setTimeout(() => {
+  // 减弱动效下动画被压成瞬时，不让用户对着静止画面干等 2 秒；点击过渡层或按 Esc 也可直接进入
+  const REDUCE = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)').matches : false;
+  let jumped = false;
+  const goApp = () => {
+    if (jumped) return;
+    jumped = true;
     if (APP_URL) {
       window.location.href = APP_URL;
     } else {
@@ -514,7 +519,10 @@ document.getElementById('startBtn').addEventListener('click', e => {
       toast('过渡页演示完成 · 填好 APP_URL 后将自动跳转到应用');
       gating = false;
     }
-  }, 2100);
+  };
+  setTimeout(goApp, REDUCE ? 300 : 2100);
+  gate.addEventListener('click', goApp);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') goApp(); });
 });
 </script>
 </body>

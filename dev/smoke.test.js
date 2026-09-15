@@ -238,6 +238,19 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
   await sleep(220);
   check('modal closed', !doc.getElementById('modal-overlay').classList.contains('open'));
 
+  // 无障碍补丁：skip link / aria-live / tab 语义 / 弹窗 dialog+label 关联 / 可点行键盘可达
+  check('skip link injected', !!doc.querySelector('.skip-link'));
+  check('toast root aria-live', doc.getElementById('toast-root').getAttribute('aria-live') === 'polite');
+  check('nav tabs have tab role', n('#nav-tabs [role=tab]') === 4);
+  window.openModal('<h3>t</h3><div class="form-field"><label>名字</label><input name="x"></div>');
+  await sleep(80);
+  check('modal has dialog role', doc.getElementById('modal-box').getAttribute('role') === 'dialog');
+  check('modal label auto-linked', !!doc.querySelector('#modal-box label[for]') && !!doc.querySelector('#modal-box input[id]'));
+  window.closeModal(); await sleep(220);
+  T.go('reminders'); await sleep(200);
+  check('reminder rows keyboard reachable', n('#reminders-full-list .reminder-item') > 0 &&
+    [...doc.querySelectorAll('#reminders-full-list .reminder-item')].every(el => el.getAttribute('role') === 'button' && el.getAttribute('tabindex') === '0'));
+
   const fails = results.filter(r => !r.ok);
   for (const r of results) console.log((r.ok ? 'PASS ' : 'FAIL ') + r.name + (r.extra ? '  [' + r.extra + ']' : ''));
   console.log(`\n${results.length - fails.length}/${results.length} passed`);
