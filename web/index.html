@@ -309,6 +309,8 @@ html[data-theme="light"] .icon-sun { display: none; }
 .rem-main { flex: 1; min-width: 0; }
 .rem-title { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rem-meta { font-size: 12.5px; color: var(--text-2); }
+.rem-done { flex: none; padding: 4px 10px; font-size: 12px; opacity: .8; }
+.reminder-item:hover .rem-done, .reminder-item:focus-within .rem-done { opacity: 1; }
 .rem-days { font-size: 12.5px; font-weight: 600; flex: none; }
 .rem-days.warn { color: var(--warn); }
 .rem-days.danger { color: var(--danger); }
@@ -429,8 +431,10 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
 .tl-note { color: var(--text-2); font-size: 13.5px; margin-top: 3px; }
 .tl-next { margin-top: 5px; font-size: 12.5px; }
 .tl-next .badge { font-weight: 500; }
+.tl-next .badge + .badge { margin-left: 6px; }
 .tl-del { border: none; background: none; color: var(--text-2); font-size: 12px; margin-top: 5px; padding: 2px 0; transition: color var(--dur); }
 .tl-del:hover { color: var(--danger); }
+.tl-done:hover { color: var(--success); }
 
 .weight-chart-wrap { padding: 8px 4px 0; position: relative; }
 .weight-chart-wrap svg { width: 100%; height: auto; display: block; }
@@ -971,6 +975,8 @@ const state = {
   chatSessions: [], chatSessionId: null,
 };
 const TYPE_LABEL = { vaccine:'疫苗', checkup:'体检', deworm:'驱虫', medication:'喂药', clinic:'就诊' };
+const REPEAT_LABEL = { '': '不重复', daily: '每天', weekly: '每周', monthly: '每月', yearly: '每年' };
+const repeatOptions = sel => Object.entries(REPEAT_LABEL).map(([v, t]) => `<option value="${v}" ${(sel || '') === v ? 'selected' : ''}>${t}</option>`).join('');
 const TYPE_COLOR = { vaccine:'var(--success)', checkup:'var(--accent)', deworm:'var(--warn)', medication:'var(--medication)', clinic:'var(--danger)' };
 const STATUS_LABEL = { healthy:'健康', attention:'需关注', ill:'治疗中' };
 const TYPE_EMOJI = { cat:'🐱', dog:'🐶', bird:'🦜', fish:'🐟', other:'🐾' };
@@ -1036,15 +1042,7 @@ async function renderDashboard() {
   animateCount($('stat-row'));
 
   const rem = state.reminders;
-  $('dash-reminders').innerHTML = rem.length ? rem.slice(0, 4).map(r => `
-    <div class="reminder-item" onclick="go('detail',{petId:${r.pet_id}})">
-      <span class="rem-dot ${r.overdue ? 'danger' : 'warn'}"></span>
-      <div class="rem-main">
-        <div class="rem-title">${esc(r.pet_name)} · ${esc(r.title)}</div>
-        <div class="rem-meta">${r.type_label} · 下次日期 ${r.next_date}</div>
-      </div>
-      <span class="rem-days ${r.overdue ? 'danger' : 'warn'}">${r.overdue ? '逾期 ' + (-r.days_left) + ' 天' : '剩 ' + r.days_left + ' 天'}</span>
-    </div>`).join('')
+  $('dash-reminders').innerHTML = rem.length ? rem.slice(0, 4).map(reminderItemHTML).join('')
     : '<div class="empty-hint">🎉 没有临期或逾期项目，一切都在计划中</div>';
 
   const dotColor = t => TYPE_COLOR[t] || 'var(--text-2)';
@@ -1087,21 +1085,36 @@ async function renderRecords() {
 }
 
 /* ---------- 全部到期提醒页 ---------- */
-function renderRemindersView() {
-  const rem = state.reminders;
-  const overdue = rem.filter(r => r.overdue).length;
-  $('reminders-sub').textContent = rem.length
-    ? `${overdue} 项逾期 · ${rem.length - overdue} 项临期（7 天内）· 点击行进入宠物详情`
-    : '全部事项均在计划内';
-  $('reminders-full-list').innerHTML = rem.length ? rem.map(r => `
+function reminderItemHTML(r) {
+  return `
     <div class="reminder-item" onclick="go('detail',{petId:${r.pet_id}})">
       <span class="rem-dot ${r.overdue ? 'danger' : 'warn'}"></span>
       <div class="rem-main">
         <div class="rem-title">${esc(r.pet_name)} · ${esc(r.title)}</div>
-        <div class="rem-meta">${r.type_label} · 下次日期 ${r.next_date}</div>
+        <div class="rem-meta">${r.type_label} · 下次日期 ${r.next_date}${r.repeat_label ? ' · 🔁 ' + r.repeat_label : ''}</div>
       </div>
       <span class="rem-days ${r.overdue ? 'danger' : 'warn'}">${r.overdue ? '逾期 ' + (-r.days_left) + ' 天' : '剩 ' + r.days_left + ' 天'}</span>
-    </div>`).join('')
+      <button class="btn sm rem-done" title="标记本轮已完成${r.repeat_label ? '，自动排下一轮' : ''}" onclick="event.stopPropagation(); completeReminder(${r.record_id}, this)">✓ 完成</button>
+    </div>`;
+}
+async function completeReminder(rid, btn) {
+  if (btn) btn.classList.add('loading');
+  try {
+    const r = await api(`/api/records/${rid}/complete`, { method: 'POST' });
+    await refreshData();
+    if (currentView === 'dashboard') renderDashboard();
+    else if (currentView === 'reminders') renderRemindersView();
+    else if (currentView === 'detail' && state.detailPetId) openDetail(state.detailPetId, state.detailFrom);
+    toast(r.next ? `已完成，下一轮已排到 ${r.next.next_date}` : '已标记完成');
+  } catch (e) { toast(e.message, true); if (btn) btn.classList.remove('loading'); }
+}
+function renderRemindersView() {
+  const rem = state.reminders;
+  const overdue = rem.filter(r => r.overdue).length;
+  $('reminders-sub').textContent = rem.length
+    ? `${overdue} 项逾期 · ${rem.length - overdue} 项临期（7 天内）· 点击行进入宠物详情，「完成」按钮标记已做`
+    : '全部事项均在计划内';
+  $('reminders-full-list').innerHTML = rem.length ? rem.map(reminderItemHTML).join('')
     : '<div class="empty-hint">🎉 没有临期或逾期项目，一切都在计划中</div>';
 }
 function statCard(cls, emoji, num, label, svg, nav, hint) {
@@ -1226,7 +1239,7 @@ function timelineHTML(records) {
       const d = r.days_left;
       const cls = d < 0 ? 'ill' : d <= 7 ? 'attention' : 'plain';
       const txt = d < 0 ? `下次 ${r.next_date} · 已逾期 ${-d} 天` : `下次 ${r.next_date} · 剩 ${d} 天`;
-      nextBadge = `<div class="tl-next"><span class="badge ${cls}">⏰ ${txt}</span></div>`;
+      nextBadge = `<div class="tl-next"><span class="badge ${cls}">⏰ ${txt}</span>${r.repeat_label ? `<span class="badge plain">🔁 ${r.repeat_label}</span>` : ''}</div>`;
     }
     return `<div class="tl-item" style="--tcolor:${color}">
       <div class="tl-head">
@@ -1237,6 +1250,7 @@ function timelineHTML(records) {
       ${r.note ? `<div class="tl-note">${esc(r.note)}</div>` : ''}
       ${nextBadge}
       <div class="tl-ops">
+        ${r.next_date ? `<button class="tl-del tl-done" onclick="completeReminder(${r.id}, this)">✓ 标记完成${r.repeat_label ? '并排下一轮' : ''}</button>` : ''}
         <button class="tl-del" onclick="openRecordEditModal(${r.id})">编辑</button>
         <button class="tl-del" onclick="deleteRecord(${r.id}, this)">删除此条</button>
       </div>
@@ -1499,6 +1513,7 @@ function openRecordModal() {
       ${chips}
       <div class="form-field full"><label>说明</label><textarea name="note" rows="2" maxlength="300" placeholder="医生嘱托、剂量、反应观察…"></textarea></div>
       <div class="form-field"><label>下次日期（选填，用于提醒）</label><input name="next_date" type="date"></div>
+      <div class="form-field"><label>重复周期（完成后自动排下一轮）</label><select name="repeat_rule">${repeatOptions('')}</select></div>
       <div class="form-field"><label>当时体重 kg（选填，记录进趋势）</label><input name="weight" type="number" step="0.01" min="0"></div>
     </div>
     <div class="modal-actions">
@@ -1546,6 +1561,7 @@ function openRecordEditModal(rid) {
       <div class="form-field full"><label>标题 <span class="req">*</span></label><input name="title" required maxlength="60" value="${esc(r.title || '')}"></div>
       <div class="form-field full"><label>说明</label><textarea name="note" rows="2" maxlength="300">${esc(r.note || '')}</textarea></div>
       <div class="form-field"><label>下次日期（选填，用于提醒）</label><input name="next_date" type="date" value="${esc(r.next_date || '')}"></div>
+      <div class="form-field"><label>重复周期（完成后自动排下一轮）</label><select name="repeat_rule">${repeatOptions(r.repeat_rule)}</select></div>
       <div class="form-field"><label>补充体重 kg（选填，留空不改）</label><input name="weight" type="number" step="0.01" min="0" placeholder="不修改请留空"></div>
     </div>
     <div class="modal-actions">
@@ -1557,7 +1573,8 @@ function openRecordEditModal(rid) {
 async function submitRecordEdit(e, rid) {
   e.preventDefault();
   const f = Object.fromEntries(new FormData(e.target).entries());
-  Object.keys(f).forEach(k => { if (f[k] === '') delete f[k]; });
+  // repeat_rule 的空串表示「改为不重复」，需要保留提交
+  Object.keys(f).forEach(k => { if (f[k] === '' && k !== 'repeat_rule') delete f[k]; });
   try {
     await api(`/api/records/${rid}`, { method: 'PUT', body: JSON.stringify(f) });
     flashSaved($('rec-edit-btn'));

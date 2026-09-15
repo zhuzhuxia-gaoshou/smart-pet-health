@@ -61,6 +61,7 @@ class RecordIn(BaseModel):
     note: str | None = None
     next_date: str | None = None
     weight: float | None = None
+    repeat_rule: str | None = Field(None, description="''|daily|weekly|monthly|yearly；配合 next_date 使用")
 
 
 class ChatIn(BaseModel):
@@ -133,6 +134,8 @@ def api_add_record(pet_id: int, rec: RecordIn):
     ok, msg = species.record_type_allowed(pet["type"], rec.type)
     if not ok:
         return {"error": msg}
+    if rec.repeat_rule is not None and rec.repeat_rule not in db.REPEAT_RULES:
+        return {"error": "重复周期无效"}
     result = db.add_record(pet_id, rec.model_dump(exclude_none=True))
     return {"record": result}
 
@@ -146,8 +149,19 @@ def api_update_record(record_id: int, rec: RecordIn):
     ok, msg = species.record_type_allowed(pet["type"] if pet else None, rec.type)
     if not ok:
         return {"error": msg}
+    if rec.repeat_rule is not None and rec.repeat_rule not in db.REPEAT_RULES:
+        return {"error": "重复周期无效"}
     result = db.update_record(record_id, rec.model_dump(exclude_none=True))
     return {"record": result}
+
+
+@app.post("/api/records/{record_id}/complete")
+def api_complete_record(record_id: int):
+    """标记提醒事项「本轮已做」：清空下次日期；有重复周期则自动生成下一轮记录。"""
+    result = db.complete_record(record_id)
+    if result is None:
+        return {"error": "记录不存在"}
+    return result
 
 
 @app.delete("/api/records/{record_id}")

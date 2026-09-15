@@ -52,6 +52,8 @@ def query_health_records(name: str) -> str:
                 line += f"；下次日期 {r['next_date']}，还剩 {d} 天"
             else:
                 line += f"；下次日期 {r['next_date']}"
+            if r.get("repeat_label"):
+                line += f"（{r['repeat_label']}重复）"
         lines.append(line)
     return "\n".join(lines)
 
@@ -63,12 +65,13 @@ def get_reminders(_input: str = "") -> str:
         return "当前没有临期或逾期的事项，一切都在计划内。"
     lines = [f"共 {len(rem)} 项需要关注："]
     for r in rem:
+        rep = f"，{r['repeat_label']}重复" if r.get("repeat_label") else ""
         if r["overdue"]:
             lines.append(f"- ⚠️ 已逾期 {-r['days_left']} 天：{r['pet_name']} 的"
-                         f"【{r['type_label']}】{r['title']}（应于 {r['next_date']}）")
+                         f"【{r['type_label']}】{r['title']}（应于 {r['next_date']}{rep}）")
         else:
             lines.append(f"- ⏰ 还剩 {r['days_left']} 天：{r['pet_name']} 的"
-                         f"【{r['type_label']}】{r['title']}（下次日期 {r['next_date']}）")
+                         f"【{r['type_label']}】{r['title']}（下次日期 {r['next_date']}{rep}）")
     return "\n".join(lines)
 
 

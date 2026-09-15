@@ -57,6 +57,24 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
   await sleep(200);
   check('reminders view lists all', n('#reminders-full-list .reminder-item') === state().reminders.length,
     n('#reminders-full-list .reminder-item') + ' vs ' + state().reminders.length);
+  check('reminder rows have 完成 button', n('#reminders-full-list .rem-done') === state().reminders.length);
+
+  // 提醒重复规则：monthly 记录到期 2027-01-31 → 完成 → 下一轮钳制到 2027-02-28
+  {
+    const created = await T.api('/api/pets/1/records', { method: 'POST',
+      body: JSON.stringify({ type: 'deworm', title: '__smoke_repeat__', next_date: '2027-01-31', repeat_rule: 'monthly' }) });
+    check('repeat record created', !!created.record && created.record.repeat_label === '每月');
+    const done = await T.api('/api/records/' + created.record.id + '/complete', { method: 'POST' });
+    check('complete clears next_date', !!done.record && done.record.next_date === null);
+    check('complete rolls next round (month-end clamp)', !!done.next && done.next.next_date === '2027-02-28', done.next && done.next.next_date);
+    check('next round inherits rule', !!done.next && done.next.repeat_rule === 'monthly');
+    await T.api('/api/records/' + created.record.id, { method: 'DELETE' });
+    if (done.next) await T.api('/api/records/' + done.next.id, { method: 'DELETE' });
+    const bad = await (await fetch(BASE + '/api/pets/1/records', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'deworm', title: 'x', repeat_rule: 'hourly' }) })).json();
+    check('invalid repeat rule rejected', !!bad.error);
+    await T.refreshData();
+  }
 
   // 详情页"从哪来回哪去"
   T.go('reminders');
@@ -120,6 +138,7 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
   await sleep(500);
   const tlCount = (await (await fetch(BASE + '/api/pets/1/records')).json()).records.length;
   check('timeline items', n('#pane-timeline .tl-item') === tlCount, n('#pane-timeline .tl-item') + ' vs ' + tlCount);
+  check('timeline 完成 buttons for dated items', n('#pane-timeline .tl-done') >= 1, 'got ' + n('#pane-timeline .tl-done'));
   T.switchTab('weight', doc.querySelector('[data-tab=weight]'));
   await sleep(200);
   check('weight svg dots', n('#weight-chart .wc-dot') >= 4, 'got ' + n('#weight-chart .wc-dot'));

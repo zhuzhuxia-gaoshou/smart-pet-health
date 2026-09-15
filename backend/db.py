@@ -22,6 +22,8 @@ RECORD_TYPES = {
 PET_TYPES = {"cat": "猫", "dog": "狗", "bird": "鸟", "fish": "鱼", "other": "其他"}
 PET_STATUS = {"healthy": "健康", "attention": "需关注", "ill": "治疗中"}
 GENDERS = {"male": "公", "female": "母", "unknown": "未知"}
+# 提醒重复周期：'' 表示不重复；完成一轮后按周期滚动生成下一轮记录
+REPEAT_RULES = {"": "不重复", "daily": "每天", "weekly": "每周", "monthly": "每月", "yearly": "每年"}
 
 
 def get_conn() -> sqlite3.Connection:
@@ -42,6 +44,7 @@ CREATE TABLE IF NOT EXISTS pets(
 CREATE TABLE IF NOT EXISTS health_records(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   pet_id INTEGER, type TEXT, date TEXT, title TEXT, note TEXT, next_date TEXT,
+  repeat_rule TEXT DEFAULT '',
   FOREIGN KEY(pet_id) REFERENCES pets(id) ON DELETE CASCADE
 );
 CREATE TABLE IF NOT EXISTS weight_logs(
@@ -100,6 +103,10 @@ def init_db() -> None:
         if cols and "session_id" not in cols:
             conn.execute("DROP TABLE chat_history")
         conn.executescript(SCHEMA)
+        # 增量迁移：老库 health_records 补 repeat_rule 列（保留数据）
+        rec_cols = [r["name"] for r in conn.execute("PRAGMA table_info(health_records)").fetchall()]
+        if rec_cols and "repeat_rule" not in rec_cols:
+            conn.execute("ALTER TABLE health_records ADD COLUMN repeat_rule TEXT DEFAULT ''")
         conn.commit()
     finally:
         conn.close()
@@ -134,21 +141,21 @@ def seed() -> None:
     # 健康记录：混合逾期(-)、临期(+within7)、正常(+)与无下次日期
         可乐, 布丁, 翠翠 = pet_ids
         records = [
-            # (pet_id, type, date, title, note, next_date)
-            (可乐, "vaccine",    _d(-350), "狂犬疫苗（第1年）", "已按时接种，无不良反应", _d(5)),
-            (可乐, "deworm",     _d(-60),  "体内外驱虫（大宠爱）", "滴剂一支", _d(2)),
-            (可乐, "checkup",    _d(-200), "年度体检", "各项指标正常", _d(165)),
-            (可乐, "medication", _d(-3),   "肠胃调理（益生菌）", "每日一次，拌粮", None),
-            (布丁, "vaccine",    _d(-400), "猫三联（第三针）", "接种后观察30分钟", _d(-2)),
-            (布丁, "deworm",     _d(-30),  "体内驱虫（拜耳）", "空腹喂药", _d(60)),
-            (布丁, "clinic",     _d(-8),   "外耳炎就诊", "左耳轻微发红，开耳药水滴7天", _d(1)),
-            (布丁, "checkup",    _d(-150), "生化检查", "肾指标正常，注意饮水量", None),
-            (翠翠, "checkup",    _d(-90),  "羽毛与喙部检查", "状态良好", _d(90)),
-            (翠翠, "medication", _d(-5),   "电解质水补充", "换羽期补充营养", None),
+            # (pet_id, type, date, title, note, next_date, repeat_rule)
+            (可乐, "vaccine",    _d(-350), "狂犬疫苗（第1年）", "已按时接种，无不良反应", _d(5), "yearly"),
+            (可乐, "deworm",     _d(-60),  "体内外驱虫（大宠爱）", "滴剂一支", _d(2), "monthly"),
+            (可乐, "checkup",    _d(-200), "年度体检", "各项指标正常", _d(165), "yearly"),
+            (可乐, "medication", _d(-3),   "肠胃调理（益生菌）", "每日一次，拌粮", None, ""),
+            (布丁, "vaccine",    _d(-400), "猫三联（第三针）", "接种后观察30分钟", _d(-2), "yearly"),
+            (布丁, "deworm",     _d(-30),  "体内驱虫（拜耳）", "空腹喂药", _d(60), ""),
+            (布丁, "clinic",     _d(-8),   "外耳炎就诊", "左耳轻微发红，开耳药水滴7天", _d(1), ""),
+            (布丁, "checkup",    _d(-150), "生化检查", "肾指标正常，注意饮水量", None, ""),
+            (翠翠, "checkup",    _d(-90),  "羽毛与喙部检查", "状态良好", _d(90), ""),
+            (翠翠, "medication", _d(-5),   "电解质水补充", "换羽期补充营养", None, ""),
         ]
         conn.executemany(
-            "INSERT INTO health_records(pet_id,type,date,title,note,next_date)"
-            " VALUES(?,?,?,?,?,?)", records)
+            "INSERT INTO health_records(pet_id,type,date,title,note,next_date,repeat_rule)"
+            " VALUES(?,?,?,?,?,?,?)", records)
 
         # 体重历史（趋势）
         weights = [
@@ -212,13 +219,41 @@ def compute_reminders(within_days: int = 7) -> list[dict]:
     for r in rows:
         d = days_until(r["next_date"])
         if d <= within_days:
+            rule = r["repeat_rule"] or ""
             out.append({
                 "record_id": r["id"], "pet_id": r["pet_id"], "pet_name": r["pet_name"],
                 "type": r["type"], "type_label": RECORD_TYPES.get(r["type"], r["type"]),
                 "title": r["title"], "next_date": r["next_date"],
                 "days_left": d, "overdue": d < 0,
+                "repeat_rule": rule, "repeat_label": REPEAT_RULES.get(rule, "") if rule else "",
             })
     return out
+
+
+def _rec_labels(d: dict) -> dict:
+    """健康记录字典补充展示字段：类型标签、重复标签、剩余天数。"""
+    d["type_label"] = RECORD_TYPES.get(d["type"], d["type"])
+    d["repeat_rule"] = d.get("repeat_rule") or ""
+    d["repeat_label"] = REPEAT_RULES.get(d["repeat_rule"], "") if d["repeat_rule"] else ""
+    if d.get("next_date"):
+        d["days_left"] = days_until(d["next_date"])
+    return d
+
+
+def roll_date(base: str, rule: str) -> str:
+    """按重复周期从 base 滚动到下一次日期；月/年滚动钳制到目标月最后一天（1月31日→2月28日）。"""
+    import calendar
+    d = datetime.strptime(base, "%Y-%m-%d").date()
+    if rule == "daily":
+        return (d + timedelta(days=1)).isoformat()
+    if rule == "weekly":
+        return (d + timedelta(days=7)).isoformat()
+    if rule in ("monthly", "yearly"):
+        months = 1 if rule == "monthly" else 12
+        idx = d.month - 1 + months
+        y, m = d.year + idx // 12, idx % 12 + 1
+        return date(y, m, min(d.day, calendar.monthrange(y, m)[1])).isoformat()
+    return base
 
 
 # ---------------------------------------------------------------- CRUD
@@ -331,19 +366,12 @@ def list_records(pet_id: int) -> list[dict]:
         rows = conn.execute(
             "SELECT * FROM health_records WHERE pet_id=? ORDER BY date DESC, id DESC",
             (pet_id,)).fetchall()
-        out = []
-        for r in rows:
-            d = dict(r)
-            d["type_label"] = RECORD_TYPES.get(d["type"], d["type"])
-            if d.get("next_date"):
-                d["days_left"] = days_until(d["next_date"])
-            out.append(d)
-        return out
+        return [_rec_labels(dict(r)) for r in rows]
     finally:
         conn.close()
 
 
-RECORD_FIELDS = ("type", "date", "title", "note", "next_date", "weight")
+RECORD_FIELDS = ("type", "date", "title", "note", "next_date", "weight", "repeat_rule")
 
 
 def add_record(pet_id: int, data: dict) -> dict | None:
@@ -352,10 +380,11 @@ def add_record(pet_id: int, data: dict) -> dict | None:
     conn = get_conn()
     try:
         cur = conn.execute(
-            "INSERT INTO health_records(pet_id,type,date,title,note,next_date)"
-            " VALUES(?,?,?,?,?,?)",
+            "INSERT INTO health_records(pet_id,type,date,title,note,next_date,repeat_rule)"
+            " VALUES(?,?,?,?,?,?,?)",
             (pet_id, data.get("type"), data.get("date") or today_str(),
-             data.get("title"), data.get("note"), data.get("next_date") or None))
+             data.get("title"), data.get("note"), data.get("next_date") or None,
+             data.get("repeat_rule") or ""))
         # 带体重的记录同步写入体重表（供趋势图与 Agent 分析）
         if data.get("weight"):
             conn.execute("INSERT INTO weight_logs(pet_id,date,weight) VALUES(?,?,?)",
@@ -365,9 +394,7 @@ def add_record(pet_id: int, data: dict) -> dict | None:
         conn.commit()
         row = conn.execute("SELECT * FROM health_records WHERE id=?",
                            (cur.lastrowid,)).fetchone()
-        d = dict(row)
-        d["type_label"] = RECORD_TYPES.get(d["type"], d["type"])
-        return d
+        return _rec_labels(dict(row))
     finally:
         conn.close()
 
@@ -376,11 +403,7 @@ def get_record(record_id: int) -> dict | None:
     conn = get_conn()
     try:
         row = conn.execute("SELECT * FROM health_records WHERE id=?", (record_id,)).fetchone()
-        if row is None:
-            return None
-        d = dict(row)
-        d["type_label"] = RECORD_TYPES.get(d["type"], d["type"])
-        return d
+        return _rec_labels(dict(row)) if row else None
     finally:
         conn.close()
 
@@ -394,23 +417,50 @@ def update_record(record_id: int, data: dict) -> dict | None:
             return None
         cur_type = data.get("type") or row["type"]
         cur_date = data.get("date") or row["date"]
+        repeat = data["repeat_rule"] if data.get("repeat_rule") is not None else (row["repeat_rule"] or "")
         conn.execute(
-            "UPDATE health_records SET type=?, date=?, title=?, note=?, next_date=? WHERE id=?",
+            "UPDATE health_records SET type=?, date=?, title=?, note=?, next_date=?, repeat_rule=? WHERE id=?",
             (cur_type, cur_date or today_str(),
              data.get("title") if data.get("title") is not None else row["title"],
              data.get("note") if data.get("note") is not None else row["note"],
-             data.get("next_date") or None, record_id))
+             data.get("next_date") or None, repeat, record_id))
         if data.get("weight"):
             conn.execute("INSERT INTO weight_logs(pet_id,date,weight) VALUES(?,?,?)",
                          (row["pet_id"], cur_date or today_str(), float(data["weight"])))
             conn.execute("UPDATE pets SET weight=? WHERE id=?",
                          (float(data["weight"]), row["pet_id"]))
         conn.commit()
-        d = dict(conn.execute("SELECT * FROM health_records WHERE id=?", (record_id,)).fetchone())
-        d["type_label"] = RECORD_TYPES.get(d["type"], d["type"])
-        return d
+        return _rec_labels(dict(conn.execute("SELECT * FROM health_records WHERE id=?", (record_id,)).fetchone()))
     finally:
         conn.close()
+
+
+def complete_record(record_id: int) -> dict | None:
+    """把带下次日期的记录标记为「本轮已做」：当前记录 next_date 置空退出提醒（历史保留）；
+    若有重复周期，则以今天为 date 生成下一轮记录，next_date 按周期滚动。
+    滚动基准 = max(今天, 原到期日)：逾期完成从今天重置节奏，提前完成保持原节奏。"""
+    conn = get_conn()
+    try:
+        row = conn.execute("SELECT * FROM health_records WHERE id=?", (record_id,)).fetchone()
+        if row is None:
+            return None
+        if not row["next_date"]:
+            return {"record": _rec_labels(dict(row)), "next": None}
+        today = today_str()
+        conn.execute("UPDATE health_records SET next_date=NULL WHERE id=?", (record_id,))
+        next_id = None
+        rule = row["repeat_rule"] or ""
+        if rule in REPEAT_RULES and rule:
+            next_date = roll_date(max(today, row["next_date"]), rule)
+            cur = conn.execute(
+                "INSERT INTO health_records(pet_id,type,date,title,note,next_date,repeat_rule)"
+                " VALUES(?,?,?,?,?,?,?)",
+                (row["pet_id"], row["type"], today, row["title"], row["note"], next_date, rule))
+            next_id = cur.lastrowid
+        conn.commit()
+    finally:
+        conn.close()
+    return {"record": get_record(record_id), "next": get_record(next_id) if next_id else None}
 
 
 def add_weight_log(pet_id: int, data: dict) -> dict | None:
@@ -477,14 +527,7 @@ def list_all_records(limit: int | None = None) -> list[dict]:
                             ((limit,) if limit else ())).fetchall()
     finally:
         conn.close()
-    out = []
-    for r in rows:
-        d = dict(r)
-        d["type_label"] = RECORD_TYPES.get(d["type"], d["type"])
-        if d.get("next_date"):
-            d["days_left"] = days_until(d["next_date"])
-        out.append(d)
-    return out
+    return [_rec_labels(dict(r)) for r in rows]
 
 
 def recent_activity(limit: int = 5) -> list[dict]:
