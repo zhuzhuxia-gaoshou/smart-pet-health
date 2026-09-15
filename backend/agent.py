@@ -70,11 +70,12 @@ TOOLS_BRIEF = """可用工具：
 - query_memories(宠物名): 查询主人为宠物手动写下的回忆故事（第一次郊游、纪念时刻等成长记录）；名字留空返回全部宠物的最新回忆
 - get_care_guide(宠物名或类型词): 查询物种护理规范——该物种适用的记录类型、该做的事、不该做的事（禁忌）与常见疾病；名字留空返回概览
 - create_record_draft(宠物名, 类型, 日期, 标题, 说明, 下次日期, 体重): 用户口述要记一笔健康事项时调用，起草待确认的记录草稿（不直接入库）
-- get_attention_ranking(): 多宠物关注优先级排序，回答"我该先管哪只"类问题；无需参数"""
+- get_attention_ranking(): 多宠物关注优先级排序，回答"我该先管哪只"类问题；无需参数
+- query_medications(宠物名): 查该宠物的用药情况——在用药物的剂量/频次/疗程剩余天数与已结束的用药历史"""
 
 SYSTEM_PROMPT = """你是「智能宠物健康管家」的 AI 助手，一个专业的宠物健康管理 Agent。
 你通过工具查询 SQLite 数据库中的真实宠物档案与健康记录，请遵循：
-1. 回答宠物、疫苗、体检、驱虫、喂药、就诊、提醒、体重、报告相关问题前，必须先调用工具获取真实数据，严禁编造数据。
+1. 回答宠物、疫苗、体检、驱虫、喂药、用药方案、就诊、提醒、体重、报告相关问题前，必须先调用工具获取真实数据，严禁编造数据。
 2. 需要多个信息时可以依次调用多个工具。
 3. 用简体中文回答，语气专业、温暖、克制，适当使用 Markdown 排版。
 4. 涉及医疗判断时，提醒用户以兽医意见为准。
@@ -199,6 +200,9 @@ def _build_tools():
             name="create_record_draft",
             description=tools.create_record_draft.__doc__.strip(),
             args_schema=DraftIn),
+        StructuredTool.from_function(tools.query_medications, name="query_medications",
+                                     description=tools.query_medications.__doc__.strip(),
+                                     args_schema=NameIn),
     ]
 
 
@@ -281,10 +285,14 @@ def _example_answer(message: str) -> str:
     analyze_kw = any(k in msg for k in ("分析", "怎么样", "健康吗", "体重", "状态如何", "评估"))
     record_kw = any(k in msg for k in ("疫苗", "驱虫", "体检", "喂药", "就诊", "记录", "打过", "接种"))
     care_kw = any(k in msg for k in ("该做", "不该做", "禁忌", "能吃", "不能吃", "注意什么", "护理", "照顾", "规范"))
+    med_kw = any(k in msg for k in ("用药", "吃药", "什么药", "药物", "剂量", "停药", "疗程", "在吃"))
 
     if care_kw:
         return (tools.get_care_guide(pet or "")
                 + "\n\n> 当前为示例回答模式（未配置 API Key）。")
+
+    if pet and med_kw:
+        return tools.query_medications(pet) + "\n\n> 当前为示例回答模式（未配置 API Key）。"
 
     if memory_kw and not report_kw:
         return (tools.query_memories(pet or "")

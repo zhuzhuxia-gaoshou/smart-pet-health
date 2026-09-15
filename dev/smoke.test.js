@@ -155,6 +155,25 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
   T.switchTab('props', doc.querySelector('[data-tab=props]'));
   check('props grid', n('#pane-props .prop-cell') >= 8);
 
+  // 用药方案：API 创建 → 页签渲染 → 结束 → 删除
+  {
+    const created = await T.api('/api/pets/1/medications', { method: 'POST',
+      body: JSON.stringify({ name: '__smoke_med__', dosage: '1 片', frequency: '每日一次', end_date: '2099-01-01' }) });
+    check('medication created', !!created.medication && created.medication.status_label === '在用');
+    await T.openDetail(1);
+    await sleep(400);
+    T.switchTab('meds', doc.querySelector('[data-tab=meds]'));
+    check('meds pane renders items', n('#pane-meds .med-item') >= 1, 'got ' + n('#pane-meds .med-item'));
+    check('meds pane shows new med', [...doc.querySelectorAll('#pane-meds .med-name')].some(e => e.textContent === '__smoke_med__'));
+    check('meds tab label counts active', ((doc.querySelector('[data-tab=meds]') || {}).textContent || '').includes('用药 ·'));
+    check('meds progress bar', n('#pane-meds .med-bar') >= 1);
+    const fin = await T.api('/api/medications/' + created.medication.id, { method: 'PUT', body: JSON.stringify({ name: '__smoke_med__', status: 'finished' }) });
+    check('medication finished', !!fin.medication && fin.medication.status === 'finished');
+    await T.api('/api/medications/' + created.medication.id, { method: 'DELETE' });
+    const after = await T.api('/api/pets/1/medications');
+    check('medication deleted', !after.medications.some(m => m.name === '__smoke_med__'));
+  }
+
   await T.api('/api/pets', { method: 'POST', body: JSON.stringify({ name: '__smoke_test__', type: 'cat', weight: 3.0, status: 'healthy' }) });
   await T.refreshData();
   const cid = (state().pets.find(p => p.name === '__smoke_test__') || {}).id;

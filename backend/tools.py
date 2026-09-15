@@ -105,13 +105,50 @@ def query_memories(name: str = "") -> str:
     return "\n".join(lines)
 
 
+def query_medications(name: str) -> str:
+    """查询某只宠物的用药情况：在用药物（药名/剂量/频次/疗程与剩余天数）与已结束的用药历史。"""
+    pet = db.fetch_pet_by_name(name)
+    if not pet:
+        return _pet_missing_text(name)
+    meds = db.list_medications(pet["id"])
+    if not meds:
+        return f"「{pet['name']}」目前没有任何用药记录。"
+    active = [m for m in meds if m["status"] == "active"]
+    done = [m for m in meds if m["status"] != "active"]
+    lines = [f"「{pet['name']}」用药情况：在用 {len(active)} 项，已结束 {len(done)} 项。"]
+    if active:
+        lines.append("在用：")
+        for m in active:
+            line = f"- {m['name']}"
+            detail = "，".join(x for x in (m.get("dosage"), m.get("frequency")) if x)
+            if detail:
+                line += f"（{detail}）"
+            line += f"，自 {m['start_date']} 起"
+            if m.get("end_date"):
+                d = m["days_left"]
+                line += (f"，计划至 {m['end_date']}，" +
+                         (f"还剩 {d} 天" if d >= 0 else f"已超出计划 {-d} 天，建议确认是否停药或复诊"))
+            else:
+                line += "，长期/未设结束日期"
+            if m.get("note"):
+                line += f"；备注：{m['note']}"
+            lines.append(line)
+    if done:
+        lines.append("已结束：")
+        for m in done[:5]:
+            span = f"{m['start_date']}" + (f" 至 {m['end_date']}" if m.get("end_date") else "")
+            lines.append(f"- {m['name']}（{span}）" + (f"：{m['note']}" if m.get("note") else ""))
+    return "\n".join(lines)
+
+
 def analyze_health(name: str) -> str:
-    """结合健康记录与体重历史，对某只宠物做简要健康分析。"""
+    """结合健康记录、体重历史与在用药物，对某只宠物做简要健康分析。"""
     pet = db.fetch_pet_by_name(name)
     if not pet:
         return _pet_missing_text(name)
     records = db.list_records(pet["id"])
     weights = db.list_weight_logs(pet["id"])
+    meds = [m for m in db.list_medications(pet["id"]) if m["status"] == "active"]
     today = db.today_str()
     recent = [r for r in records if r["date"] and r["date"] >= _minus_days(today, 90)]
 
@@ -156,6 +193,12 @@ def analyze_health(name: str) -> str:
             lines.append("- ⚠️ 体重波动超过 10%，建议咨询医生。")
     else:
         lines.append("- 体重变化：记录不足两点，暂无趋势。")
+    if meds:
+        overdue_meds = [m for m in meds if m.get("end_date") and m["days_left"] is not None and m["days_left"] < 0]
+        lines.append(f"- 在用药物 {len(meds)} 项：" + "；".join(
+            f"{m['name']}" + (f"（{m['frequency']}）" if m.get("frequency") else "") for m in meds))
+        if overdue_meds:
+            lines.append("- ⚠️ 有药物已超出计划疗程：" + "、".join(m["name"] for m in overdue_meds) + "，建议确认是否停药或复诊。")
     return "\n".join(lines)
 
 
@@ -376,4 +419,5 @@ TOOL_META = [
     ("get_care_guide", "查询物种护理规范：该物种适用的记录类型、该做与不该做的事、常见疾病。参数：宠物名或类型词（可为空表示概览）"),
     ("create_record_draft", "根据用户口语描述起草健康记录草稿（不入库，用户确认后保存）。参数：宠物名、类型、日期、标题、说明、下次日期、体重"),
     ("get_attention_ranking", "多宠物关注优先级排序：综合逾期、临期、体重波动、记录陈旧度评分，回答'该先管哪只'类问题。无需参数"),
+    ("query_medications", "按宠物名字查询用药情况：在用药物的剂量/频次/疗程剩余天数，以及已结束的用药历史"),
 ]

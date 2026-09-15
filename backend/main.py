@@ -82,6 +82,16 @@ class MemoryIn(BaseModel):
     image: str | None = None   # base64 data URI（前端已压缩）
 
 
+class MedicationIn(BaseModel):
+    name: str = Field(..., min_length=1, max_length=60, description="药名")
+    dosage: str | None = Field(None, max_length=60, description="剂量，如：每侧 2 滴 / 1 袋")
+    frequency: str | None = Field(None, max_length=40, description="频次，如：每日两次")
+    start_date: str | None = None
+    end_date: str | None = None
+    status: str | None = Field(None, description="active|finished")
+    note: str | None = Field(None, max_length=300)
+
+
 # ---------------------------------------------------------------- 宠物 CRUD
 
 @app.get("/api/pets")
@@ -255,6 +265,44 @@ def api_add_weight(pet_id: int, body: WeightIn):
 def api_species():
     """物种档案：各类型适用的记录类型、常见疾病、该做与不该做的事。"""
     return {"species": species.api_payload()}
+
+
+# ---------------------------------------------------------------- 用药记录
+
+@app.get("/api/pets/{pet_id}/medications")
+def api_list_medications(pet_id: int):
+    if db.get_pet(pet_id) is None:
+        return {"error": "宠物不存在"}
+    return {"medications": db.list_medications(pet_id)}
+
+
+@app.post("/api/pets/{pet_id}/medications")
+def api_add_medication(pet_id: int, med: MedicationIn):
+    if med.status is not None and med.status not in db.MED_STATUS:
+        return {"error": "用药状态无效"}
+    result = db.add_medication(pet_id, med.model_dump(exclude_none=True))
+    if result is None:
+        return {"error": "宠物不存在"}
+    return {"medication": result}
+
+
+@app.put("/api/medications/{med_id}")
+def api_update_medication(med_id: int, med: MedicationIn):
+    if med.status is not None and med.status not in db.MED_STATUS:
+        return {"error": "用药状态无效"}
+    # 显式允许把 end_date 清空：前端传空串表示"无结束日期"
+    data = med.model_dump(exclude_none=True)
+    result = db.update_medication(med_id, data)
+    if result is None:
+        return {"error": "用药记录不存在"}
+    return {"medication": result}
+
+
+@app.delete("/api/medications/{med_id}")
+def api_delete_medication(med_id: int):
+    if not db.delete_medication(med_id):
+        return {"error": "用药记录不存在"}
+    return {"ok": True}
 
 
 @app.get("/api/reminders")

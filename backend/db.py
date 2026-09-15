@@ -24,6 +24,8 @@ PET_STATUS = {"healthy": "健康", "attention": "需关注", "ill": "治疗中"}
 GENDERS = {"male": "公", "female": "母", "unknown": "未知"}
 # 提醒重复周期：'' 表示不重复；完成一轮后按周期滚动生成下一轮记录
 REPEAT_RULES = {"": "不重复", "daily": "每天", "weekly": "每周", "monthly": "每月", "yearly": "每年"}
+# 用药状态
+MED_STATUS = {"active": "在用", "finished": "已结束"}
 
 
 def get_conn() -> sqlite3.Connection:
@@ -50,6 +52,16 @@ CREATE TABLE IF NOT EXISTS health_records(
 CREATE TABLE IF NOT EXISTS weight_logs(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   pet_id INTEGER, date TEXT, weight REAL,
+  FOREIGN KEY(pet_id) REFERENCES pets(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS medications(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  pet_id INTEGER, name TEXT NOT NULL,
+  dosage TEXT DEFAULT '', frequency TEXT DEFAULT '',
+  start_date TEXT, end_date TEXT,
+  status TEXT DEFAULT 'active',
+  note TEXT DEFAULT '',
+  created_at TEXT DEFAULT (datetime('now','localtime')),
   FOREIGN KEY(pet_id) REFERENCES pets(id) ON DELETE CASCADE
 );
 CREATE TABLE IF NOT EXISTS memories(
@@ -784,7 +796,7 @@ def reset_demo_data() -> dict:
     conn = get_conn()
     try:
         for t in ("chat_history", "chat_sessions", "app_kv", "weight_logs",
-                  "health_records", "memories", "pets"):
+                  "health_records", "medications", "memories", "pets"):
             conn.execute(f"DELETE FROM {t}")
         conn.commit()
     finally:
@@ -827,6 +839,130 @@ def init_and_seed() -> None:
     init_db()
     seed()
     seed_memories()
+    seed_medications()
+
+
+# ---------------------------------------------------------------- 用药记录
+
+MED_FIELDS = ("name", "dosage", "frequency", "start_date", "end_date", "status", "note")
+
+
+def _med_dict(row) -> dict:
+    d = dict(row)
+    d["status"] = d.get("status") or "active"
+    d["status_label"] = MED_STATUS.get(d["status"], d["status"])
+    d["days_left"] = days_until(d["end_date"]) if d.get("end_date") else None
+    return d
+
+
+def list_medications(pet_id: int) -> list[dict]:
+    """某宠物的用药：在用优先，其余按开始日期倒序。"""
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM medications WHERE pet_id=?"
+            " ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END, start_date DESC, id DESC",
+            (pet_id,)).fetchall()
+        return [_med_dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_medication(med_id: int) -> dict | None:
+    conn = get_conn()
+    try:
+        row = conn.execute("SELECT * FROM medications WHERE id=?", (med_id,)).fetchone()
+        return _med_dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def add_medication(pet_id: int, data: dict) -> dict | None:
+    if get_pet(pet_id) is None:
+        return None
+    conn = get_conn()
+    try:
+        cur = conn.execute(
+            "INSERT INTO medications(pet_id,name,dosage,frequency,start_date,end_date,status,note)"
+            " VALUES(?,?,?,?,?,?,?,?)",
+            (pet_id, (data.get("name") or "").strip(), data.get("dosage") or "",
+             data.get("frequency") or "", data.get("start_date") or today_str(),
+             data.get("end_date") or None,
+             data.get("status") if data.get("status") in MED_STATUS else "active",
+             data.get("note") or ""))
+        conn.commit()
+        return get_medication(cur.lastrowid)
+    finally:
+        conn.close()
+
+
+def update_medication(med_id: int, data: dict) -> dict | None:
+    conn = get_conn()
+    try:
+        row = conn.execute("SELECT id FROM medications WHERE id=?", (med_id,)).fetchone()
+        if row is None:
+            return None
+        fields = {k: v for k, v in data.items() if k in MED_FIELDS and v is not None}
+        if "status" in fields and fields["status"] not in MED_STATUS:
+            fields.pop("status")
+        if "end_date" in fields and not fields["end_date"]:
+            fields["end_date"] = None
+        if fields:
+            conn.execute("UPDATE medications SET " + ",".join(f"{k}=?" for k in fields) + " WHERE id=?",
+                         list(fields.values()) + [med_id])
+            conn.commit()
+        return get_medication(med_id)
+    finally:
+        conn.close()
+
+
+def delete_medication(med_id: int) -> bool:
+    conn = get_conn()
+    try:
+        cur = conn.execute("DELETE FROM medications WHERE id=?", (med_id,))
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def active_medications_all() -> list[dict]:
+    """全部在用药物（带宠物名），供简报/关注排序使用。"""
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT m.*, p.name AS pet_name FROM medications m JOIN pets p ON p.id = m.pet_id"
+            " WHERE m.status='active' ORDER BY m.pet_id, m.start_date DESC").fetchall()
+        return [_med_dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def seed_medications() -> None:
+    """用药示例（仅当 medications 表为空；按名字匹配现有宠物，与健康记录中的就诊/喂药呼应）。"""
+    conn = get_conn()
+    try:
+        if conn.execute("SELECT COUNT(*) FROM medications").fetchone()[0] > 0:
+            return
+        pet_of = {r["name"]: r["id"] for r in conn.execute("SELECT id, name FROM pets")}
+        samples = [
+            # (宠物名, 药名, 剂量, 频次, 开始偏移, 结束偏移, 状态, 备注)
+            ("布丁", "耳药水（外耳炎）", "每侧 2 滴", "每日两次", -8, -1, "active", "外耳炎就诊开具，滴完复查左耳"),
+            ("可乐", "益生菌粉", "1 袋", "每日一次", -3, 11, "active", "拌在早餐粮里，肠胃调理两周"),
+            ("可乐", "体内外驱虫滴剂（大宠爱）", "1 支", "每月一次", -60, None, "active", "颈后皮肤滴用，滴后 24 小时不洗澡"),
+            ("翠翠", "电解质水", "兑水 1:10", "每日一次", -30, -5, "finished", "换羽期营养补充，已结束"),
+        ]
+        for name, med, dosage, freq, s_off, e_off, status, note in samples:
+            pid = pet_of.get(name)
+            if pid is None:
+                continue
+            conn.execute(
+                "INSERT INTO medications(pet_id,name,dosage,frequency,start_date,end_date,status,note)"
+                " VALUES(?,?,?,?,?,?,?,?)",
+                (pid, med, dosage, freq, _d(s_off), _d(e_off) if e_off is not None else None, status, note))
+        conn.commit()
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":
