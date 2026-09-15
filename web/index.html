@@ -192,6 +192,9 @@ button.dis-chip:hover { border-color:var(--accent); color:var(--accent); backgro
 .cp-head { display:flex; gap:8px; align-items:center; font-size:13.5px; color:var(--text); }
 .cp-meta { font-size:12px; color:var(--text-2); margin:6px 0 10px; }
 @media (max-width: 920px){ .chat-sessions { display:none; } }
+/* 移动端会话侧栏不可见时，提供「历史」弹窗入口 */
+.chat-hist-btn { display: none; }
+@media (max-width: 920px){ .chat-hist-btn { display: inline-flex; } }
 
 /* ============ AI 今日简报 ============ */
 .briefing-card { padding:16px 20px; margin-bottom:18px; background:var(--accent-soft); border:none; }
@@ -406,7 +409,8 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
 .detail-info { flex: 1; min-width: 200px; }
 .detail-name { font-family: var(--font-title); font-size: 28px; font-weight: 600; letter-spacing: -.5px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .detail-sub { color: var(--text-2); margin-top: 5px; font-size: 14px; }
-.detail-actions { display: flex; gap: 8px; }
+.detail-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.detail-actions .danger { margin-left: auto; }
 .back-link { display: inline-flex; align-items: center; gap: 5px; color: var(--text-2); font-size: 13.5px; margin-bottom: 14px; background: none; border: none; transition: color var(--dur); }
 .back-link:hover { color: var(--accent); }
 .back-link svg { width: 14px; height: 14px; }
@@ -433,6 +437,11 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
 .tl-del { border: none; background: none; color: var(--text-2); font-size: 12px; margin-top: 5px; padding: 2px 0; transition: color var(--dur); }
 .tl-del:hover { color: var(--danger); }
 .tl-done:hover { color: var(--success); }
+/* 桌面端时间线操作按钮 hover 才显现，避免 N 条记录 × 3 个按钮变成操作面板；触屏常显 */
+@media (hover: hover) {
+  .tl-item .tl-ops { opacity: 0; transition: opacity var(--dur) var(--ease); }
+  .tl-item:hover .tl-ops, .tl-item:focus-within .tl-ops { opacity: 1; }
+}
 /* 用药方案 */
 .med-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
 .med-group { font-size: 11.5px; color: var(--text-2); font-weight: 600; letter-spacing: .5px; text-transform: uppercase; margin: 14px 0 8px; }
@@ -778,11 +787,11 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
         <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
       </button>
       <div class="dropdown" id="more-menu">
-        <a onclick="downloadFile('/api/export/pets.csv')">⤓ 导出宠物 CSV</a>
-        <a onclick="downloadFile('/api/export/records.csv')">⤓ 导出健康记录 CSV</a>
-        <a onclick="exportSessionMd()">⤓ 导出当前会话 .md</a>
-        <a onclick="downloadFile('/api/export/db')">⤓ 下载数据库备份</a>
-        <a style="color:var(--danger)" onclick="askResetDemo()">↺ 重置演示数据…</a>
+        <a onclick="downloadFile('/api/export/pets.csv')">导出宠物 CSV</a>
+        <a onclick="downloadFile('/api/export/records.csv')">导出健康记录 CSV</a>
+        <a onclick="exportSessionMd()">导出当前会话 .md</a>
+        <a onclick="downloadFile('/api/export/db')">下载数据库备份</a>
+        <a style="color:var(--danger)" onclick="askResetDemo()">清空全部数据并重建示例…</a>
       </div>
     </div>
     <button class="theme-toggle" id="notify-btn" onclick="toggleNotify()" title="开启到期提醒通知" aria-label="到期提醒通知开关">
@@ -814,7 +823,7 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
       <div class="dash-col">
         <div class="card card-pad compact-card">
           <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>到期提醒
-            <button class="view-all" onclick="go('reminders')">查看全部 →</button></div>
+            <span style="margin-left:auto;display:flex;gap:12px"><button class="view-all" onclick="openRecordModal()">＋ 记一笔</button><button class="view-all" onclick="go('reminders')">查看全部 →</button></span></div>
           <div id="dash-reminders"></div>
         </div>
         <div class="card card-pad compact-card">
@@ -853,7 +862,7 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
           </svg>
           <div class="wb-text">
             <div class="wb-kicker">Smart Pet Health</div>
-            <div class="wb-title">愿你的每一只<br>毛孩子都健康</div>
+            <div class="wb-title">愿你的每一只<br>小家伙都健康</div>
             <div class="wb-sub">记录它的日常，留住它的成长。<br>从第一声口哨，到第千百个拥抱。</div>
             <div class="wb-foot">提醒会到期 · 回忆不会 ✦</div>
           </div>
@@ -868,7 +877,14 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
       <button class="back-link" onclick="go('dashboard')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg> 返回仪表盘</button>
       <div class="page-title">全部健康记录</div>
-      <div class="page-sub" id="records-sub">按时间倒序展示所有宠物的记录，点击可进入宠物详情</div>
+      <div class="page-sub" id="records-sub">按时间倒序展示所有宠物的记录</div>
+    </div>
+    <div class="library-bar" id="records-bar">
+      <select id="rec-filter-pet" onchange="renderRecords()" aria-label="按宠物筛选"><option value="">全部宠物</option></select>
+      <select id="rec-filter-type" onchange="renderRecords()" aria-label="按类型筛选">
+        <option value="">全部类型</option><option value="vaccine">疫苗</option><option value="checkup">体检</option>
+        <option value="deworm">驱虫</option><option value="medication">喂药</option><option value="clinic">就诊</option>
+      </select>
     </div>
     <div id="records-list"></div>
   </section>
@@ -904,15 +920,11 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
         <option value="">全部状态</option><option value="healthy">健康</option><option value="attention">需关注</option><option value="ill">治疗中</option>
       </select>
       <select class="filter" id="lib-sort" onchange="renderLibrary()">
-        <option value="id">默认排序</option><option value="name">按名称</option><option value="birthday">按生日</option>
+        <option value="id">最近添加</option><option value="name">按名称</option><option value="birthday">按生日</option>
       </select>
     </div>
     <div class="pet-grid" id="pet-grid"></div>
-    <div class="empty-state" id="lib-empty" style="display:none">
-      <div class="big">🐾</div>
-      <h3>还没有符合条件的宠物</h3>
-      <p>点击右上角「新增宠物」开始建立档案</p>
-    </div>
+    <div class="empty-state" id="lib-empty" style="display:none"></div>
   </section>
 
   <!-- 宠物详情 -->
@@ -947,8 +959,9 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
     <div class="page-head" style="display:flex;align-items:flex-start;gap:16px">
       <div>
         <div class="page-title">AI 智能助手</div>
-        <div class="page-sub" id="chat-sub">LangChain Agent · 基于数据库回答 · 自动生成健康报告</div>
+        <div class="page-sub" id="chat-sub">基于你家宠物的真实档案回答问题 · 可一键生成健康报告</div>
       </div>
+      <button class="btn sm chat-hist-btn" style="margin-left:auto" onclick="openSessionsModal()">历史</button>
       <button class="btn sm" style="margin-left:auto" onclick="newChatSession()">＋ 新对话</button>
     </div>
     <div class="chat-layout">
@@ -1015,6 +1028,7 @@ const todayISO = () => localISO(new Date());
    路由 / 视图切换
    ============================================================ */
 let currentView = 'dashboard';
+let _countedOnce = false;   // 统计数字滚动只在会话内首次进入仪表盘时播放
 function go(view, opts) {
   const prev = currentView;
   currentView = view;
@@ -1059,11 +1073,15 @@ async function renderDashboard() {
     statCard('g', '', st.record_count, '健康记录数', '<path d=\"M9 11l3 3L22 4\"/><path d=\"M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11\"/>', "go('records')", '查看全部'),
     statCard('w', '', st.due_count, '临期/逾期项目', '<path d=\"M10.3 3.6L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0z\"/><path d=\"M12 9v4M12 17h.01\"/>', "go('reminders')", '处理提醒'),
   ].join('');
-  animateCount($('stat-row'));
+  if (!_countedOnce) { animateCount($('stat-row')); _countedOnce = true; }
 
   const rem = state.reminders;
-  $('dash-reminders').innerHTML = rem.length ? rem.slice(0, 4).map(reminderItemHTML).join('')
-    : '<div class="empty-hint">🎉 没有临期或逾期项目，一切都在计划中</div>';
+  // 逾期优先、越近越前；只展示前 4 条，其余给出「还有 N 条」入口
+  const sorted = [...rem].sort((a, b) => (b.overdue - a.overdue) || (a.days_left - b.days_left));
+  const shown = sorted.slice(0, 4), rest = sorted.length - shown.length;
+  $('dash-reminders').innerHTML = rem.length ? shown.map(reminderItemHTML).join('')
+      + (rest > 0 ? `<button class="view-all" style="display:block;margin:8px auto 0" onclick="go('reminders')">还有 ${rest} 条待处理 →</button>` : '')
+    : '<div class="empty-hint">没有临期或逾期项目，一切都在计划中</div>';
 
   const dotColor = t => TYPE_COLOR[t] || 'var(--text-2)';
   $('dash-activity').innerHTML = state.recent.length ? state.recent.map(a => `
@@ -1074,25 +1092,45 @@ async function renderDashboard() {
     </div>`).join('')
     : '<div class="empty-hint">暂无记录</div>';
 
-  const chips = ['可乐接下来要打什么疫苗？', '最近有哪些到期事项？', '生成布丁的健康报告'];
+  const chips = suggestQuestions().slice(0, 3);
   $('suggest-chips').innerHTML = chips.map(c => `<button class="chip" onclick="askFromSuggest('${esc(c)}')">${esc(c)}</button>`).join('');
 
 }
 
 /* ---------- 全部健康记录页 ---------- */
+let _recordsCache = null;
 async function renderRecords() {
   const { records } = await api('/api/records');
-  $('records-sub').textContent = `共 ${records.length} 条 · 按时间倒序 · 点击行进入宠物详情`;
+  _recordsCache = records;
+  // 宠物筛选项由真实档案生成，保留当前选择
+  const petSel = $('rec-filter-pet'), typeSel = $('rec-filter-type');
+  const keep = petSel.value;
+  petSel.innerHTML = '<option value="">全部宠物</option>' + state.pets.map(p =>
+    `<option value="${p.id}" ${String(p.id) === keep ? 'selected' : ''}>${esc(p.avatar || TYPE_EMOJI[p.type] || '🐾')} ${esc(p.name)}</option>`).join('');
+  const fp = petSel.value, ft = typeSel.value;
+  const list = records.filter(r => (!fp || String(r.pet_id) === fp) && (!ft || r.type === ft));
+  const filtering = !!(fp || ft);
+  $('records-sub').textContent = filtering
+    ? `筛选出 ${list.length} 条（共 ${records.length} 条）· 按时间倒序`
+    : `共 ${records.length} 条 · 按时间倒序`;
   if (!records.length) {
-    $('records-list').innerHTML = '<div class="card card-pad empty-hint">暂无健康记录</div>';
+    $('records-list').innerHTML = `<div class="card card-pad"><div class="empty-state"><div class="big" aria-hidden="true">📋</div>
+      <h3>还没有健康记录</h3><p>进入宠物档案点「＋ 新增记录」，或直接在这里记一笔——疫苗、体检、驱虫、喂药、就诊都可以。</p>
+      <button class="btn primary sm" onclick="openRecordModal()">＋ 记一笔</button></div></div>`;
     return;
   }
-  $('records-list').innerHTML = `<div class="card card-pad">` + records.map(r => {
+  if (!list.length) {
+    $('records-list').innerHTML = `<div class="card card-pad"><div class="empty-state"><div class="big" aria-hidden="true">🔍</div>
+      <h3>没有符合筛选的记录</h3><p>换个宠物或类型试试，或清除筛选查看全部。</p>
+      <button class="btn sm" onclick="$('rec-filter-pet').value='';$('rec-filter-type').value='';renderRecords()">清除筛选</button></div></div>`;
+    return;
+  }
+  $('records-list').innerHTML = `<div class="card card-pad">` + list.map(r => {
     let nextChip = '';
     if (r.next_date) {
       const cls = r.days_left < 0 ? 'ill' : r.days_left <= 7 ? 'attention' : 'plain';
       const txt = r.days_left < 0 ? `逾期${-r.days_left}天` : `剩${r.days_left}天`;
-      nextChip = `<span class="badge ${cls} rec-next">⏰ ${esc(r.next_date)} · ${txt}</span>`;
+      nextChip = `<span class="badge ${cls} rec-next">下次 ${esc(r.next_date)} · ${txt}</span>`;
     }
     return `<div class="rec-row" onclick="go('detail',{petId:${r.pet_id}})">
       <span class="rec-date">${esc((r.date || '').slice(5))}</span>
@@ -1111,7 +1149,7 @@ function reminderItemHTML(r) {
       <span class="rem-dot ${r.overdue ? 'danger' : 'warn'}"></span>
       <div class="rem-main">
         <div class="rem-title">${esc(r.pet_name)} · ${esc(r.title)}</div>
-        <div class="rem-meta">${esc(r.type_label)} · 下次日期 ${esc(r.next_date)}${r.repeat_label ? ' · 🔁 ' + esc(r.repeat_label) : ''}</div>
+        <div class="rem-meta">${esc(r.type_label)} · 下次日期 ${esc(r.next_date)}${r.repeat_label ? ' · ' + esc(r.repeat_label) + '重复' : ''}</div>
       </div>
       <span class="rem-days ${r.overdue ? 'danger' : 'warn'}">${r.overdue ? '逾期 ' + (-r.days_left) + ' 天' : '剩 ' + r.days_left + ' 天'}</span>
       <button class="btn sm rem-done" title="标记本轮已完成${r.repeat_label ? '，自动排下一轮' : ''}" onclick="event.stopPropagation(); completeReminder(${r.record_id}, this)">✓ 完成</button>
@@ -1130,12 +1168,16 @@ async function completeReminder(rid, btn) {
 }
 function renderRemindersView() {
   const rem = state.reminders;
-  const overdue = rem.filter(r => r.overdue).length;
+  const od = rem.filter(r => r.overdue).sort((a, b) => a.days_left - b.days_left);
+  const due = rem.filter(r => !r.overdue).sort((a, b) => a.days_left - b.days_left);
   $('reminders-sub').textContent = rem.length
-    ? `${overdue} 项逾期 · ${rem.length - overdue} 项临期（7 天内）· 点击行进入宠物详情，「完成」按钮标记已做`
+    ? `${od.length} 项逾期 · ${due.length} 项临期（7 天内）`
     : '全部事项均在计划内';
-  $('reminders-full-list').innerHTML = rem.length ? rem.map(reminderItemHTML).join('')
-    : '<div class="empty-hint">🎉 没有临期或逾期项目，一切都在计划中</div>';
+  // 逾期优先分组：安全事项永远在最上面
+  $('reminders-full-list').innerHTML = rem.length
+    ? (od.length ? `<div class="med-group">逾期 · ${od.length}</div>${od.map(reminderItemHTML).join('')}` : '')
+      + (due.length ? `<div class="med-group">7 天内临期 · ${due.length}</div>${due.map(reminderItemHTML).join('')}` : '')
+    : `<div class="empty-state"><div class="big" aria-hidden="true">✓</div><h3>没有临期或逾期项目</h3><p>一切都在计划中。给记录填上「下次日期」，到期前 7 天会出现在这里。</p></div>`;
 }
 function statCard(cls, emoji, num, label, svg, nav, hint) {
   return `<div class="card stat-card clickable" role="button" tabindex="0" onclick="${nav}"
@@ -1166,7 +1208,12 @@ function renderLibrary() {
     (!ft || p.type === ft) && (!fs || p.status === fs));
   if (sort === 'name') list = [...list].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'zh'));
   if (sort === 'birthday') list = [...list].sort((a, b) => (a.birthday || '9999').localeCompare(b.birthday || '9999'));
-  $('lib-empty').style.display = list.length ? 'none' : 'block';
+  const filtering = !!(q || ft || fs);
+  const emptyEl = $('lib-empty');
+  emptyEl.style.display = list.length ? 'none' : 'block';
+  if (!list.length) emptyEl.innerHTML = filtering
+    ? `<div class="big" aria-hidden="true">🔍</div><h3>没有匹配的宠物</h3><p>试试其他关键词，或清除筛选条件查看全部。</p><button class="btn sm" onclick="clearLibFilters()">清除筛选</button>`
+    : `<div class="big" aria-hidden="true">🐾</div><h3>还没有宠物档案</h3><p>建立第一份档案后，健康记录、体重趋势、用药和到期提醒都从这里开始。</p><button class="btn primary sm" onclick="openPetModal()">＋ 新增宠物</button>`;
   $('pet-grid').innerHTML = list.map(p => {
     const worst = (p.upcoming || []).reduce((m, r) => Math.min(m, r.days_left), 999);
     const corner = worst < 0 ? `<span class="pet-corner danger">逾期${-worst}天</span>`
@@ -1191,11 +1238,22 @@ function renderLibrary() {
    宠物详情
    ============================================================ */
 const BACK_MAP = { dashboard: '返回仪表盘', library: '返回宠物库', records: '返回健康记录', reminders: '返回到期提醒', memwall: '返回回忆墙', memories: '返回回忆集' };
+function clearLibFilters() {
+  $('lib-search').value = ''; $('lib-type').value = ''; $('lib-status').value = '';
+  renderLibrary();
+}
 async function openDetail(petId, from) {
   state.detailPetId = petId;
   state.detailTab = 'timeline';
   state.weightRange = 'all';
   state.detailFrom = ['dashboard', 'library', 'records', 'reminders', 'memwall', 'memories'].includes(from) ? from : 'library';
+  // 先渲染骨架屏再等数据：详情页是"记一笔"的必经路径，不能空白等待 4 个 API
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  currentView = 'detail';
+  const vd = $('view-detail');
+  vd.classList.add('active');
+  vd.innerHTML = `<div class="card detail-head"><div class="skel sk-av" style="border-radius:20px"></div><div style="flex:1"><div class="skel sk-line w40" style="height:20px"></div><div class="skel sk-line w60"></div><div class="skel sk-line w40" style="margin-bottom:0"></div></div></div>
+    <div class="card card-pad"><div class="skel sk-line w60"></div><div class="skel sk-line w40"></div><div class="skel sk-line w60" style="margin-bottom:0"></div></div>`;
   let pet, records, weights, meds;
   try {
     const [a, b, c, m] = await Promise.all([
@@ -1241,9 +1299,6 @@ async function openDetail(petId, from) {
     <div class="tab-pane" id="pane-meds">${medsHTML(meds)}</div>
     <div class="tab-pane" id="pane-care">${careHTML(p)}</div>
     <div class="tab-pane" id="pane-props">${propsHTML(p)}</div>`;
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  currentView = 'detail';
-  $('view-detail').classList.add('active');
   document.querySelectorAll('#nav-tabs .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.view === 'library'));
   drawWeightChart();
 }
@@ -1263,7 +1318,7 @@ function timelineHTML(records) {
       const d = r.days_left;
       const cls = d < 0 ? 'ill' : d <= 7 ? 'attention' : 'plain';
       const txt = d < 0 ? `下次 ${esc(r.next_date)} · 已逾期 ${-d} 天` : `下次 ${esc(r.next_date)} · 剩 ${d} 天`;
-      nextBadge = `<div class="tl-next"><span class="badge ${cls}">⏰ ${txt}</span>${r.repeat_label ? `<span class="badge plain">🔁 ${esc(r.repeat_label)}</span>` : ''}</div>`;
+      nextBadge = `<div class="tl-next"><span class="badge ${cls}">${txt}</span>${r.repeat_label ? `<span class="badge plain">${esc(r.repeat_label)}重复</span>` : ''}</div>`;
     }
     return `<div class="tl-item" style="--tcolor:${color}">
       <div class="tl-head">
@@ -1288,7 +1343,7 @@ function propsHTML(p) {
     ${cell('品种', esc(p.breed))}${cell('性别', { male:'公', female:'母', unknown:'未知' }[p.gender] || '—')}
     ${cell('生日', esc(p.birthday))}${cell('年龄', p.age)}
     ${cell('体重 (kg)', p.weight ?? p.latest_weight)}${cell('健康状态', STATUS_LABEL[p.status] || p.status)}
-    ${cell('性格备注', esc(p.personality))}${cell('创建时间', esc(p.created_at))}
+    ${cell('性格备注', esc(p.personality))}${cell('档案建立于', esc((p.created_at || '').slice(0, 10)))}
   </div>`;
 }
 
@@ -1545,6 +1600,8 @@ function openModal(html, wide) {
   $('modal-box').innerHTML = html;
   $('modal-box').classList.toggle('wide', !!wide);
   ov.classList.add('open');
+  // 表单弹窗自动聚焦第一个可输入控件（无输入控件的弹窗如大图预览不受影响）
+  setTimeout(() => { const el = $('modal-box').querySelector('input:not([type=hidden]):not([type=file]), select, textarea'); if (el) el.focus(); }, 30);
 }
 function closeModal() {
   const ov = $('modal-overlay');
@@ -1561,7 +1618,7 @@ function openPetModal(id) {
   <form id="pet-form" onsubmit="return submitPet(event, ${id ?? 'null'})">
     <div class="form-grid">
       <div class="form-field"><label>名字 <span class="req">*</span></label><input name="name" required maxlength="30" value="${esc(p.name || '')}"></div>
-      <div class="form-field"><label>头像 Emoji</label><input name="avatar" maxlength="4" placeholder="🐶" value="${esc(p.avatar || '')}"></div>
+      <div class="form-field"><label>头像</label><input name="avatar" maxlength="4" placeholder="🐶" value="${esc(p.avatar || '')}"></div>
       <div class="form-field"><label>类型</label><select name="type">
         ${[['cat','猫'],['dog','狗'],['bird','鸟'],['fish','鱼'],['other','其他']].map(([v, l]) => `<option value="${v}" ${p.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
       <div class="form-field"><label>品种</label><input name="breed" value="${esc(p.breed || '')}" placeholder="如：柯基 / 英短"></div>
@@ -1622,10 +1679,25 @@ function recTypeOptions(pet, selected) {
   const allowed = (sp ? sp.record_types : null) || Object.keys(TYPE_LABEL);
   return allowed.map(v => `<option value="${v}" ${selected === v ? 'selected' : ''}>${TYPE_LABEL[v] || v}</option>`).join('');
 }
-function openRecordModal() {
+function openRecordModal(petId) {
   const today = todayISO();
-  const pet = state.pets.find(x => x.id === state.detailPetId);
-  const sp = (state.species && pet && state.species[pet.type]) || null;
+  const pid = petId || state.detailPetId;
+  const pet = state.pets.find(x => x.id === pid);
+  // 从仪表盘/记录页进入时没有当前宠物：先选宠物，再按物种渲染表单
+  const inDetail = currentView === 'detail' && pet && pet.id === state.detailPetId;
+  const petSelect = inDetail ? '' : `<div class="form-field full"><label>宠物 <span class="req">*</span></label>
+      <select name="pet_id" required onchange="openRecordModal(+this.value)">
+        ${pet ? '' : '<option value="">选择要记录的宠物…</option>'}
+        ${state.pets.map(p => `<option value="${p.id}" ${pet && p.id === pet.id ? 'selected' : ''}>${esc(p.avatar || TYPE_EMOJI[p.type] || '🐾')} ${esc(p.name)}</option>`).join('')}
+      </select></div>`;
+  if (!pet) {
+    if (!state.pets.length) { toast('请先新增一只宠物', 'warn'); openPetModal(); return; }
+    openModal(`<h3>记一笔健康事项</h3>
+      <form id="rec-form" onsubmit="return false"><div class="form-grid">${petSelect}</div>
+      <div class="modal-actions"><button type="button" class="btn" onclick="closeModal()">取消</button></div></form>`);
+    return;
+  }
+  const sp = (state.species && state.species[pet.type]) || null;
   const filtered = sp && sp.record_types.length < Object.keys(TYPE_LABEL).length;
   const note = filtered ? `<div class="sp-note">已按「${sp.label}」过滤：疫苗、驱虫等不适用的记录类型不再显示</div>` : '';
   const chips = (sp && sp.diseases.length) ? `
@@ -1633,9 +1705,10 @@ function openRecordModal() {
         ${sp.diseases.map(d => `<button type="button" class="dis-chip" onclick="chipTitle(this)">${esc(d)}</button>`).join('')}
       </div></div>` : '';
   openModal(`
-  <h3>新增健康记录${pet ? ` · ${esc(pet.name)}` : ''}</h3>
+  <h3>新增健康记录 · ${esc(pet.name)}</h3>
   <form id="rec-form" onsubmit="return submitRecord(event)">
     <div class="form-grid">
+      ${petSelect}
       ${note}
       <div class="form-field"><label>类型</label><select name="type">
         ${recTypeOptions(pet)}</select></div>
@@ -1660,11 +1733,16 @@ function chipTitle(btn) {
 async function submitRecord(e) {
   e.preventDefault();
   const f = Object.fromEntries(new FormData(e.target).entries());
+  const pid = +(f.pet_id || state.detailPetId); delete f.pet_id;
   Object.keys(f).forEach(k => { if (f[k] === '') delete f[k]; });
   try {
-    await api(`/api/pets/${state.detailPetId}/records`, { method: 'POST', body: JSON.stringify(f) });
+    await api(`/api/pets/${pid}/records`, { method: 'POST', body: JSON.stringify(f) });
     flashSaved($('rec-save-btn'));
-    setTimeout(() => { closeModal(); openDetail(state.detailPetId); toast('记录已保存 ✓'); }, 450);
+    setTimeout(() => {
+      closeModal();
+      if (currentView === 'detail') openDetail(state.detailPetId, state.detailFrom); else go(currentView);
+      toast('记录已保存 ✓');
+    }, 450);
   } catch (err) { toast(err.message, true); }
   return false;
 }
@@ -1746,7 +1824,16 @@ async function submitWeight(e, pid) {
 /* ---------- 护理要点（物种档案） ---------- */
 function careHTML(p) {
   const sp = (state.species && state.species[p.type]) || null;
-  if (!sp) return '<div class="empty-hint">物种档案加载中，请关闭本页重新进入；若仍为空请确认后端为最新版本。</div>';
+  if (!sp) {
+    // 物种档案未就位（boot 时拉取失败）：自动补拉一次后重渲染当前页签
+    if (!state._speciesRetrying) {
+      state._speciesRetrying = true;
+      api('/api/species').then(d => { state.species = d.species; const pane = $('pane-care'); if (pane) pane.innerHTML = careHTML(p); })
+        .catch(() => { const pane = $('pane-care'); if (pane) pane.innerHTML = `<div class="empty-state"><div class="big" aria-hidden="true">🌿</div><h3>护理要点暂时加载失败</h3><p>网络或服务暂不可用，稍后再试。</p><button class="btn sm" onclick="state._speciesRetrying=false; $('pane-care').innerHTML = careHTML(state.pets.find(x => x.id === state.detailPetId) || {})">重试</button></div>`; })
+        .finally(() => { state._speciesRetrying = false; });
+    }
+    return '<div class="skel-row"><div class="skel sk-av"></div><div style="flex:1"><div class="skel sk-line w60"></div><div class="skel sk-line w40" style="margin-bottom:0"></div></div></div>';
+  }
   return `<div class="care-grid">
     <div class="care-card care-do"><div class="care-head">✓ 该做的事</div><ul>${sp.care_do.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>
     <div class="care-card care-dont"><div class="care-head">✗ 不该做的事</div><ul>${sp.care_dont.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>
@@ -1802,7 +1889,7 @@ function memTimelineHTML(list, showPet) {
     const y = (m.date || '').slice(0, 4);
     if (y && y !== lastYear) { html += `<div class="mem-year">${y}</div>`; lastYear = y; }
     html += `<div class="mem-item"><div class="card mem-card" onclick="openMemoryLightbox(${m.id})">
-      ${m.image ? `<img class="mem-thumb" src="${m.image}" alt="">` : ''}
+      ${m.image ? `<img class="mem-thumb" src="${m.image}" alt="" loading="lazy">` : ''}
       <div class="mem-body">
         <div class="mem-date">${esc(m.date)}</div>
         <div class="mem-title">${esc(m.title)}</div>
@@ -1957,9 +2044,20 @@ async function deleteMemory(id, btn) {
 /* ============================================================
    AI 聊天
    ============================================================ */
-const QUICK_QS = ['最近有哪些到期或逾期的事项？', '可乐接下来要打什么疫苗？', '布丁的健康状况怎么样？', '生成所有宠物的健康报告'];
+/* 建议问题：由真实宠物动态生成，避免演示宠物名写死进产品 UI；按物种避开不适用的问法（鸟/鱼无疫苗） */
+function suggestQuestions() {
+  const pets = state.pets || [];
+  const p0 = pets[0], p1 = pets[1] || pets[0];
+  const vaccineOK = p => p && !['bird', 'fish'].includes(p.type);
+  const qs = ['最近有哪些到期或逾期的事项？'];
+  if (p0) qs.push(vaccineOK(p0) ? `${p0.name}接下来要打什么疫苗？` : `${p0.name}最近需要注意什么？`);
+  if (p1) qs.push(`${p1.name}的健康状况怎么样？`);
+  qs.push(pets.length > 1 ? '我该先管哪只宠物？' : '生成所有宠物的健康报告');
+  if (p0) qs.push(`生成${p0.name}的健康报告`);
+  return qs;
+}
 function renderChat() {
-  $('chat-quick').innerHTML = QUICK_QS.map(q => `<button class="chip" onclick="askFromSuggest('${esc(q)}')">${esc(q)}</button>`).join('');
+  $('chat-quick').innerHTML = suggestQuestions().slice(0, 4).map(q => `<button class="chip" onclick="askFromSuggest('${esc(q)}')">${esc(q)}</button>`).join('');
   const sc = $('chat-scroll');
   sc.innerHTML = state.chat.map((m, i) => m.role === 'draft' ? draftHTML(m, i) : msgHTML(m)).join('');
   sc.scrollTop = sc.scrollHeight;
@@ -1967,8 +2065,8 @@ function renderChat() {
     state.agentMode = s.mode;
     const name = s.provider === 'deepseek' ? 'DeepSeek' : s.provider === 'tongyi' ? '通义千问' : s.provider === 'bailian' ? '百炼 Qwen' : '大模型';
     $('chat-sub').textContent = s.mode === 'agent'
-      ? `LangChain Agent（${name} · 工具调用）已连接 · 基于数据库回答`
-      : `当前为示例回答模式（未配置 API Key）· 配置 ${name} Key 后自动升级为 LangChain Agent`;
+      ? `AI 已连接 · 回答来自你家宠物的真实档案`
+      : `当前为示例回答模式 · 配置 AI 服务密钥后可自由提问`;
   }).catch(() => {});
   if (!state.chat.length && !sc.querySelector('.msg')) {
     sc.innerHTML = msgHTML({ role: 'bot', text: '你好，我是**智能宠物健康管家** 🐾\n\n我可以查询宠物档案与健康记录、计算到期提醒、分析健康状况，并一键生成健康报告。试试下方快捷问题，或直接输入你的问题。', mode: null });
@@ -2021,7 +2119,7 @@ function msgHTML(m) {  const av = m.role === 'user' ? '我' : '<svg viewBox="0 0
   const actions = m.role === 'bot' ? `<div class="msg-actions">
       <button class="btn ghost sm" onclick="copyAnswer(this)" data-text="${encodeURIComponent(m.text)}">⧉ 复制</button>
       ${isReport ? `<button class="btn ghost sm" onclick='downloadMd(${JSON.stringify(m.text).replace(/'/g, "&#39;")},"健康报告")'>⤓ 下载 .md</button>` : ''}
-    </div>${m.mode ? `<div class="mode-tag ${m.mode === 'example' ? 'example' : ''}">${m.mode === 'example' ? '示例回答模式（未配置 API Key）' : 'LangChain Agent · ' + (m.provider === 'deepseek' ? 'DeepSeek' : m.provider === 'tongyi' ? '通义千问' : m.provider === 'bailian' ? '百炼 Qwen' : '大模型')}</div>` : ''}` : '';
+    </div>${m.mode ? `<div class="mode-tag ${m.mode === 'example' ? 'example' : ''}">${m.mode === 'example' ? '示例回答模式' : 'AI 回答 · 基于真实档案'}</div>` : ''}` : '';
   return `<div class="msg ${m.role}"><div class="msg-avatar">${av}</div>
     <div><div class="bubble">${mdLite(m.text)}</div>${actions}</div></div>`;
 }
@@ -2076,6 +2174,19 @@ async function newChatSession() {
 
 /* ---------- 历史会话：查看 / 删除 ---------- */
 let _chatBooted = false;
+/* 移动端（≤920px 侧栏隐藏时）的历史会话入口：复用 .sess-item 结构 */
+function openSessionsModal() {
+  const list = state.chatSessions || [];
+  const items = list.length ? list.map(s => `
+    <div class="sess-item ${s.id === state.chatSessionId ? 'active' : ''}" onclick="closeModal(); openChatSession(${s.id})">
+      <div class="sess-title">${esc(s.title || '未命名会话')}</div>
+      <div class="sess-time">${esc((s.updated_at || '').slice(5, 16))} · ${s.message_count} 条消息</div>
+      <button class="sess-del" style="opacity:1" title="重命名" onclick="event.stopPropagation(); openRenameSession(${s.id}, this)">✎</button>
+      <button class="sess-del" style="opacity:1;right:28px" title="删除此会话" onclick="event.stopPropagation(); closeModal(); askDeleteSession(${s.id})">✕</button>
+    </div>`).join('') : '<div class="sess-empty">暂无历史会话<br>聊过的话题会自动保存在这里</div>';
+  openModal(`<h3>历史会话</h3><div style="max-height:50vh;overflow:auto;display:flex;flex-direction:column;gap:8px">${items}</div>
+    <div class="modal-actions"><button class="btn" onclick="closeModal()">关闭</button><button class="btn primary" onclick="closeModal(); newChatSession()">＋ 新对话</button></div>`);
+}
 async function loadChatSessions() {
   try {
     const r = await api('/api/chat/sessions');
@@ -2141,11 +2252,12 @@ async function submitRenameSession(e, id) {
 }
 async function askResetDemo() {
   $('more-menu')?.classList.remove('open');
-  openModal(`<h3>重置演示数据？</h3>
-    <p style="color:var(--text-2);font-size:14px;margin-bottom:4px">将清空当前全部宠物、健康记录、回忆与 AI 会话，并重建初始示例数据。<b style="color:var(--danger)">此操作不可恢复。</b></p>
+  openModal(`<h3>清空全部数据？</h3>
+    <p style="color:var(--text-2);font-size:14px;margin-bottom:10px">将删除当前<b>全部</b>宠物、健康记录、用药、回忆与 AI 会话（包括你自己录入的），然后重建初始示例数据。<b style="color:var(--danger)">此操作不可恢复</b>，建议先在「更多」菜单里下载数据库备份。</p>
+    <div class="form-field" style="margin-bottom:6px"><label>请输入「清空」二字确认</label><input id="reset-confirm-input" placeholder="清空" autocomplete="off" oninput="$('reset-btn').disabled = this.value.trim() !== '清空'"></div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">取消</button>
-      <button class="btn solid-danger" id="reset-btn" onclick="confirmResetDemo()">确认重置</button>
+      <button class="btn solid-danger" id="reset-btn" disabled onclick="confirmResetDemo()">确认清空并重建</button>
     </div>`);
 }
 async function confirmResetDemo() {
@@ -2185,12 +2297,13 @@ async function renderBriefing() {
       return;
     }
     _briefingPolls = 0;
+    box.style.display = '';
     const tag = r.fresh ? '今日简报' : '简报 · 数据有更新，正在后台刷新';
     box.innerHTML = `<div class="brief-title">✦ AI 今日健康简报</div>
       <div class="brief-text">${mdLite(r.briefing.text)}</div>
       <div class="brief-meta">生成于 ${r.briefing.generated_at} · ${tag}
         <button class="btn ghost sm" onclick="refreshBriefing(this)">↻ 重新生成</button></div>`;
-  } catch (e) { box.innerHTML = ''; }
+  } catch (e) { box.innerHTML = ''; box.style.display = 'none'; }
 }
 async function refreshBriefing(btn) {
   btn.disabled = true; btn.textContent = '生成中…';

@@ -1,9 +1,10 @@
 // 欢迎页冒烟测试：加载无报错 · 主题键与应用统一(pet-theme) · 开始按钮触发过渡动画 · APP_URL 指向 /app
 const fs = require('fs');
+const path = require('path');
 const { JSDOM, VirtualConsole } = require('jsdom');
 
-// 与 smoke.test.js 相同约定：从装有 jsdom 的目录里以绝对路径读取仓库文件运行
-const html = fs.readFileSync('C:/Users/Administrator/Desktop/项目/smart-pet-health/web/welcome.html', 'utf8');
+// 相对仓库根定位，项目目录搬家不再失效
+const html = fs.readFileSync(path.join(__dirname, '..', 'web', 'welcome.html'), 'utf8');
 const results = [];
 const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: cond ? '' : (extra || '') });
 

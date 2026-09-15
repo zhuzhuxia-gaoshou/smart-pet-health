@@ -7,11 +7,11 @@
 <title>智能宠物健康管家 PetCare AI · 欢迎页</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;600&family=Noto+Serif+SC:wght@500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-/* ============ 设计变量（想改配色/圆角，改这里就行） ============ */
+/* ============ 设计变量（与主应用 index.html 的 :root 对齐） ============ */
 :root{
-  --bg:          #f5f4ed;   /* 米白纸感底色 */
+  --bg:          #FBFAF7;   /* 奶油底·与主应用一致 */
   --surface:     #faf9f5;   /* 卡片面 */
   --surface-2:   #ffffff;   /* 更亮的面（气泡） */
   --text:        #141413;   /* 主文字·暖黑 */
@@ -129,14 +129,14 @@ h1 em{font-family:'Fraunces',var(--serif);font-style:italic;font-weight:500;
 
 .cta-row{display:flex;align-items:center;gap:14px;margin-top:34px;flex-wrap:wrap}
 .btn{display:inline-flex;align-items:center;gap:9px;background:var(--accent);color:#faf9f5;
-  font-size:15px;font-weight:500;padding:13px 26px;border-radius:12px;position:relative;
-  overflow:hidden;box-shadow:0 6px 18px rgba(194,112,61,.28);transition:transform .2s,background-color .2s,box-shadow .2s}
+  font-size:15px;font-weight:500;padding:13px 26px;border-radius:8px;position:relative;
+  overflow:hidden;box-shadow:var(--shadow);transition:transform .2s,background-color .2s,box-shadow .2s}
 .btn svg{width:16px;height:16px;transition:transform .25s}
 .btn:hover{background:var(--accent-strong);transform:translateY(-1px)}
 .btn:hover svg{transform:translateX(3px)}
 .btn:active{transform:scale(.97)}
 .btn-ghost{display:inline-flex;align-items:center;gap:9px;background:var(--sand);
-  color:var(--sand-text);font-size:15px;font-weight:500;padding:13px 24px;border-radius:12px;
+  color:var(--sand-text);font-size:15px;font-weight:500;padding:13px 24px;border-radius:8px;
   position:relative;overflow:hidden;box-shadow:0 0 0 1px var(--ring);
   transition:transform .2s,box-shadow .2s}
 .btn-ghost:hover{transform:translateY(-1px);box-shadow:0 0 0 1px var(--ring),var(--shadow)}
@@ -343,7 +343,7 @@ h1 em{font-family:'Fraunces',var(--serif);font-style:italic;font-weight:500;
           </div>
           <div>
             <div class="chat-title">AI 健康助手</div>
-            <div class="chat-status"><span class="dot"></span>ReAct Agent · 在线</div>
+            <div class="chat-status"><span class="dot"></span>AI 助手 · 在线</div>
           </div>
         </div>
         <div class="chat-body">
@@ -489,15 +489,20 @@ const io = new IntersectionObserver(entries => {
 document.querySelectorAll('.reveal').forEach(el => io.observe(el));
 
 /* ---------- 「开始使用」→ 全屏欢迎过渡页 ----------
-   接入应用后，把 APP_URL 改成应用首页地址（如 '/' 或 'dashboard.html'），
-   过渡动画播完（约 3.4 秒）会自动跳转；留空则只播放动画，方便单独预览。 */
+   过渡动画播完（约 2.1 秒）自动跳转 APP_URL；留空则只播放动画，方便单独预览。
+   回访直达：见过欢迎页的用户不再每次付动画税，直接进应用；地址加 ?welcome 可强制重看。 */
 const APP_URL = '/app';
+const SEEN_KEY = 'pet-welcome-seen';
+if (APP_URL && localStorage.getItem(SEEN_KEY) && !location.search.includes('welcome')) {
+  window.location.replace(APP_URL);
+}
 const gate = document.getElementById('gate');
 let gating = false;
 document.getElementById('startBtn').addEventListener('click', e => {
   e.preventDefault();
   if (gating) return;
   gating = true;
+  try { localStorage.setItem(SEEN_KEY, '1'); } catch (_) {}
   gate.classList.add('show');
   gate.setAttribute('aria-hidden', 'false');
   setTimeout(() => {
