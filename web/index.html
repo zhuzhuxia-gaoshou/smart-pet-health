@@ -415,10 +415,25 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
 .tl-del { border: none; background: none; color: var(--text-2); font-size: 12px; margin-top: 5px; padding: 2px 0; transition: color var(--dur); }
 .tl-del:hover { color: var(--danger); }
 
-.weight-chart-wrap { padding: 8px 4px 0; }
+.weight-chart-wrap { padding: 8px 4px 0; position: relative; }
 .weight-chart-wrap svg { width: 100%; height: auto; display: block; }
 .wc-dot { transition: r var(--dur); }
 .wc-dot:hover { r: 6; }
+#wc-guide { transition: opacity var(--dur) ease-out; }
+/* 区间切换分段控件 */
+.wc-ranges { display: flex; gap: 4px; margin: 6px 0 10px; background: var(--surface-2); border-radius: var(--r-btn); padding: 3px; width: max-content; }
+.wc-pill { border: 0; background: transparent; color: var(--text-2); font-size: 12px; padding: 4px 10px; border-radius: 6px; cursor: pointer; transition: color var(--dur) ease-out, background-color var(--dur) ease-out, box-shadow var(--dur) ease-out; }
+.wc-pill:hover { color: var(--text); }
+.wc-pill.active { background: var(--surface); color: var(--accent); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+/* 区间统计行 */
+.wc-stats { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.wc-stat { flex: 1; min-width: 90px; background: var(--surface-2); border-radius: 10px; padding: 8px 12px; }
+.wc-stat .k { font-size: 11.5px; color: var(--text-2); }
+.wc-stat .v { font-family: var(--font-title); font-size: 17px; font-weight: 600; color: var(--text); margin-top: 2px; }
+/* 悬停数据提示卡 */
+.wc-tip { position: absolute; transform: translate(-50%, -100%); background: var(--text); color: #fff; font-size: 12px; line-height: 1.5; padding: 6px 10px; border-radius: 8px; pointer-events: none; opacity: 0; transition: opacity var(--dur) ease-out; white-space: nowrap; z-index: 5; box-shadow: var(--shadow-deep); }
+.wc-tip .t-d { color: rgba(255,255,255,.72); font-size: 11px; }
+.wc-tip.show { opacity: 1; }
 
 .props-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
 .prop-cell { background: var(--surface); padding: 14px 16px; }
@@ -815,7 +830,7 @@ const API = '';           // 同源部署（FastAPI 托管），跨端口调试�
 const state = {
   pets: [], reminders: [], stats: null, recent: [],
   detailPetId: null, detailTab: 'timeline', detailRecords: [],
-  chat: [], agentMode: null, weightsCache: {},
+  chat: [], agentMode: null, weightsCache: {}, weightRange: 'all',
   memories: [], memWallPetId: null, memImg: '',
   species: null,
   chatSessions: [], chatSessionId: null,
@@ -1011,6 +1026,7 @@ const BACK_MAP = { dashboard: '返回仪表盘', library: '返回宠物库', rec
 async function openDetail(petId, from) {
   state.detailPetId = petId;
   state.detailTab = 'timeline';
+  state.weightRange = 'all';
   state.detailFrom = ['dashboard', 'library', 'records', 'reminders', 'memwall', 'memories'].includes(from) ? from : 'library';
   let pet, records, weights;
   try {
@@ -1104,9 +1120,18 @@ function propsHTML(p) {
 }
 
 /* ---------- 体重 SVG 折线图（手绘，无第三方库） ---------- */
+const WC_RANGES = [['all', '全部'], ['365', '近1年'], ['90', '近90天'], ['30', '近30天']];
+const _fmtW = v => v < 1 ? v.toFixed(2) : v.toFixed(1);
+function setWeightRange(r) { state.weightRange = r; drawWeightChart(); }
 function drawWeightChart() {  const box = $('weight-chart'); if (!box) return;
-  const logs = state.weightsCache[state.detailPetId] || [];
-  if (logs.length < 2) { box.innerHTML = '<div class="empty-hint">体重记录不足两条，暂无趋势图。在「新增记录」中填写体重即可积累数据。</div>'; return; }
+  const all = state.weightsCache[state.detailPetId] || [];
+  const cur = state.weightRange || 'all';
+  const pills = `<div class="wc-ranges" role="group" aria-label="统计区间">` + WC_RANGES.map(([v, t]) =>
+    `<button class="wc-pill ${cur === v ? 'active' : ''}" aria-pressed="${cur === v}" onclick="setWeightRange('${v}')">${t}</button>`).join('') + `</div>`;
+  if (all.length < 2) { box.innerHTML = pills + '<div class="empty-hint">体重记录不足两条，暂无趋势图。在「新增记录」中填写体重即可积累数据。</div>'; return; }
+  const logs = cur === 'all' ? all
+    : all.filter(l => l.date >= new Date(Date.now() - (+cur) * 864e5).toISOString().slice(0, 10));
+  if (logs.length < 2) { box.innerHTML = pills + '<div class="empty-hint">该区间内体重记录不足两条，试试更长的时间范围。</div>'; return; }
   const W = 640, H = 240, PL = 46, PR = 16, PT = 18, PB = 34;
   const ws = logs.map(l => l.weight), wMin = Math.min(...ws), wMax = Math.max(...ws);
   const pad = (wMax - wMin) * 0.15 || Math.max(wMax * 0.06, 0.2);
@@ -1114,6 +1139,7 @@ function drawWeightChart() {  const box = $('weight-chart'); if (!box) return;
   const x = i => PL + (W - PL - PR) * (logs.length === 1 ? 0.5 : i / (logs.length - 1));
   const y = v => PT + (H - PT - PB) * (1 - (v - lo) / (hi - lo));
   const pts = logs.map((l, i) => [x(i), y(l.weight)]);
+  window._wcPts = { pts, logs, W, H };
   const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
   const area = line + ` L ${x(logs.length - 1).toFixed(1)} ${H - PB} L ${x(0).toFixed(1)} ${H - PB} Z`;
   const gridN = 4, grid = [];
@@ -1126,19 +1152,61 @@ function drawWeightChart() {  const box = $('weight-chart'); if (!box) return;
     ? `<text x="${x(i)}" y="${H - 12}" text-anchor="middle" font-size="10.5" fill="var(--text-2)">${(l.date || '').slice(5)}</text>` : '').join('');
   const dots = pts.map((p, i) => `<circle class="wc-dot" cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="4" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"><title>${logs[i].date}: ${logs[i].weight} kg</title></circle>`).join('');
   const delta = ws[ws.length - 1] - ws[0];
+  const avg = ws.reduce((a, b) => a + b, 0) / ws.length;
   box.innerHTML = `<div class="card-title" style="margin-bottom:6px">体重趋势
       <span class="badge ${Math.abs(delta / (ws[0] || 1)) >= 0.1 ? 'attention' : 'plain'}" style="margin-left:8px;text-transform:none">
       ${delta >= 0 ? '+' : ''}${delta.toFixed(2)} kg（近 ${logs.length} 次）</span>
       <button class="btn ghost sm" style="float:right" onclick="weightInsight(this)">✦ AI 解读</button></div>
-    <div class="weight-chart-wrap"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="体重折线图">
-      <defs><linearGradient id="warea" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="var(--accent)" stop-opacity=".22"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/>
-      </linearGradient></defs>
-      ${grid}<path d="${area}" fill="url(#warea)"/>
-      <path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-      ${dots}${xLabels}
-    </svg></div>
+    ${pills}
+    <div class="weight-chart-wrap" onpointermove="wcHover(event)" onpointerleave="wcLeave()">
+      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="体重折线图">
+        <defs><linearGradient id="warea" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="var(--accent)" stop-opacity=".22"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/>
+        </linearGradient></defs>
+        ${grid}<path d="${area}" fill="url(#warea)"/>
+        <path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        <line id="wc-guide" y1="${PT}" y2="${H - PB}" stroke="var(--border)" stroke-width="1" style="opacity:0"/>
+        <circle id="wc-hl" r="6.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2" style="opacity:0"/>
+        ${dots}${xLabels}
+      </svg>
+      <div class="wc-tip" aria-hidden="true"></div>
+    </div>
+    <div class="wc-stats">
+      <div class="wc-stat"><div class="k">最新 · ${logs[logs.length - 1].date}</div><div class="v">${_fmtW(ws[ws.length - 1])} kg</div></div>
+      <div class="wc-stat"><div class="k">区间最低</div><div class="v">${_fmtW(wMin)} kg</div></div>
+      <div class="wc-stat"><div class="k">区间最高</div><div class="v">${_fmtW(wMax)} kg</div></div>
+      <div class="wc-stat"><div class="k">区间平均</div><div class="v">${_fmtW(avg)} kg</div></div>
+    </div>
     <div class="wi-box" id="weight-insight-box"></div>`;
+}
+function wcHover(e) {
+  const d = window._wcPts;
+  const wrap = e.currentTarget, svg = wrap.querySelector('svg'), tip = wrap.querySelector('.wc-tip');
+  if (!d || !svg || !tip || d.pts.length < 2) return;
+  const rect = svg.getBoundingClientRect();
+  if (!rect.width) return;
+  const sx = (e.clientX - rect.left) / rect.width * d.W;
+  let best = 0, bd = Infinity;
+  d.pts.forEach((p, i) => { const dd = Math.abs(p[0] - sx); if (dd < bd) { bd = dd; best = i; } });
+  const [px, py] = d.pts[best], log = d.logs[best];
+  const guide = document.getElementById('wc-guide'), hl = document.getElementById('wc-hl');
+  if (guide) { guide.setAttribute('x1', px); guide.setAttribute('x2', px); guide.style.opacity = 1; }
+  if (hl) { hl.setAttribute('cx', px); hl.setAttribute('cy', py); hl.style.opacity = 1; }
+  let sub = '起点';
+  if (best > 0) {
+    const diff = log.weight - d.logs[best - 1].weight;
+    sub = `较上次 ${diff >= 0 ? '+' : ''}${diff.toFixed(2)} kg`;
+  }
+  tip.innerHTML = `<b>${_fmtW(log.weight)} kg</b><div class="t-d">${log.date} · ${sub}</div>`;
+  tip.style.left = Math.min(Math.max(px / d.W * rect.width, 70), rect.width - 70) + 'px';
+  tip.style.top = (py / d.H * rect.height - 12) + 'px';
+  tip.classList.add('show');
+}
+function wcLeave() {
+  const g = document.getElementById('wc-guide'), h = document.getElementById('wc-hl'), t = document.querySelector('#weight-chart .wc-tip');
+  if (g) g.style.opacity = 0;
+  if (h) h.style.opacity = 0;
+  if (t) t.classList.remove('show');
 }
 
 /* ---------- 体重 AI 解读 ---------- */

@@ -124,6 +124,15 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
   await sleep(200);
   check('weight svg dots', n('#weight-chart .wc-dot') >= 4, 'got ' + n('#weight-chart .wc-dot'));
   check('weight svg has line', n('#weight-chart svg path') >= 2);
+  check('weight range pills', n('#weight-chart .wc-pill') === 4, 'got ' + n('#weight-chart .wc-pill'));
+  check('weight stats row', n('#weight-chart .wc-stat') === 4);
+  window.setWeightRange('90');
+  await sleep(100);
+  check('range 90d becomes active', doc.querySelectorAll('#weight-chart .wc-pill')[2].classList.contains('active'));
+  check('range 90d filters dots', n('#weight-chart .wc-dot') < 5 || n('#weight-chart .empty-hint') === 1, 'got ' + n('#weight-chart .wc-dot'));
+  window.setWeightRange('all');
+  await sleep(100);
+  check('range back to all', n('#weight-chart .wc-dot') >= 4, 'got ' + n('#weight-chart .wc-dot'));
   T.switchTab('props', doc.querySelector('[data-tab=props]'));
   check('props grid', n('#pane-props .prop-cell') >= 8);
 
