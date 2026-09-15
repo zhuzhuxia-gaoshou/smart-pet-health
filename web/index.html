@@ -590,6 +590,124 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
 .wall-head { display: flex; align-items: center; gap: 18px; padding: 24px 26px; margin-bottom: 24px; }
 .wall-sum { font-size: 14px; color: var(--text-2); margin-top: 5px; }
 
+/* ============================================================
+   微交互覆盖层 — 全站统一缓动 var(--ease)，三档时长（≤220ms）
+   动效只做三件事：确认按压、指示可点、软化等待
+   ============================================================ */
+/* 按钮：hover 不上浮（上浮语义留给卡片），按压缩放 + 焦点环 + 加载态 */
+.btn {
+  transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur) var(--ease),
+    background-color var(--dur) var(--ease), border-color var(--dur) var(--ease), opacity var(--dur) var(--ease);
+}
+.btn:active { transform: scale(.97); box-shadow: none; transition-duration: 70ms; }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn.primary:focus-visible { outline-color: color-mix(in srgb, var(--accent) 55%, var(--text)); }
+.btn.primary:active { background: color-mix(in srgb, var(--accent) 80%, #000); }
+.btn.solid-danger { background: var(--danger); border-color: var(--danger); color: var(--on-accent); }
+.btn.solid-danger:hover { background: color-mix(in srgb, var(--danger) 86%, #000); }
+.btn.solid-danger:focus-visible { outline-color: color-mix(in srgb, var(--danger) 55%, var(--text)); }
+.btn.loading { pointer-events: none; color: transparent !important; }
+.btn.loading::after {
+  content: ''; position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px;
+  border-radius: 50%; border: 2px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-top-color: var(--accent); animation: btn-spin .7s linear infinite;
+}
+.btn.primary.loading::after, .btn.solid-danger.loading::after { border-color: rgba(255,255,255,.35); border-top-color: var(--on-accent); }
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+.ripple { animation-duration: .4s; animation-timing-function: var(--ease); }
+/* 图标圆钮：去旋转，变色 + 按压 */
+.theme-toggle {
+  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease),
+    background-color var(--dur) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.theme-toggle:hover { color: var(--accent); border-color: var(--accent); transform: none; }
+.theme-toggle:active { transform: scale(.92); }
+.theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* 页签 */
+.tab-btn {
+  transition: color var(--dur) var(--ease), background-color var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.tab-btn:active { transform: scale(.96); }
+.tab-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.detail-tab { transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease); }
+.detail-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.wc-pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* 卡片：统一浮起 -2px + 深阴影 */
+.card { transition: box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease), border-color var(--dur) var(--ease); }
+.stat-card:hover, .pet-card:hover, .mem-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-deep); }
+.pet-card:hover, .mem-card:hover { border-color: color-mix(in srgb, var(--accent) 32%, var(--border)); }
+.card.lift { cursor: pointer; }
+.card.lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-deep); border-color: color-mix(in srgb, var(--accent) 32%, var(--border)); }
+/* 弹窗：入场统一 + 关闭动画（离场 150ms 必须短于入场） */
+.modal-overlay.open { animation: overlay-in var(--dur-slow) var(--ease); }
+.modal { animation: modal-in var(--dur-slow) var(--ease); }
+.modal-overlay.closing { animation: overlay-out 150ms var(--ease) forwards; pointer-events: none; }
+.modal-overlay.closing .modal { animation: modal-out 150ms var(--ease) forwards; }
+@keyframes overlay-out { to { opacity: 0; } }
+@keyframes modal-out { to { opacity: 0; transform: translateY(6px) scale(.985); } }
+/* 下拉菜单入场 */
+.dropdown { transform-origin: top right; }
+.dropdown.open { animation: drop-in 160ms var(--ease); }
+@keyframes drop-in { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
+/* Toast：曲线统一 + 警告态 */
+.toast { animation: toast-in var(--dur-slow) var(--ease); }
+.toast.out { opacity: 0; transform: translateY(8px); transition: opacity 200ms var(--ease), transform 200ms var(--ease); }
+.toast.warn .t-ico { color: var(--warn); }
+/* 列表行：底色 + 阅读方向位移 + 焦点 */
+.reminder-item, .activity-item, .rec-row, .sess-item {
+  transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+.reminder-item:hover, .activity-item:hover, .rec-row:hover, .sess-item:hover {
+  background: var(--surface-2); border-color: var(--border); transform: translateX(2px);
+}
+.reminder-item:focus-visible, .activity-item:focus-visible, .rec-row:focus-visible, .sess-item:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.sess-item:focus-within .sess-del { opacity: 1; }
+/* 表单控件：hover 过渡 + 错误态 */
+input, select, textarea {
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease), background-color var(--dur) var(--ease);
+}
+input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
+  border-color: color-mix(in srgb, var(--text-2) 30%, var(--border));
+}
+.field-error, .field-error:focus { border-color: var(--danger) !important; box-shadow: 0 0 0 3px var(--danger-soft) !important; }
+/* chip 类 */
+.chip, .dis-chip, .mem-pet-chip {
+  transition: color var(--dur) var(--ease), background-color var(--dur) var(--ease),
+    border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.chip:active, .dis-chip:active, .mem-pet-chip:active { transform: scale(.96); }
+.chip:focus-visible, .dis-chip:focus-visible, .mem-pet-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* 零散可点元素 */
+.view-all, .back-link, .tl-del, .sess-del, .dropdown a, .img-remove {
+  transition: color var(--dur) var(--ease), background-color var(--dur) var(--ease), opacity var(--dur) var(--ease);
+}
+.view-all:focus-visible, .back-link:focus-visible, .tl-del:focus-visible,
+.sess-del:focus-visible, .dropdown a:focus-visible, .img-remove:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* 骨架屏：仅用于可能超过 300ms 的等待 */
+.skel { position: relative; overflow: hidden; background: var(--surface-2); border-radius: 6px; }
+.skel::after {
+  content: ''; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--surface) 72%, transparent) 50%, transparent 100%);
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+@keyframes shimmer { to { transform: translateX(100%); } }
+.skel-row { display: flex; gap: 12px; align-items: center; padding: 11px 12px; }
+.skel.sk-av { width: 52px; height: 52px; border-radius: 16px; flex: none; }
+.skel.sk-line { height: 13px; margin: 7px 0; }
+.skel.sk-line.w60 { width: 60%; }
+.skel.sk-line.w40 { width: 40%; }
+/* 空状态：图标（情绪）→ 标题（事实）→ 副文案（出路）→ 可选行动 */
+.empty-state { padding: 56px 24px; }
+.empty-state .big {
+  width: 64px; height: 64px; margin: 0 auto 14px; display: grid; place-items: center;
+  font-size: 30px; filter: none; background: var(--surface-2); border: 1px solid var(--border); border-radius: 20px;
+}
+.empty-state h3 { font-size: 19px; }
+.empty-state p { font-size: 13.5px; color: var(--text-2); max-width: 340px; margin: 0 auto 18px; }
+
 /* ---------- 无障碍：系统减弱动效 ---------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
@@ -1228,7 +1346,7 @@ function wcLeave() {
 
 /* ---------- 体重 AI 解读 ---------- */
 async function weightInsight(btn) {
-  btn.disabled = true; btn.textContent = '解读中…';
+  btn.classList.add('loading');
   const box = $('weight-insight-box');
   if (box) box.innerHTML = '<span class="typing"><i></i><i></i><i></i> AI 正在解读体重趋势…</span>';
   try {
@@ -1239,7 +1357,7 @@ async function weightInsight(btn) {
     if (box) box.innerHTML = '';
     toast(e.message, true);
   }
-  btn.disabled = false; btn.textContent = '✦ AI 解读';
+  btn.classList.remove('loading');
 }
 
 /* ---------- AI 护理计划：生成 + 逐项转记录 ---------- */
@@ -1278,11 +1396,18 @@ async function applyPlanItem(pid, i, btn) {
    弹窗：新增/编辑宠物
    ============================================================ */
 function openModal(html, wide) {
+  const ov = $('modal-overlay');
+  ov.classList.remove('closing');
   $('modal-box').innerHTML = html;
   $('modal-box').classList.toggle('wide', !!wide);
-  $('modal-overlay').classList.add('open');
+  ov.classList.add('open');
 }
-function closeModal() { $('modal-overlay').classList.remove('open'); }
+function closeModal() {
+  const ov = $('modal-overlay');
+  if (!ov.classList.contains('open')) return;
+  ov.classList.add('closing');
+  setTimeout(() => ov.classList.remove('open', 'closing'), 150);
+}
 
 function openPetModal(id) {
   const p = id ? state.pets.find(x => x.id === id) || {} : {};
@@ -1332,7 +1457,7 @@ function askDeletePet(id, btn) {
     <p style="color:var(--text-2);font-size:14px;margin-bottom:4px">其全部健康记录与体重记录将一并删除，且不可恢复。</p>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">取消</button>
-      <button class="btn primary" style="background:var(--danger);border-color:var(--danger)" id="del-btn" onclick="confirmDeletePet(${id}, this)">确认删除</button>
+      <button class="btn solid-danger" id="del-btn" onclick="confirmDeletePet(${id}, this)">确认删除</button>
     </div>`);
 }
 async function confirmDeletePet(id, btn) {
@@ -1838,7 +1963,7 @@ function askDeleteSession(id) {
     <p style="color:var(--text-2);font-size:14px;margin-bottom:4px">会话中的全部对话消息将一并删除，且不可恢复。</p>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">取消</button>
-      <button class="btn primary" style="background:var(--danger);border-color:var(--danger)" onclick="confirmDeleteSession(${id})">确认删除</button>
+      <button class="btn solid-danger" onclick="confirmDeleteSession(${id})">确认删除</button>
     </div>`);
 }
 function openRenameSession(id, btn) {
@@ -1872,7 +1997,7 @@ async function askResetDemo() {
     <p style="color:var(--text-2);font-size:14px;margin-bottom:4px">将清空当前全部宠物、健康记录、回忆与 AI 会话，并重建初始示例数据。<b style="color:var(--danger)">此操作不可恢复。</b></p>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">取消</button>
-      <button class="btn primary" style="background:var(--danger);border-color:var(--danger)" id="reset-btn" onclick="confirmResetDemo()">确认重置</button>
+      <button class="btn solid-danger" id="reset-btn" onclick="confirmResetDemo()">确认重置</button>
     </div>`);
 }
 async function confirmResetDemo() {
@@ -1978,12 +2103,14 @@ function toggleTheme() {
   const sys = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   document.documentElement.dataset.theme = saved || sys;
 })();
-function toast(text, isErr) {
+function toast(text, level) {
+  // level: 'ok' | 'warn' | 'err'；兼容旧调用 toast(text, true) = 错误
+  const lv = level === true ? 'err' : (level || 'ok');
   const t = document.createElement('div');
-  t.className = 'toast' + (isErr ? ' err' : '');
-  t.innerHTML = `<span class="t-ico">${isErr ? '✕' : '✓'}</span>${esc(text)}`;
+  t.className = 'toast' + (lv === 'ok' ? '' : ' ' + lv);
+  t.innerHTML = `<span class="t-ico">${{ ok: '✓', warn: '!', err: '✕' }[lv]}</span>${esc(text)}`;
   $('toast-root').appendChild(t);
-  setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 300); }, 2300);
+  setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 250); }, 2300);
 }
 document.body.addEventListener('pointerdown', e => {
   const btn = e.target.closest('.btn'); if (!btn) return;

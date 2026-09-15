@@ -169,6 +169,18 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
   check('back to light', doc.documentElement.dataset.theme === 'light');
   check('theme persisted', window.localStorage.getItem('pet-theme') !== null);
 
+  // 微交互体系：toast 三态 + 弹窗关闭动画类
+  window.toast('smoke-warn', 'warn');
+  check('toast warn level', n('#toast-root .toast.warn') === 1);
+  window.toast('smoke-err', true);
+  check('toast err compat', n('#toast-root .toast.err') === 1);
+  window.openModal('<p>smoke</p>');
+  check('modal opened', doc.getElementById('modal-overlay').classList.contains('open'));
+  window.closeModal();
+  check('modal closing anim', doc.getElementById('modal-overlay').classList.contains('closing'));
+  await sleep(220);
+  check('modal closed', !doc.getElementById('modal-overlay').classList.contains('open'));
+
   const fails = results.filter(r => !r.ok);
   for (const r of results) console.log((r.ok ? 'PASS ' : 'FAIL ') + r.name + (r.extra ? '  [' + r.extra + ']' : ''));
   console.log(`\n${results.length - fails.length}/${results.length} passed`);
