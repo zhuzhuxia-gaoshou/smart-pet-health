@@ -9,6 +9,7 @@
 """
 import json
 import os
+import re
 
 import tools
 
@@ -85,6 +86,88 @@ SYSTEM_PROMPT = """你是「智能宠物健康管家」的 AI 助手，一个专
 8. 帮用户记录健康事项（如"帮我记一笔……"）时，必须调用 create_record_draft 工具起草草稿并请用户确认，严禁不调用工具就直接输出"草稿"样式的文字，严禁声称已直接保存；草稿中相对日期（昨天/下周四/下个月等）先按今天换算为 YYYY-MM-DD。
 
 """ + TOOLS_BRIEF
+
+# ---------------------------------------------------------------- 分层多专家：路由 → 专家 → 降级
+# 拓扑：规则路由（0ms、可归因）→ 三位专家（各自提示词 + 工具子集）→ 失败降级到通用 Agent → 规则模式。
+# 门禁不变式：全系统唯一写操作仍是建档草稿，且唯一入口是 care_advisor 的 create_record_draft → 前端确认卡。
+# 禁止给任何专家注册直接写库的工具。
+
+_MED_NOTE = "涉及医疗判断（是否生病、是否停药、指标是否异常）时，明确提示「请以兽医意见为准」。用简体中文，专业、温暖、克制。"
+
+ANALYST_PROMPT = """你是「智能宠物健康管家」的【健康分析师】。你的职责：基于数据库真实数据，回答事实查询与状况评估类问题——宠物档案、健康记录（疫苗/体检/驱虫/喂药/就诊）、临期与逾期提醒、综合健康分析、用药情况、多宠物的关注优先级。
+
+你只负责"查与析"，不负责：护理操作建议、生成正式报告、为用户起草健康记录。遇到这三类需求时，用一句话说明"这个问题更适合护理顾问或报告功能处理"即可，不要越界作答。
+
+规则：
+1. 回答前必须先调用工具获取真实数据，严禁编造任何数字、日期、药名；需要多个信息时可依次调用多个工具（如先 query_pet 确认宠物存在，再 analyze_health）。
+2. 回答结构：第一句直接给结论；随后用列表列出关键事实；保留工具输出的原始结论词（如"已逾期 X 天""还剩 X 天""体重波动超过 10%"），不要改写或省略。
+3. 物种边界：作答前先经 query_pet 确认物种；鸟类不接种常规疫苗、鱼类不存在"腹泻"这一常见病症框架。当问题与该宠物物种不符时，温和指出并给出该物种的正确方向。
+4. 数据不足时诚实说明，并建议用户补充记录。
+5. """ + _MED_NOTE
+
+ADVISOR_PROMPT = """你是「智能宠物健康管家」的【护理顾问】。你的职责：物种护理规范问答（能吃什么、禁忌、该做与不该做的事、日常照护）、基于物种的日常建议，以及帮用户起草健康记录。
+
+你只负责"护与记"，不负责：生成正式健康报告、多宠物数据分析。此类需求请一句话引导用户换个问法，不要越界作答。
+
+规则：
+1. 回答护理问题前，先 query_pet 确认宠物与物种，再调用 get_care_guide 获取该物种的护理规范；规范之外的常识性建议须标注"一般性建议"。
+2. 物种边界是硬约束：鸟类不接种常规疫苗、鱼类不存在"腹泻"这一常见病症框架、药物剂量因物种与体重差异极大；严禁把 A 物种的病症、处置或记录类型套到 B 物种上。当用户的问题与物种不符时，温和纠正并给出该物种的正确方向。
+3. 用药与剂量问题只转述数据库已有信息（query_medications），可给一般性提醒，但必须说明"具体剂量与用药方案请以兽医意见为准"，严禁自行推荐具体药品或剂量。
+4. 用户口述要记一笔健康事项（"记一笔/记一下/打完疫苗了/复诊回来"等）时，必须调用 create_record_draft 工具起草草稿，并请用户在确认卡片中确认或取消；严禁不调用工具就输出草稿样式的文字，严禁声称已直接保存。草稿中相对日期（昨天/下周四等）先按今天换算为 YYYY-MM-DD。
+5. 若工具拒绝起草（该记录类型不适用于该物种），向用户解释原因，不要反复重试。
+6. 建议结构：分"现在可以做 / 需要避免 / 什么情况要就医"三段。""" + _MED_NOTE
+
+WRITER_PROMPT = """你是「智能宠物健康管家」的【报告撰稿人】。你的职责：生成结构化健康报告与成长回顾类内容。
+
+规则：
+1. 生成健康报告必须调用 generate_report 工具获取结构化数据，在其基础上撰写：开头补一段两三句的导语（概述整体状况与最需关注点），正文保留工具输出的全部事实、数字与结论；可调整措辞，但严禁增删改任何数字、日期与结论词。
+2. 输出必须是完整 Markdown，且第一行为「# 」开头的一级标题（界面依赖标题识别报告并提供下载）。
+3. 成长回顾类问题调用 query_memories，基于真实回忆撰写，可润色情感表达，但不得虚构事件。
+4. 报告中的警示结论（逾期、体重波动超过 10%、治疗中）原样保留 ⚠️ 标记，并在结尾注明"本报告由系统数据自动生成，健康判断请以兽医意见为准"。
+5. 多宠物报告保持 generate_report 的分节结构。用简体中文，文风克制、专业，不堆砌形容词。"""
+
+# 专家注册表：tools=None 表示全部工具（通用兜底）
+EXPERTS = {
+    "health_analyst": {"label": "健康分析师", "prompt": ANALYST_PROMPT,
+                       "tools": ["query_pet", "query_health_records", "get_reminders", "analyze_health",
+                                 "query_medications", "get_attention_ranking"]},
+    "care_advisor":   {"label": "护理顾问", "prompt": ADVISOR_PROMPT,
+                       "tools": ["query_pet", "get_care_guide", "query_medications", "get_reminders",
+                                 "create_record_draft"]},
+    "report_writer":  {"label": "报告撰稿人", "prompt": WRITER_PROMPT,
+                       "tools": ["generate_report", "query_pet", "query_health_records", "query_memories"]},
+    "general_agent":  {"label": "通用助手", "prompt": SYSTEM_PROMPT, "tools": None},
+}
+
+# 路由规则（按优先级；建档意图永远最高，保证 main.py 的草稿兜底重试必中 care_advisor）
+_ROUTE_DRAFT = re.compile(r"记一笔|记一下|记录一下|帮我记|帮我登记|登记一下|补充一条|添加一条记录|create_record_draft|起草")
+_ROUTE_REPORT = re.compile(r"报告|周报|月报|年报|报表|总结|成长回顾|回忆|故事|第一次")
+_ROUTE_CARE = re.compile(r"能吃|不能吃|可以吃|禁忌|该做|不该做|怎么照顾|照顾|护理|注意什么|怎么办|换羽|能不能|可不可以|注意事项")
+_ROUTE_HEALTH = re.compile(r"疫苗|驱虫|体检|用药|吃药|什么药|药物|剂量|体重|健康|分析|记录|提醒|到期|临期|逾期|过期|优先|先管|就诊|复诊|三联|狂犬|打针|接种")
+# 弱信号（"怎么样/多大"等）单独出现太泛（"今天天气怎么样"），只在句中带库内宠物名时才算健康问题
+_ROUTE_HEALTH_WEAK = re.compile(r"怎么样|状况|多大|多重|几岁|情况|正常吗")
+_VACCINE_WORDS = re.compile(r"疫苗|驱虫|接种")
+
+
+def _route(message: str) -> tuple[str, str]:
+    """返回 (专家名, 路由来源)。规则优先、确定性；未命中落通用兜底。"""
+    msg = (message or "").strip()
+    if _ROUTE_DRAFT.search(msg):
+        return "care_advisor", "rule:draft"
+    # 物种边界动态规则：非猫狗宠物 + 疫苗/驱虫词 → 交给护理顾问纠正（如"翠翠该打什么疫苗"）
+    pet_name = _find_pet_name(msg)
+    if pet_name and _VACCINE_WORDS.search(msg):
+        import db
+        pet = db.fetch_pet_by_name(pet_name)
+        if pet and pet.get("type") not in ("cat", "dog"):
+            return "care_advisor", "rule:species-boundary"
+    if _ROUTE_REPORT.search(msg):
+        return "report_writer", "rule:report"
+    if _ROUTE_CARE.search(msg):
+        return "care_advisor", "rule:care"
+    if _ROUTE_HEALTH.search(msg) or (pet_name and _ROUTE_HEALTH_WEAK.search(msg)):
+        return "health_analyst", "rule:health"
+    return "general_agent", "default"
 
 # ---------------------------------------------------------------- LangChain Agent
 
@@ -206,19 +289,62 @@ def _build_tools():
     ]
 
 
-def _get_agent(prov: str):
-    """按供应商构建并缓存 Agent；失败抛异常（由调用方处理）。"""
-    if prov in _agent_cache:
-        return _agent_cache[prov]
+_TOOL_REGISTRY: dict | None = None
+
+
+def _tool_registry() -> dict:
+    """StructuredTool 无状态，构建一次按名字复用，供各专家按子集取用。"""
+    global _TOOL_REGISTRY
+    if _TOOL_REGISTRY is None:
+        _TOOL_REGISTRY = {t.name: t for t in _build_tools()}
+    return _TOOL_REGISTRY
+
+
+def _expert_prompt(profile: str) -> str:
+    """专家系统提示词 + 该专家可用工具的简介（通用助手已自带 TOOLS_BRIEF）。"""
+    spec = EXPERTS[profile]
+    if spec["tools"] is None:
+        return spec["prompt"]
+    desc = {name: d for name, d in tools.TOOL_META}
+    brief = "\n".join(f"- {n}: {desc.get(n, '')}" for n in spec["tools"])
+    return spec["prompt"] + "\n\n可用工具：\n" + brief
+
+
+def _get_agent(prov: str, profile: str = "general_agent"):
+    """按 (供应商, 专家) 构建并缓存 Agent；失败抛异常（由调用方处理）。"""
+    key = (prov, profile)
+    if key in _agent_cache:
+        return _agent_cache[key]
     from langchain.agents import create_agent
-    obj = create_agent(model=_build_llm(prov), tools=_build_tools(), system_prompt=SYSTEM_PROMPT)
-    _agent_cache[prov] = obj
+    spec = EXPERTS[profile]
+    reg = _tool_registry()
+    tool_list = list(reg.values()) if spec["tools"] is None else [reg[n] for n in spec["tools"]]
+    obj = create_agent(model=_build_llm(prov), tools=tool_list, system_prompt=_expert_prompt(profile))
+    _agent_cache[key] = obj
     return obj
 
 
-def _ask_agent(message: str, history: list[dict] | None = None) -> str:
-    """按优先级尝试每个可用供应商（DeepSeek → 通义）；
-    欠费等持续性错误熔断该供应商，其余错误仅跳过本次。全部失败则降级示例回答。"""
+def _extract_ai_text(result) -> str:
+    """从 Agent 结果里取最后一条有效 AI 文本；Anthropic 风格块数组只取 text 块（忽略 thinking）。"""
+    for m in reversed(result.get("messages", [])):
+        if getattr(m, "type", "") not in ("ai", "assistant"):
+            continue
+        content = getattr(m, "content", "")
+        if isinstance(content, list):
+            text = "\n".join(b.get("text", "") for b in content
+                             if isinstance(b, dict) and b.get("type") == "text").strip()
+        else:
+            text = str(content).strip()
+        if text:
+            return text
+    return ""
+
+
+def _ask_with(profile: str, message: str, history: list[dict] | None = None) -> str:
+    """用指定专家按供应商链回答（百炼 → DeepSeek → 通义）。
+    欠费等持续性错误熔断该供应商（全专家共享）；空回复/其余错误仅跳过本次。
+    全部失败返回以 ⚠️ 开头的说明文本（调用方据此决定降级）。"""
+    global _agent_failed
     msgs = [{"role": h["role"], "content": h["content"]} for h in (history or [])]
     from datetime import date as _date
     msgs.append({"role": "user",
@@ -228,21 +354,12 @@ def _ask_agent(message: str, history: list[dict] | None = None) -> str:
         if prov in _dead_providers:
             continue
         try:
-            agent = _get_agent(prov)
+            agent = _get_agent(prov, profile)
             result = agent.invoke({"messages": msgs}, config={"recursion_limit": 12})
-            for m in reversed(result.get("messages", [])):
-                if getattr(m, "type", "") not in ("ai", "assistant"):
-                    continue
-                content = getattr(m, "content", "")
-                if isinstance(content, list):
-                    # Anthropic 风格块数组：只取 text 块（忽略 thinking 内部推理）
-                    text = "\n".join(b.get("text", "") for b in content
-                                     if isinstance(b, dict) and b.get("type") == "text").strip()
-                else:
-                    text = str(content).strip()
-                if text:
-                    return text
-            return "（模型未返回内容，请重试）"
+            text = _extract_ai_text(result)
+            if text:
+                return text
+            last_err = RuntimeError("模型未返回内容")
         except Exception as e:
             last_err = e
             text = str(e)
@@ -250,10 +367,16 @@ def _ask_agent(message: str, history: list[dict] | None = None) -> str:
                 _dead_providers.add(prov)  # 欠费是持续状态 → 本进程内熔断该供应商
     _agent_failed = not _llm_candidates()
     if last_err is not None:
-        return (f"⚠️ Agent 本次调用失败（{type(last_err).__name__}: {last_err}），本条为示例回答。\n\n"
-                + _example_answer(message))
-    return ("⚠️ Agent 暂不可用（没有可用的模型供应商），本条为示例回答。\n\n"
-            + _example_answer(message))
+        return f"⚠️ {EXPERTS[profile]['label']}本次调用失败（{type(last_err).__name__}: {last_err}）"
+    return "⚠️ 没有可用的模型供应商"
+
+
+def _ask_agent(message: str, history: list[dict] | None = None) -> str:
+    """通用 Agent（全工具）直答；供简报/体重解读/护理计划复用。失败时附带示例回答。"""
+    reply = _ask_with("general_agent", message, history)
+    if reply.startswith("⚠️"):
+        return reply + "，本条为示例回答。\n\n" + _example_answer(message)
+    return reply
 
 
 # ---------------------------------------------------------------- 无 Key 降级
@@ -509,17 +632,26 @@ def generate_care_plan(pet_id: int) -> dict:
 # ---------------------------------------------------------------- 对外入口
 
 def answer(message: str, history: list[dict] | None = None) -> dict:
-    """返回 {"reply": 回答文本, "mode": "agent"|"example"}。
+    """分层多专家问答。返回 {"reply", "mode": "agent"|"example", "expert", "route", "degraded"?}。
 
-    history：最近多轮对话 [{role: user|assistant, content}, ...]（时间正序），
-    让 Agent 支持追问（如"那它的体重呢？"）；示例回答模式为单轮，忽略历史。
+    降级链：① 规则路由选专家 → ② 专家（供应商链内重试）→ ③ 通用 Agent（全工具）→ ④ 规则模式。
+    mode 保持 agent/example 二值（前端与 /api/agent/status 依赖），专家名放 expert 字段。
+    history：最近多轮对话 [{role, content}, ...]（时间正序），支持追问；规则模式为单轮。
     """
+    expert, route_src = _route(message)
     if provider() and not _agent_failed:
-        reply = _ask_agent(message, history)
-        if reply.startswith("⚠️"):
-            return {"reply": reply, "mode": "example"}
-        return {"reply": reply, "mode": "agent"}
-    return {"reply": _example_answer(message), "mode": "example"}
+        reply = _ask_with(expert, message, history)
+        if not reply.startswith("⚠️"):
+            return {"reply": reply, "mode": "agent", "expert": expert,
+                    "expert_label": EXPERTS[expert]["label"], "route": route_src}
+        if expert != "general_agent":
+            reply = _ask_with("general_agent", message, history)
+            if not reply.startswith("⚠️"):
+                return {"reply": reply, "mode": "agent", "expert": "general_agent",
+                        "expert_label": EXPERTS["general_agent"]["label"], "route": route_src, "degraded": True}
+        return {"reply": reply + "，本条为示例回答。\n\n" + _example_answer(message),
+                "mode": "example", "expert": "none", "route": route_src}
+    return {"reply": _example_answer(message), "mode": "example", "expert": "none", "route": route_src}
 
 
 def current_provider() -> str | None:

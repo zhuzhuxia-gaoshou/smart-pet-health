@@ -500,7 +500,8 @@ def api_chat(body: ChatIn):
             draft = d2
             m2 = DRAFT_RE.search(retry["reply"])
             text = DRAFT_RE.sub("", retry["reply"]).strip() if m2 else retry["reply"]
-            result = {"reply": text, "mode": retry["mode"]}
+            result = {"reply": text, "mode": retry["mode"], "expert": retry.get("expert"),
+                      "expert_label": retry.get("expert_label"), "route": retry.get("route")}
     db.add_chat_message("user", body.message, sid)
     db.add_chat_message("assistant", result["reply"], sid, is_draft=bool(draft))
     db.touch_session(sid)
