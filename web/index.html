@@ -138,6 +138,7 @@ a { color: var(--accent); }
 .btn:hover { border-color: color-mix(in srgb, var(--border) 40%, var(--text-2)); box-shadow: var(--shadow-sm); }
 .btn.primary { background: var(--accent-strong); border-color: var(--accent-strong); color: var(--on-accent); }
 .btn.primary:hover { background: color-mix(in srgb, var(--accent-strong) 88%, #000); }
+html[data-theme="dark"] .btn.primary:hover { background: color-mix(in srgb, var(--accent-strong) 86%, #fff); }
 .btn.ghost { background: transparent; border-color: transparent; color: var(--text-2); }
 .btn.ghost:hover { background: var(--surface-2); color: var(--text); box-shadow: none; }
 .btn.danger { color: var(--danger); }
@@ -2535,7 +2536,7 @@ async function checkNotify() {
     const ov = $('modal-overlay');
     if (e.key !== 'Tab' || !ov || !ov.classList.contains('open')) return;
     const f = [...ov.querySelectorAll('button,[href],input:not([type=hidden]),select,textarea,[tabindex="0"]')]
-      .filter(el => !el.disabled && el.getClientRects().length);
+      .filter(el => !el.disabled && !el.classList.contains('loading') && el.getClientRects().length);
     if (!f.length) { e.preventDefault(); $('modal-box').focus(); return; }
     const first = f[0], last = f[f.length - 1], cur = document.activeElement;
     if (e.shiftKey && (cur === first || !ov.contains(cur))) { e.preventDefault(); last.focus(); }
