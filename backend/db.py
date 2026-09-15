@@ -5,6 +5,7 @@
 - 每请求新建连接（sqlite3 线程安全模式下 check_same_thread=False）。
 - 日期统一存 'YYYY-MM-DD' 字符串。
 """
+import calendar
 import os
 import sqlite3
 from datetime import date, datetime, timedelta
@@ -92,6 +93,12 @@ CREATE TABLE IF NOT EXISTS app_kv(
   value TEXT,
   updated_at TEXT DEFAULT (datetime('now','localtime'))
 );
+CREATE INDEX IF NOT EXISTS idx_records_pet ON health_records(pet_id, date);
+CREATE INDEX IF NOT EXISTS idx_records_next ON health_records(next_date);
+CREATE INDEX IF NOT EXISTS idx_weights_pet ON weight_logs(pet_id, date);
+CREATE INDEX IF NOT EXISTS idx_meds_pet ON medications(pet_id, status);
+CREATE INDEX IF NOT EXISTS idx_memories_pet ON memories(pet_id, date);
+CREATE INDEX IF NOT EXISTS idx_chat_session ON chat_history(session_id);
 """
 
 
@@ -110,6 +117,8 @@ def _placeholder_image(emoji: str, c1: str, c2: str) -> str:
 def init_db() -> None:
     conn = get_conn()
     try:
+        # WAL：简报后台线程与请求并发读写不互相阻塞
+        conn.execute("PRAGMA journal_mode=WAL")
         # 旧版 chat_history 无会话维度 → 重建（历史对话不迁移）
         cols = [r["name"] for r in conn.execute("PRAGMA table_info(chat_history)").fetchall()]
         if cols and "session_id" not in cols:
@@ -253,8 +262,9 @@ def _rec_labels(d: dict) -> dict:
 
 
 def roll_date(base: str, rule: str) -> str:
-    """按重复周期从 base 滚动到下一次日期；月/年滚动钳制到目标月最后一天（1月31日→2月28日）。"""
-    import calendar
+    """按重复周期从 base 滚动到下一次日期。
+    月/年滚动钳制到目标月最后一天（1月31日→2月28日）；钳制后按钳制日继续滚动（2/28→3/28），
+    这是有意的产品决策：宠物护理节奏以"大约每月"为准，不追求回到原日号。"""
     d = datetime.strptime(base, "%Y-%m-%d").date()
     if rule == "daily":
         return (d + timedelta(days=1)).isoformat()
@@ -450,7 +460,8 @@ def update_record(record_id: int, data: dict) -> dict | None:
 def complete_record(record_id: int) -> dict | None:
     """把带下次日期的记录标记为「本轮已做」：当前记录 next_date 置空退出提醒（历史保留）；
     若有重复周期，则以今天为 date 生成下一轮记录，next_date 按周期滚动。
-    滚动基准 = max(今天, 原到期日)：逾期完成从今天重置节奏，提前完成保持原节奏。"""
+    滚动基准 = max(今天, 原到期日)：逾期完成从今天重置节奏，提前完成保持原节奏。
+    并发安全：用条件 UPDATE（next_date IS NOT NULL）抢占本轮，rowcount 为 0 说明已被处理，不重复生成。"""
     conn = get_conn()
     try:
         row = conn.execute("SELECT * FROM health_records WHERE id=?", (record_id,)).fetchone()
@@ -458,11 +469,13 @@ def complete_record(record_id: int) -> dict | None:
             return None
         if not row["next_date"]:
             return {"record": _rec_labels(dict(row)), "next": None}
-        today = today_str()
-        conn.execute("UPDATE health_records SET next_date=NULL WHERE id=?", (record_id,))
+        claimed = conn.execute(
+            "UPDATE health_records SET next_date=NULL WHERE id=? AND next_date IS NOT NULL",
+            (record_id,)).rowcount
         next_id = None
         rule = row["repeat_rule"] or ""
-        if rule in REPEAT_RULES and rule:
+        if claimed and rule in REPEAT_RULES and rule:
+            today = today_str()
             next_date = roll_date(max(today, row["next_date"]), rule)
             cur = conn.execute(
                 "INSERT INTO health_records(pet_id,type,date,title,note,next_date,repeat_rule)"
@@ -470,9 +483,11 @@ def complete_record(record_id: int) -> dict | None:
                 (row["pet_id"], row["type"], today, row["title"], row["note"], next_date, rule))
             next_id = cur.lastrowid
         conn.commit()
+        record = _rec_labels(dict(conn.execute("SELECT * FROM health_records WHERE id=?", (record_id,)).fetchone()))
+        nxt = _rec_labels(dict(conn.execute("SELECT * FROM health_records WHERE id=?", (next_id,)).fetchone())) if next_id else None
+        return {"record": record, "next": nxt}
     finally:
         conn.close()
-    return {"record": get_record(record_id), "next": get_record(next_id) if next_id else None}
 
 
 def add_weight_log(pet_id: int, data: dict) -> dict | None:
@@ -528,18 +543,40 @@ def stats() -> dict:
     }
 
 
-def list_all_records(limit: int | None = None) -> list[dict]:
-    """全部健康记录（带宠物名/头像），按日期倒序 — 供"健康记录"页使用。"""
+def list_all_records(limit: int | None = None, pet_id: int | None = None,
+                     rtype: str | None = None, offset: int = 0) -> list[dict]:
+    """全部健康记录（带宠物名/头像），按日期倒序 — 供"健康记录"页使用；可按宠物/类型筛选并分页。"""
+    where, args = [], []
+    if pet_id:
+        where.append("r.pet_id=?"); args.append(pet_id)
+    if rtype and rtype in RECORD_TYPES:
+        where.append("r.type=?"); args.append(rtype)
     sql = ("SELECT r.*, p.name AS pet_name, p.avatar AS pet_avatar, p.type AS pet_type"
            " FROM health_records r JOIN pets p ON p.id = r.pet_id"
-           " ORDER BY r.date DESC, r.id DESC")
+           + (" WHERE " + " AND ".join(where) if where else "")
+           + " ORDER BY r.date DESC, r.id DESC")
+    if limit:
+        sql += " LIMIT ? OFFSET ?"; args += [limit, max(0, offset)]
     conn = get_conn()
     try:
-        rows = conn.execute(sql + (" LIMIT ?" if limit else ""),
-                            ((limit,) if limit else ())).fetchall()
+        rows = conn.execute(sql, args).fetchall()
     finally:
         conn.close()
     return [_rec_labels(dict(r)) for r in rows]
+
+
+def count_records(pet_id: int | None = None, rtype: str | None = None) -> int:
+    where, args = [], []
+    if pet_id:
+        where.append("pet_id=?"); args.append(pet_id)
+    if rtype and rtype in RECORD_TYPES:
+        where.append("type=?"); args.append(rtype)
+    conn = get_conn()
+    try:
+        return conn.execute("SELECT COUNT(*) FROM health_records"
+                            + (" WHERE " + " AND ".join(where) if where else ""), args).fetchone()[0]
+    finally:
+        conn.close()
 
 
 def recent_activity(limit: int = 5) -> list[dict]:

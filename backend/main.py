@@ -13,10 +13,11 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
-from pydantic import BaseModel, Field
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from pydantic import BaseModel, Field, field_validator
 
 import db
 import species
@@ -29,7 +30,7 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="智能宠物健康管家", version="2.1", lifespan=lifespan)
+app = FastAPI(title="智能宠物健康管家", version="2.2", lifespan=lifespan)
 
 # 开发期放开 CORS（允许前端跨端口调试）
 app.add_middleware(
@@ -40,7 +41,29 @@ app.add_middleware(
 )
 
 
+@app.exception_handler(RequestValidationError)
+async def _validation_error(_req: Request, exc: RequestValidationError):
+    """参数校验失败统一为 {error} 形态（前端按 data.error 提示），而非默认的 detail 数组。"""
+    msgs = []
+    for e in exc.errors():
+        loc = "·".join(str(x) for x in e.get("loc", []) if x not in ("body", "query", "path"))
+        msg = str(e.get("msg", "")).replace("Value error, ", "")
+        msgs.append(f"{loc}：{msg}" if loc else msg)
+    return JSONResponse(status_code=422, content={"error": "；".join(msgs) or "请求参数无效"})
+
+
 # ---------------------------------------------------------------- 模型
+
+def _check_date(v: str | None) -> str | None:
+    """日期字段统一校验：空值放过，否则必须是 YYYY-MM-DD。"""
+    if v in (None, ""):
+        return v
+    try:
+        datetime.strptime(v, "%Y-%m-%d")
+    except ValueError:
+        raise ValueError("日期格式应为 YYYY-MM-DD")
+    return v
+
 
 class PetIn(BaseModel):
     name: str = Field(..., min_length=1, max_length=30)
@@ -53,6 +76,11 @@ class PetIn(BaseModel):
     personality: str | None = None
     avatar: str | None = None
 
+    @field_validator("birthday")
+    @classmethod
+    def _vd(cls, v):
+        return _check_date(v)
+
 
 class RecordIn(BaseModel):
     type: str = Field(..., description="vaccine|checkup|deworm|medication|clinic")
@@ -62,6 +90,18 @@ class RecordIn(BaseModel):
     next_date: str | None = None
     weight: float | None = None
     repeat_rule: str | None = Field(None, description="''|daily|weekly|monthly|yearly；配合 next_date 使用")
+
+    @field_validator("date", "next_date")
+    @classmethod
+    def _vd(cls, v):
+        return _check_date(v)
+
+    @field_validator("type")
+    @classmethod
+    def _vt(cls, v):
+        if v not in db.RECORD_TYPES:
+            raise ValueError("记录类型无效，可选：" + "/".join(db.RECORD_TYPES))
+        return v
 
 
 class ChatIn(BaseModel):
@@ -73,6 +113,11 @@ class WeightIn(BaseModel):
     weight: float = Field(..., gt=0, description="体重 kg")
     date: str | None = None
 
+    @field_validator("date")
+    @classmethod
+    def _vd(cls, v):
+        return _check_date(v)
+
 
 class MemoryIn(BaseModel):
     date: str = Field(..., min_length=8, max_length=10)
@@ -80,6 +125,11 @@ class MemoryIn(BaseModel):
     pet_id: int | None = None
     text: str | None = Field(None, max_length=2000)
     image: str | None = None   # base64 data URI（前端已压缩）
+
+    @field_validator("date")
+    @classmethod
+    def _vd(cls, v):
+        return _check_date(v)
 
 
 class MedicationIn(BaseModel):
@@ -90,6 +140,11 @@ class MedicationIn(BaseModel):
     end_date: str | None = None
     status: str | None = Field(None, description="active|finished")
     note: str | None = Field(None, max_length=300)
+
+    @field_validator("start_date", "end_date")
+    @classmethod
+    def _vd(cls, v):
+        return _check_date(v)
 
 
 # ---------------------------------------------------------------- 宠物 CRUD
@@ -311,8 +366,11 @@ def api_reminders():
 
 
 @app.get("/api/records")
-def api_all_records(limit: int | None = None):
-    return {"records": db.list_all_records(limit)}
+def api_all_records(limit: int | None = None, pet_id: int | None = None,
+                    type: str | None = None, offset: int = 0):
+    """全部健康记录；支持 pet_id / type 筛选与 limit+offset 分页，total 为筛选后的总数。"""
+    return {"records": db.list_all_records(limit, pet_id, type, offset),
+            "total": db.count_records(pet_id, type)}
 
 
 @app.get("/api/stats")
