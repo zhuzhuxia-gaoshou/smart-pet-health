@@ -1088,7 +1088,6 @@ async function renderDashboard() {
     statCard('w', '', st.due_count, '临期/逾期项目', '<path d=\"M10.3 3.6L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0z\"/><path d=\"M12 9v4M12 17h.01\"/>', "go('reminders')", '处理提醒'),
   ].join('');
   if (!_countedOnce) { animateCount($('stat-row')); _countedOnce = true; }
-
   const rem = state.reminders;
   // 逾期优先、越近越前；只展示前 4 条，其余给出「还有 N 条」入口
   const sorted = [...rem].sort((a, b) => (b.overdue - a.overdue) || (a.days_left - b.days_left));
@@ -1197,7 +1196,7 @@ function statCard(cls, emoji, num, label, svg, nav, hint) {
   return `<div class="card stat-card clickable" role="button" tabindex="0" onclick="${nav}">
     <span class="stat-hint">${hint} →</span>
     <span class="stat-ico ${cls}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${svg}</svg></span>
-    <div class="stat-num" data-num="${num}">0</div><div class="stat-label">${label}</div></div>`;
+    <div class="stat-num" data-num="${num}">${num}</div><div class="stat-label">${label}</div></div>`;
 }
 function animateCount(root) {
   root.querySelectorAll('.stat-num').forEach(el => {
