@@ -463,6 +463,19 @@ def api_delete_expense(exp_id: int):
     return {"ok": True}
 
 
+# ---------------------------------------------------------------- 健康日历
+
+@app.get("/api/calendar")
+def api_calendar(year: int | None = None, month: int | None = None):
+    """某月健康事项聚合：提醒（逾期/临期/待办分级）+ 已做记录 + 进行中用药，按日期分桶；缺省为本月。"""
+    today = datetime.now()
+    year, month = year or today.year, month or today.month
+    err = _check_month(year, month)
+    if err:
+        return JSONResponse(status_code=422, content={"error": err})
+    return db.calendar_month(year, month)
+
+
 @app.get("/api/reminders")
 def api_reminders():
     return {"reminders": db.compute_reminders()}

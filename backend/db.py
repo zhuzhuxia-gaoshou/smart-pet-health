@@ -1191,6 +1191,79 @@ def seed_expenses() -> None:
         conn.close()
 
 
+# ---------------------------------------------------------------- 健康日历（零新表，三源聚合）
+
+def calendar_month(year: int, month: int) -> dict:
+    """某月每天的健康事项：待办提醒（health_records.next_date，分级 overdue/soon/todo）、
+    已做记录（health_records.date）、进行中的用药（medications active 且当天落在 start~end 区间，end 空视为长期）。
+    只返回有事项的日期；分级基准是"今天"而非所查月份，翻到未来月份时逾期项仍按今天判定。"""
+    last_day = calendar.monthrange(year, month)[1]
+    lo, hi = date(year, month, 1).isoformat(), date(year, month, last_day).isoformat()
+    conn = get_conn()
+    try:
+        recs = conn.execute(
+            "SELECT r.*, p.name AS pet_name, p.avatar AS pet_avatar, p.type AS pet_type"
+            " FROM health_records r JOIN pets p ON p.id = r.pet_id"
+            " WHERE (r.next_date BETWEEN ? AND ?) OR (r.date BETWEEN ? AND ?)"
+            " ORDER BY r.date DESC, r.id DESC", (lo, hi, lo, hi)).fetchall()
+        meds = conn.execute(
+            "SELECT m.*, p.name AS pet_name FROM medications m JOIN pets p ON p.id = m.pet_id"
+            " WHERE m.status='active'"
+            " AND (m.start_date IS NULL OR m.start_date = '' OR m.start_date <= ?)"
+            " AND (m.end_date IS NULL OR m.end_date = '' OR m.end_date >= ?)"
+            " ORDER BY m.pet_id, m.start_date", (hi, lo)).fetchall()
+    finally:
+        conn.close()
+
+    days: dict[str, dict] = {}
+    def bucket(d: str) -> dict:
+        return days.setdefault(d, {"reminders": [], "records": [], "meds": []})
+
+    for r in recs:
+        r = dict(r)
+        base = {"record_id": r["id"], "pet_id": r["pet_id"], "pet_name": r["pet_name"],
+                "pet_avatar": r["pet_avatar"], "type": r["type"],
+                "type_label": RECORD_TYPES.get(r["type"], r["type"]), "title": r["title"]}
+        if r["next_date"] and lo <= r["next_date"] <= hi:
+            left = days_until(r["next_date"])
+            rule = r["repeat_rule"] or ""
+            bucket(r["next_date"])["reminders"].append({
+                **base, "next_date": r["next_date"], "days_left": left, "overdue": left < 0,
+                "level": "overdue" if left < 0 else ("soon" if left <= 7 else "todo"),
+                "repeat_rule": rule, "repeat_label": REPEAT_RULES.get(rule, "") if rule else ""})
+        if r["date"] and lo <= r["date"] <= hi:
+            bucket(r["date"])["records"].append({**base, "date": r["date"], "note": r.get("note") or ""})
+
+    for m in meds:
+        m = dict(m)
+        start = max(m["start_date"] or lo, lo)
+        end = min(m["end_date"] or hi, hi)
+        try:
+            cur = datetime.strptime(start, "%Y-%m-%d").date()
+            stop = datetime.strptime(end, "%Y-%m-%d").date()
+        except ValueError:
+            continue          # 老库脏日期：跳过这一条，不让整月日历 500
+        item = {"id": m["id"], "pet_id": m["pet_id"], "pet_name": m["pet_name"], "name": m["name"],
+                "dosage": m.get("dosage") or "", "frequency": m.get("frequency") or "",
+                "start_date": m["start_date"], "end_date": m.get("end_date")}
+        while cur <= stop:
+            bucket(cur.isoformat())["meds"].append(item)
+            cur += timedelta(days=1)
+
+    level_rank = {"overdue": 0, "soon": 1, "todo": 2}
+    for d in days.values():
+        d["reminders"].sort(key=lambda x: (level_rank[x["level"]], x["days_left"]))
+    return {
+        "year": year, "month": month, "first": lo, "last": hi,
+        "days": dict(sorted(days.items())),
+        "summary": {
+            "reminders": sum(len(d["reminders"]) for d in days.values()),
+            "records": sum(len(d["records"]) for d in days.values()),
+            "med_days": sum(1 for d in days.values() if d["meds"]),
+        },
+    }
+
+
 if __name__ == "__main__":
     init_and_seed()
     print("DB ready:", DB_PATH)

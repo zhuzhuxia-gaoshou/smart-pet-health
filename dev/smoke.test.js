@@ -113,7 +113,7 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
 
   // ---------- 回忆集 ----------
   const tabTexts = [...doc.querySelectorAll('#nav-tabs .tab-btn')].map(b => b.textContent.trim()).join('|');
-  check('nav order 宠物→记账→回忆集→AI助手', tabTexts === '仪表盘|宠物|记账|回忆集|AI 助手', tabTexts);
+  check('nav order 宠物→记账→日历→回忆集→AI助手', tabTexts === '仪表盘|宠物|记账|日历|回忆集|AI 助手', tabTexts);
   T.go('memories');
   await sleep(700);
   const memAll = (await (await fetch(BASE + '/api/memories')).json()).memories.length;
@@ -241,7 +241,7 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
   // 无障碍补丁：skip link / aria-live / tab 语义 / 弹窗 dialog+label 关联 / 可点行键盘可达
   check('skip link injected', !!doc.querySelector('.skip-link'));
   check('toast root aria-live', doc.getElementById('toast-root').getAttribute('aria-live') === 'polite');
-  check('nav tabs have tab role', n('#nav-tabs [role=tab]') === 5);
+  check('nav tabs have tab role', n('#nav-tabs [role=tab]') === 6);
   window.openModal('<h3>t</h3><div class="form-field"><label>名字</label><input name="x"></div>');
   await sleep(80);
   check('modal has dialog role', doc.getElementById('modal-box').getAttribute('role') === 'dialog');
@@ -293,6 +293,55 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
     await T.api('/api/expenses/' + e2.expense.id, { method: 'DELETE' });
     let gone = ''; try { await T.api('/api/expenses/' + e1.expense.id, { method: 'DELETE' }); } catch (e) { gone = e.message; }
     check('expense delete idempotent error', gone.includes('不存在'));
+  }
+
+  // ---------- 健康日历：三源聚合 / 栅格 / 今天格 / 当日卡 / 月切换 ----------
+  if (kel) {
+    const today = new Date(), yy = today.getFullYear(), mm = today.getMonth() + 1, dd = today.getDate();
+    const todayIso = `${yy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+    // 自造数据，不依赖种子：一条今天到期的提醒（soon）+ 一条从今天起的长期用药（紫点）
+    const rec = await T.api(`/api/pets/${kel.id}/records`, { method: 'POST', body: JSON.stringify({ type: 'checkup', title: '__smoke_cal__', next_date: todayIso }) });
+    const med = await T.api(`/api/pets/${kel.id}/medications`, { method: 'POST', body: JSON.stringify({ name: '__smoke_med__', start_date: todayIso }) });
+    try {
+      check('calendar rejects month 13', (await fetch(BASE + '/api/calendar?year=2026&month=13')).status === 422);
+      const cal = await (await fetch(BASE + `/api/calendar?year=${yy}&month=${mm}`)).json();
+      check('calendar payload shape', cal.year === yy && cal.month === mm && typeof cal.days === 'object' && 'reminders' in cal.summary);
+      const td = cal.days[todayIso] || { reminders: [], records: [], meds: [] };
+      check('today bucket has soon reminder', td.reminders.some(r => r.title === '__smoke_cal__' && r.level === 'soon' && r.days_left === 0));
+      check('today bucket has med + reminders carry level', td.meds.some(m => m.name === '__smoke_med__')
+        && Object.values(cal.days).flatMap(d => d.reminders).every(r => ['overdue', 'soon', 'todo'].includes(r.level)));
+      const daysLeftInMonth = new Date(yy, mm, 0).getDate() - dd + 1;
+      check('open-ended med expands to month end', cal.summary.med_days >= daysLeftInMonth, `med_days ${cal.summary.med_days} < ${daysLeftInMonth}`);
+
+      T.go('calendar'); await sleep(700);
+      check('calendar month label', (T.$('cal-month').textContent || '').includes(`${mm}月`), T.$('cal-month').textContent);
+      check('calendar 7 weekday headers', n('#cal-grid .cal-dow') === 7);
+      const cells = n('#cal-grid .cal-cell');
+      check('calendar grid is whole weeks (28~42)', cells % 7 === 0 && cells >= 28 && cells <= 42, 'got ' + cells);
+      const todayCell = doc.querySelector('#cal-grid .cal-cell.today');
+      check('calendar today cell highlighted', !!todayCell && todayCell.querySelector('.cal-num').textContent === String(dd));
+      check('today cell shows dots (soon + med)', !!todayCell && todayCell.querySelectorAll('.cal-dot').length >= 2, 'got ' + (todayCell ? todayCell.querySelectorAll('.cal-dot').length : 0));
+      check('active cells keyboard reachable', [...doc.querySelectorAll('#cal-grid .cal-cell:not(.dim)')].every(el => el.getAttribute('role') === 'button' && el.getAttribute('tabindex') === '0' && el.getAttribute('aria-label').includes('月')));
+      check('dim cells not focusable', [...doc.querySelectorAll('#cal-grid .cal-cell.dim')].every(el => !el.hasAttribute('tabindex')));
+      check('today cell aria says 今天', !!todayCell && (todayCell.getAttribute('aria-label') || '').includes('今天'));
+      // jsdom(outside-only) 不执行内联 onclick，这里直接调用格子绑定的函数
+      window.openDayCard(todayIso); await sleep(80);
+      check('day card opens with today items', doc.getElementById('modal-overlay').classList.contains('open')
+        && doc.querySelector('#modal-box h3')?.textContent.includes(`${mm}月${dd}日`)
+        && [...doc.querySelectorAll('#modal-box .reminder-item .rem-title')].some(el => el.textContent.includes('__smoke_cal__'))
+        && [...doc.querySelectorAll('#modal-box .med-done-item b')].some(el => el.textContent === '__smoke_med__'));
+      check('day card 完成 button present', n('#modal-box .rem-done') >= 1);
+      check('day card sets dayCardISO', state().dayCardISO === todayIso);
+      window.closeModal(); await sleep(220);
+      check('closeModal clears dayCardISO', state().dayCardISO === null);
+      window.calShift(-1); await sleep(500);
+      check('calendar shifts to previous month', (T.$('cal-month').textContent || '') !== `${yy}年${mm}月` && T.$('cal-today').style.display !== 'none');
+      window.calToday(); await sleep(500);
+      check('calendar back to today', (T.$('cal-month').textContent || '') === `${yy}年${mm}月` && T.$('cal-today').style.display === 'none');
+    } finally {
+      if (rec.record) await T.api('/api/records/' + rec.record.id, { method: 'DELETE' }).catch(() => {});
+      if (med.medication) await T.api('/api/medications/' + med.medication.id, { method: 'DELETE' }).catch(() => {});
+    }
   }
 
   const fails = results.filter(r => !r.ok);

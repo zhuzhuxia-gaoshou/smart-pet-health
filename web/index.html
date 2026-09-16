@@ -808,6 +808,27 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
 .exp-group-head:first-child { margin-top: 0; }
 .exp-group-head .g-sub { color: var(--text-2); font-weight: 500; font-size: 12.5px; }
 @media (max-width: 760px) { .exp-top { grid-template-columns: 1fr; } }
+
+/* ---------- 健康日历 ---------- */
+.cal-legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12px; color: var(--text-2); align-items: center; margin-left: auto; }
+.cal-legend i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; max-width: 960px; }
+.cal-dow { text-align: center; font-size: 12px; color: var(--text-2); padding: 4px 0 8px; font-weight: 600; }
+.cal-cell {
+  min-height: 86px; padding: 8px 9px; border: 1px solid var(--border); border-radius: var(--r-sm);
+  background: var(--surface); cursor: pointer; display: flex; flex-direction: column; gap: 6px;
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+.cal-cell:not(.dim):hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.cal-cell:not(.dim):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cal-cell.dim { opacity: .38; background: transparent; cursor: default; pointer-events: none; }
+.cal-cell.today { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); box-shadow: 0 0 0 3px var(--accent-soft); }
+.cal-num { font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--text); width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; }
+.cal-cell.today .cal-num { background: var(--accent-strong); color: var(--on-accent); font-weight: 600; }
+.cal-dots { display: flex; gap: 4px; align-items: center; min-height: 7px; flex-wrap: wrap; }
+.cal-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.cal-more { font-size: 11px; color: var(--text-3); }
+.day-card-pet { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 </style>
 </head>
 <body>
@@ -824,6 +845,7 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
     <button class="tab-btn active" role="tab" aria-selected="true" data-view="dashboard" onclick="go('dashboard')">仪表盘</button>
     <button class="tab-btn" role="tab" aria-selected="false" data-view="library" onclick="go('library')">宠物</button>
     <button class="tab-btn" role="tab" aria-selected="false" data-view="ledger" onclick="go('ledger')">记账</button>
+    <button class="tab-btn" role="tab" aria-selected="false" data-view="calendar" onclick="go('calendar')">日历</button>
     <button class="tab-btn" role="tab" aria-selected="false" data-view="memories" onclick="go('memories')">回忆集</button>
     <button class="tab-btn" role="tab" aria-selected="false" data-view="chat" onclick="go('chat')">AI 助手</button>
   </nav>
@@ -998,6 +1020,30 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
     <div id="ledger-list"></div>
   </section>
 
+  <!-- 健康日历 -->
+  <section class="view" id="view-calendar">
+    <div class="page-head">
+      <div class="page-title">健康日历</div>
+      <div class="page-sub">提醒、已做记录与用药，一个月看全</div>
+    </div>
+    <div class="exp-toolbar">
+      <div class="mon-nav" role="group" aria-label="月份切换">
+        <button class="mon-btn" onclick="calShift(-1)" aria-label="上个月">‹</button>
+        <span class="mon-label" id="cal-month" aria-live="polite"></span>
+        <button class="mon-btn" onclick="calShift(1)" aria-label="下个月">›</button>
+        <button class="btn ghost sm" id="cal-today" style="display:none" onclick="calToday()">回到今天</button>
+      </div>
+      <div class="cal-legend" aria-hidden="true">
+        <span><i style="background:var(--danger)"></i>逾期</span>
+        <span><i style="background:var(--warn)"></i>临期</span>
+        <span><i style="background:var(--text-3)"></i>待办</span>
+        <span><i style="background:var(--medication)"></i>用药中</span>
+      </div>
+    </div>
+    <div class="cal-grid" id="cal-grid"></div>
+    <div id="cal-foot"></div>
+  </section>
+
   <!-- 回忆集 · 屏1 全局时间轴 -->
   <section class="view" id="view-memories">
     <div class="page-head mem-head">
@@ -1071,6 +1117,7 @@ const state = {
   species: null,
   chatSessions: [], chatSessionId: null,
   ledgerYM: '', ledgerCache: [],
+  calYM: '', calCache: null, dayCardISO: null,
 };
 const TYPE_LABEL = { vaccine:'疫苗', checkup:'体检', deworm:'驱虫', medication:'喂药', clinic:'就诊' };
 const REPEAT_LABEL = { '': '不重复', daily: '每天', weekly: '每周', monthly: '每月', yearly: '每年' };
@@ -1124,6 +1171,7 @@ function go(view, opts) {
   if (view === 'memwall' && opts?.petId) renderMemWall(opts.petId);
   if (view === 'chat') renderChat();
   if (view === 'ledger') renderLedger();
+  if (view === 'calendar') renderCalendar();
   window.scrollTo({ top: 0 });
 }
 
@@ -1217,9 +1265,9 @@ async function renderRecords() {
 }
 
 /* ---------- 全部到期提醒页 ---------- */
-function reminderItemHTML(r) {
+function reminderItemHTML(r, inModal) {
   return `
-    <div class="reminder-item" role="button" tabindex="0" onclick="go('detail',{petId:${r.pet_id}})">
+    <div class="reminder-item" role="button" tabindex="0" onclick="${inModal ? 'closeModal();' : ''}go('detail',{petId:${r.pet_id}})">
       <span class="rem-dot ${r.overdue ? 'danger' : 'warn'}"></span>
       <div class="rem-main">
         <div class="rem-title">${esc(r.pet_name)} · ${esc(r.title)}</div>
@@ -1237,6 +1285,7 @@ async function completeReminder(rid, btn) {
     if (currentView === 'dashboard') renderDashboard();
     else if (currentView === 'reminders') renderRemindersView();
     else if (currentView === 'detail' && state.detailPetId) openDetail(state.detailPetId, state.detailFrom);
+    else if (currentView === 'calendar') { await renderCalendar(); if (state.dayCardISO) openDayCard(state.dayCardISO); }
     toast(r.next ? `已完成，下一轮已排到 ${r.next.next_date}` : '已标记完成');
   } catch (e) { toast(e.message, true); if (btn) btn.classList.remove('loading'); }
 }
@@ -1683,6 +1732,108 @@ async function deleteExpense(id, btn) {
   catch (e) { toast(e.message, true); if (btn) btn.classList.remove('shake'); }
 }
 
+/* ============================================================
+   健康日历：月历栅格（周一起始）+ 圆点分级 + 当日事项卡
+   ============================================================ */
+const CAL_DOT = { overdue:'var(--danger)', soon:'var(--warn)', todo:'var(--text-3)', med:'var(--medication)' };
+const DOW = ['一', '二', '三', '四', '五', '六', '日'];
+function calShift(delta) {
+  const [y, m] = (state.calYM || _ymNow()).split('-').map(Number);
+  state.calYM = localISO(new Date(y, m - 1 + delta, 1)).slice(0, 7);
+  renderCalendar();
+}
+function calToday() { state.calYM = _ymNow(); renderCalendar(); }
+function calSkeleton() {
+  $('cal-grid').innerHTML = DOW.map(d => `<div class="cal-dow">${d}</div>`).join('')
+    + Array(35).fill('<div class="skel" style="height:86px;border-radius:var(--r-sm)"></div>').join('');
+}
+
+async function renderCalendar() {
+  if (!state.calYM) state.calYM = _ymNow();
+  const ym = state.calYM, [y, m] = ym.split('-').map(Number);
+  $('cal-month').textContent = `${y}年${m}月`;
+  $('cal-today').style.display = ym === _ymNow() ? 'none' : '';
+  let loaded = false;
+  const skelTimer = setTimeout(() => { if (!loaded) calSkeleton(); }, 300);
+  let data;
+  try { data = await api(`/api/calendar?year=${y}&month=${m}`); }
+  catch (e) {
+    clearTimeout(skelTimer); toast(e.message, true);
+    $('cal-grid').innerHTML = '';     // 月份标签已切换，不留上月格子造成标签与内容不一致
+    $('cal-foot').innerHTML = `<div class="empty-hint">日历加载失败：${esc(e.message)}。切换月份可重试。</div>`;
+    return;
+  }
+  loaded = true; clearTimeout(skelTimer);
+  if (state.calYM !== ym) return;          // 丢弃过期响应
+  state.calCache = data;
+  const today = todayISO();
+  const daysIn = new Date(y, m, 0).getDate(), prevDays = new Date(y, m - 1, 0).getDate();
+  const lead = (new Date(y, m - 1, 1).getDay() + 6) % 7;     // 周一起始：周日(0)→补 6 格
+  const cells = [];
+  for (let i = lead - 1; i >= 0; i--) cells.push({ d: prevDays - i, dim: true });
+  for (let d = 1; d <= daysIn; d++) cells.push({ d, iso: `${ym}-${String(d).padStart(2, '0')}` });
+  for (let d = 1; cells.length % 7; d++) cells.push({ d, dim: true });
+
+  const html = DOW.map(d => `<div class="cal-dow">${d}</div>`).join('') + cells.map((c, idx) => {
+    if (c.dim) return `<div class="cal-cell dim" aria-hidden="true"><span class="cal-num">${c.d}</span></div>`;
+    const b = data.days[c.iso] || { reminders: [], records: [], meds: [] };
+    // 圆点取色优先级 逾期 > 临期 > 用药 > 待办，同色去重；已做记录不占圆点，以 ✓N 小字标示
+    const levels = [];
+    if (b.reminders.some(r => r.level === 'overdue')) levels.push('overdue');
+    if (b.reminders.some(r => r.level === 'soon')) levels.push('soon');
+    if (b.meds.length) levels.push('med');
+    if (b.reminders.some(r => r.level === 'todo')) levels.push('todo');
+    const dots = levels.slice(0, 3).map(l => `<i class="cal-dot" style="background:${CAL_DOT[l]}"></i>`).join('')
+      + (levels.length > 3 ? `<span class="cal-more">+${levels.length - 3}</span>` : '')
+      + (b.records.length ? `<span class="cal-more" title="已做记录">✓${b.records.length}</span>` : '');
+    const parts = b.reminders.map(r => `${r.type_label}(${r.pet_name}${r.level === 'overdue' ? '·逾期' : r.level === 'soon' ? '·临期' : ''})`)
+      .concat(b.records.map(r => `已做${r.type_label}(${r.pet_name})`))
+      .concat(b.meds.length ? [`用药中 ${b.meds.length} 项`] : []);
+    const label = `${m}月${c.d}日 周${DOW[idx % 7]}${c.iso === today ? '（今天）' : ''}，${parts.length ? parts.length + ' 项：' + parts.join('、') : '无事项'}`;
+    return `<div class="cal-cell${c.iso === today ? ' today' : ''}" role="button" tabindex="0" aria-label="${esc(label)}" onclick="openDayCard('${c.iso}')">
+      <span class="cal-num">${c.d}</span><div class="cal-dots">${dots}</div>
+    </div>`;
+  }).join('');
+  $('cal-grid').innerHTML = html;
+  const s = data.summary;
+  $('cal-foot').innerHTML = (s.reminders || s.records || s.med_days)
+    ? `<div class="empty-hint" style="margin-top:14px">本月 ${s.reminders} 项提醒 · ${s.records} 条已做记录 · ${s.med_days} 天有用药安排。点日期查看当天详情。</div>`
+    : `<div class="empty-hint" style="margin-top:14px">本月还没有健康事项——有提醒的日期会出现彩色圆点。${state.stats && !state.stats.record_count ? ' <button class="btn sm" onclick="openRecordModal()">去记第一笔</button>' : ''}</div>`;
+}
+
+function openDayCard(iso) {
+  state.dayCardISO = iso;
+  const b = (state.calCache && state.calCache.days[iso]) || { reminders: [], records: [], meds: [] };
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  const title = `${m}月${d}日 · 周${DOW[(dt.getDay() + 6) % 7]}${iso === todayISO() ? ' · 今天' : ''}`;
+  const petIds = [...new Set([...b.reminders, ...b.records, ...b.meds].map(x => x.pet_id))];
+  const sections = [];
+  if (b.reminders.length)
+    sections.push(`<div class="med-group">提醒 · ${b.reminders.length}</div>` + b.reminders.map(r => reminderItemHTML(r, true)).join(''));
+  if (b.meds.length)
+    sections.push(`<div class="med-group">用药进行中 · ${b.meds.length}</div>` + b.meds.map(m => `<div class="med-done-item">
+      <b>${esc(m.name)}</b><span>${esc(m.pet_name)}${m.frequency ? ' · ' + esc(m.frequency) : ''}</span>
+      <div class="ops"><span class="badge plain">${esc((m.start_date || '').slice(5))} → ${m.end_date ? esc(m.end_date.slice(5)) : '长期'}</span></div></div>`).join(''));
+  if (b.records.length)
+    sections.push(`<div class="med-group">已做记录 · ${b.records.length}</div>` + b.records.map(r => `<div class="med-done-item">
+      <span class="rec-type" style="background:${TYPE_COLOR[r.type] || 'var(--accent)'}">${esc(r.type_label)}</span><b>${esc(r.title)}</b><span>${esc(r.pet_name)}</span>
+      ${r.note ? `<div class="ops" style="font-size:12px">${esc(r.note)}</div>` : ''}</div>`).join(''));
+  const petBtns = petIds.map(pid => {
+    const p = state.pets.find(x => x.id === pid);
+    return p ? `<button class="btn sm" onclick="closeModal(); go('detail',{petId:${pid}})">${esc(p.avatar || TYPE_EMOJI[p.type] || '🐾')} ${esc(p.name)} →</button>` : '';
+  }).join('');
+  openModal(`<h3>${title}</h3>
+    ${sections.length ? sections.join('') : '<div class="empty-hint">这一天没有安排。</div>'}
+    <div class="modal-actions" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div class="day-card-pet">${petBtns}</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn" onclick="closeModal()">关闭</button>
+        <button class="btn primary" onclick="closeModal(); openRecordModal(${petIds.length === 1 ? petIds[0] : ''})">＋ 记一笔</button>
+      </div>
+    </div>`);
+}
+
 /* ---------- 体重 SVG 折线图（手绘，无第三方库） ---------- */
 const WC_RANGES = [['all', '全部'], ['365', '近1年'], ['90', '近90天'], ['30', '近30天']];
 const _fmtW = v => v < 1 ? v.toFixed(2) : v.toFixed(1);
@@ -1840,6 +1991,7 @@ function openModal(html, wide) {
   setTimeout(() => { const el = $('modal-box').querySelector('input:not([type=hidden]):not([type=file]), select, textarea'); if (el) el.focus(); }, 30);
 }
 function closeModal() {
+  state.dayCardISO = null;          // 日历当日卡：关闭即失效，防止完成提醒后的重开逻辑违背用户关闭意图
   const ov = $('modal-overlay');
   if (!ov.classList.contains('open')) return;
   ov.classList.add('closing');
@@ -2716,7 +2868,7 @@ async function checkNotify() {
   const REDUCE = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
 
   /* 1. 可点卡片类元素：Enter / Space 统一触发（行内真按钮/链接/输入不拦截） */
-  const CARD = '.logo,.stat-card.clickable,.reminder-item,.activity-item,.rec-row,.exp-row,.sess-item,.pet-card,.mem-card,.dropdown a';
+  const CARD = '.logo,.stat-card.clickable,.reminder-item,.activity-item,.rec-row,.exp-row,.cal-cell:not(.dim),.sess-item,.pet-card,.mem-card,.dropdown a';
   document.addEventListener('keydown', e => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
     const el = e.target.closest && e.target.closest(CARD);
