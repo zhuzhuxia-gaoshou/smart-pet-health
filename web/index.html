@@ -354,13 +354,13 @@ html[data-theme="light"] .icon-sun { display: none; }
 .compact-card .reminder-item { padding: 7px 8px; }
 
 /* 全部记录 / 提醒列表 */
-.rec-row {
+.rec-row, .exp-row {
   display: flex; align-items: center; gap: 11px; padding: 11px 12px;
   border-radius: 10px; cursor: pointer; border: 1px solid transparent;
   transition: background var(--dur), border-color var(--dur), transform var(--dur);
 }
-.rec-row:hover { background: var(--surface-2); border-color: var(--border); transform: translateX(2px); }
-.rec-row + .rec-row { margin-top: 2px; }
+.rec-row:hover, .exp-row:hover { background: var(--surface-2); border-color: var(--border); transform: translateX(2px); }
+.rec-row + .rec-row, .exp-row + .exp-row { margin-top: 2px; }
 .rec-date { color: var(--text-2); font-size: 12.5px; font-variant-numeric: tabular-nums; flex: none; width: 44px; }
 .rec-type { font-size: 11px; font-weight: 600; color: var(--on-accent); padding: 2px 8px; border-radius: var(--r-pill); flex: none; }
 .rec-pet { font-weight: 600; font-size: 13.5px; flex: none; }
@@ -688,13 +688,13 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
 .toast.out { opacity: 0; transform: translateY(8px); transition: opacity 200ms var(--ease), transform 200ms var(--ease); }
 .toast.warn .t-ico { color: var(--warn); }
 /* 列表行：底色 + 阅读方向位移 + 焦点 */
-.reminder-item, .activity-item, .rec-row, .sess-item {
+.reminder-item, .activity-item, .rec-row, .exp-row, .sess-item {
   transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
 }
-.reminder-item:hover, .activity-item:hover, .rec-row:hover, .sess-item:hover {
+.reminder-item:hover, .activity-item:hover, .rec-row:hover, .exp-row:hover, .sess-item:hover {
   background: var(--surface-2); border-color: var(--border); transform: translateX(2px);
 }
-.reminder-item:focus-visible, .activity-item:focus-visible, .rec-row:focus-visible, .sess-item:focus-visible {
+.reminder-item:focus-visible, .activity-item:focus-visible, .rec-row:focus-visible, .exp-row:focus-visible, .sess-item:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px;
 }
 .sess-item:focus-within .sess-del { opacity: 1; }
@@ -777,6 +777,37 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
   .bubble { max-width: 85%; }
   .chat-wrap { height: calc(100vh - 60px - 44px - 24px); }
 }
+
+/* ---------- 月份切换器（记账 / 日历共用） ---------- */
+.mon-nav { display: flex; align-items: center; gap: 6px; }
+.mon-btn {
+  width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface);
+  color: var(--text-2); font-size: 17px; line-height: 1; display: grid; place-items: center; cursor: pointer;
+  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.mon-btn:hover { color: var(--accent); border-color: var(--accent); }
+.mon-btn:active { transform: scale(.92); }
+.mon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mon-label { font-family: var(--font-title); font-size: 17px; font-weight: 600; min-width: 104px; text-align: center; font-variant-numeric: tabular-nums; }
+
+/* ---------- 记账页 ---------- */
+.exp-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+.exp-toolbar .btn.primary { margin-left: auto; }
+.exp-top { display: grid; grid-template-columns: 1fr 1.4fr; gap: 16px; margin-bottom: 16px; align-items: stretch; }
+.exp-total { font-family: var(--font-title); font-size: 40px; font-weight: 600; letter-spacing: -1px; line-height: 1.1; font-feature-settings: "lnum"; font-variant-numeric: tabular-nums; }
+.exp-sub { color: var(--text-2); font-size: 13.5px; margin-top: 6px; }
+.exp-chart { position: relative; padding: 4px 0 0; }
+.exp-chart svg { width: 100%; height: auto; display: block; }
+.exp-bar-row { cursor: default; outline: none; }
+.exp-bar-row rect.bar { transition: opacity var(--dur) var(--ease); }
+.exp-bar-row:hover rect.bar, .exp-bar-row:focus rect.bar { opacity: .82; }
+.exp-bar-row:focus-visible rect.hit { stroke: var(--accent); stroke-width: 1.5; rx: 6; }
+.exp-cat-badge { padding: 2px 9px; border-radius: var(--r-pill); font-size: 11px; font-weight: 600; flex: none; }
+.exp-amt { margin-left: auto; font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums; flex: none; }
+.exp-group-head { display: flex; align-items: baseline; gap: 8px; margin: 16px 0 8px; font-weight: 600; font-size: 14px; }
+.exp-group-head:first-child { margin-top: 0; }
+.exp-group-head .g-sub { color: var(--text-2); font-weight: 500; font-size: 12.5px; }
+@media (max-width: 760px) { .exp-top { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -792,6 +823,7 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
   <nav class="tabs" id="nav-tabs" role="tablist" aria-label="主导航">
     <button class="tab-btn active" role="tab" aria-selected="true" data-view="dashboard" onclick="go('dashboard')">仪表盘</button>
     <button class="tab-btn" role="tab" aria-selected="false" data-view="library" onclick="go('library')">宠物</button>
+    <button class="tab-btn" role="tab" aria-selected="false" data-view="ledger" onclick="go('ledger')">记账</button>
     <button class="tab-btn" role="tab" aria-selected="false" data-view="memories" onclick="go('memories')">回忆集</button>
     <button class="tab-btn" role="tab" aria-selected="false" data-view="chat" onclick="go('chat')">AI 助手</button>
   </nav>
@@ -944,6 +976,28 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
   <!-- 宠物详情 -->
   <section class="view" id="view-detail"></section>
 
+  <!-- 记账 -->
+  <section class="view" id="view-ledger">
+    <div class="page-head">
+      <div class="page-title">记账</div>
+      <div class="page-sub">每一笔花销都算数——按月看合计、分类与谁花得最多</div>
+    </div>
+    <div class="exp-toolbar">
+      <div class="mon-nav" role="group" aria-label="月份切换">
+        <button class="mon-btn" onclick="ledgerShift(-1)" aria-label="上个月">‹</button>
+        <span class="mon-label" id="ledger-month" aria-live="polite"></span>
+        <button class="mon-btn" onclick="ledgerShift(1)" aria-label="下个月">›</button>
+        <button class="btn ghost sm" id="ledger-today" style="display:none" onclick="ledgerToday()">回到本月</button>
+      </div>
+      <button class="btn primary" onclick="openExpenseModal()">＋ 记一笔</button>
+    </div>
+    <div class="exp-top">
+      <div class="card card-pad" id="ledger-total"></div>
+      <div class="card card-pad" id="ledger-chart-card"><div class="card-title">支出分类</div><div class="exp-chart" id="exp-chart"></div></div>
+    </div>
+    <div id="ledger-list"></div>
+  </section>
+
   <!-- 回忆集 · 屏1 全局时间轴 -->
   <section class="view" id="view-memories">
     <div class="page-head mem-head">
@@ -1016,11 +1070,17 @@ const state = {
   memories: [], memWallPetId: null, memImg: '',
   species: null,
   chatSessions: [], chatSessionId: null,
+  ledgerYM: '', ledgerCache: [],
 };
 const TYPE_LABEL = { vaccine:'疫苗', checkup:'体检', deworm:'驱虫', medication:'喂药', clinic:'就诊' };
 const REPEAT_LABEL = { '': '不重复', daily: '每天', weekly: '每周', monthly: '每月', yearly: '每年' };
 const repeatOptions = sel => Object.entries(REPEAT_LABEL).map(([v, t]) => `<option value="${v}" ${(sel || '') === v ? 'selected' : ''}>${t}</option>`).join('');
 const TYPE_COLOR = { vaccine:'var(--success)', checkup:'var(--accent-strong)', deworm:'var(--warn)', medication:'var(--medication)', clinic:'var(--danger)' };
+const EXP_LABEL = { medical:'医疗', food:'粮食', supply:'用品', grooming:'洗护', other:'其他' };
+const EXP_COLOR = { medical:'var(--accent-strong)', food:'var(--success)', supply:'var(--warn)', grooming:'var(--medication)', other:'var(--text-3)' };
+const EXP_SOFT  = { medical:'var(--accent-soft)', food:'var(--success-soft)', supply:'var(--warn-soft)',
+                    grooming:'color-mix(in srgb, var(--medication) 12%, transparent)', other:'var(--surface-2)' };
+const fmtMoney = v => '¥' + Number(v || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const STATUS_LABEL = { healthy:'健康', attention:'需关注', ill:'治疗中' };
 const TYPE_EMOJI = { cat:'🐱', dog:'🐶', bird:'🦜', fish:'🐟', other:'🐾' };
 const PET_TYPE_LABEL = { cat:'猫', dog:'狗', bird:'鸟', fish:'鱼', other:'其他' };
@@ -1063,6 +1123,7 @@ function go(view, opts) {
   if (view === 'memories') renderMemories();
   if (view === 'memwall' && opts?.petId) renderMemWall(opts.petId);
   if (view === 'chat') renderChat();
+  if (view === 'ledger') renderLedger();
   window.scrollTo({ top: 0 });
 }
 
@@ -1457,6 +1518,168 @@ async function finishMed(id) {
 async function deleteMed(id, btn) {
   if (btn) btn.classList.add('shake');
   try { await api(`/api/medications/${id}`, { method: 'DELETE' }); await reloadMeds(); toast('用药记录已删除'); }
+  catch (e) { toast(e.message, true); if (btn) btn.classList.remove('shake'); }
+}
+
+/* ============================================================
+   记账（月度花费）：月份切换 → 合计卡 + 分类条形图 + 按宠物分组流水
+   ============================================================ */
+const _ymNow = () => todayISO().slice(0, 7);
+function ledgerShift(delta) {
+  const [y, m] = (state.ledgerYM || _ymNow()).split('-').map(Number);
+  state.ledgerYM = localISO(new Date(y, m - 1 + delta, 1)).slice(0, 7);
+  renderLedger();
+}
+function ledgerToday() { state.ledgerYM = _ymNow(); renderLedger(); }
+
+function ledgerSkeleton() {
+  $('ledger-total').innerHTML = `<div class="card-title">本月合计</div><div class="skel sk-line w60" style="height:34px"></div><div class="skel sk-line w40"></div>`;
+  $('exp-chart').innerHTML = [60, 45, 30, 20, 10].map(w => `<div class="skel sk-line" style="width:${w}%"></div>`).join('');
+  $('ledger-list').innerHTML = `<div class="card card-pad">` + Array(4).fill(
+    `<div class="skel-row"><div class="skel sk-av" style="width:28px;height:28px;border-radius:50%"></div><div style="flex:1"><div class="skel sk-line w60"></div><div class="skel sk-line w40"></div></div></div>`).join('') + `</div>`;
+}
+
+async function renderLedger() {
+  if (!state.ledgerYM) state.ledgerYM = _ymNow();
+  const [y, m] = state.ledgerYM.split('-').map(Number);
+  $('ledger-month').textContent = `${y}年${m}月`;
+  $('ledger-today').style.display = state.ledgerYM === _ymNow() ? 'none' : '';
+  // 骨架只在请求超过 300ms 时出现，本地快速返回不闪
+  let loaded = false;
+  const ym = state.ledgerYM;
+  const skelTimer = setTimeout(() => { if (!loaded) ledgerSkeleton(); }, 300);
+  let data;
+  try { data = await api(`/api/expenses?year=${y}&month=${m}`); }
+  catch (e) {
+    clearTimeout(skelTimer); toast(e.message, true);
+    $('ledger-list').innerHTML = `<div class="card card-pad"><div class="empty-hint">账目加载失败：${esc(e.message)}。切换月份可重试。</div></div>`;
+    return;
+  }
+  loaded = true; clearTimeout(skelTimer);
+  if (state.ledgerYM !== ym) return;      // 快速连点切月：丢弃过期响应，避免旧月数据覆盖新月视图
+  if (!state.pets.length) await refreshData().catch(() => {});
+  const { expenses, summary } = data;
+  state.ledgerCache = expenses;
+
+  const petCount = new Set(expenses.filter(e => e.pet_id).map(e => e.pet_id)).size;
+  $('ledger-total').innerHTML = `<div class="card-title">本月合计</div>
+    <div class="exp-total">${fmtMoney(summary.total)}</div>
+    <div class="exp-sub">${summary.count} 笔${petCount ? ` · ${petCount} 只宠物` : ''}</div>`;
+  drawExpenseChart(summary);
+
+  const listEl = $('ledger-list');
+  if (!expenses.length) {
+    listEl.innerHTML = `<div class="card card-pad"><div class="empty-state"><div class="big" aria-hidden="true">🧾</div>
+      <h3>${m} 月还没有记账</h3><p>罐头、疫苗、玩具……记下来才知道花在哪。第一笔记给谁？</p>
+      <button class="btn primary sm" onclick="openExpenseModal()">＋ 记第一笔</button></div></div>`;
+    return;
+  }
+  // 按宠物分组：组间按小计倒序，家庭共同（pet_id 空）固定最后；组内沿用接口的日期倒序
+  const groups = new Map();
+  expenses.forEach(e => {
+    const k = e.pet_id || 0;
+    if (!groups.has(k)) groups.set(k, { pet_id: k, name: e.pet_name || '家庭共同', avatar: e.pet_avatar || (k ? '🐾' : '🏠'), items: [], total: 0 });
+    const g = groups.get(k); g.items.push(e); g.total += e.amount;
+  });
+  const ordered = [...groups.values()].sort((a, b) => (a.pet_id === 0) - (b.pet_id === 0) || b.total - a.total);
+  listEl.innerHTML = `<div class="card card-pad">` + ordered.map(g => `
+    <div class="exp-group-head">${esc(g.avatar)} ${esc(g.name)} <span class="g-sub">· ${g.items.length} 笔 · ${fmtMoney(g.total)}</span></div>
+    ${g.items.map(e => `<div class="exp-row" role="button" tabindex="0" onclick="openExpenseModal(${e.id})"
+        aria-label="${esc(e.date)} ${esc(e.category_label)} ${fmtMoney(e.amount)}${e.note ? ' ' + esc(e.note) : ''}，点击编辑">
+      <span class="rec-date">${esc((e.date || '').slice(5))}</span>
+      <span class="exp-cat-badge" style="background:${EXP_SOFT[e.category] || 'var(--surface-2)'};color:${EXP_COLOR[e.category] || 'var(--text-2)'}">${esc(e.category_label)}</span>
+      <span class="rec-title">${esc(e.note || (e.category_label + '支出'))}</span>
+      <span class="exp-amt">${fmtMoney(e.amount)}</span>
+    </div>`).join('')}`).join('') + `</div>`;
+}
+
+function drawExpenseChart(summary) {
+  const box = $('exp-chart'); if (!box) return;
+  if (!summary.count) { box.innerHTML = '<div class="empty-hint">本月还没有支出，记第一笔后这里会按分类展示占比。</div>'; return; }
+  const cats = Object.keys(EXP_LABEL), W = 560, ROW = 38, H = ROW * cats.length, total = summary.total || 0;
+  const max = Math.max(...cats.map(c => summary.by_category[c] || 0), 0.01);
+  const counts = {};
+  state.ledgerCache.forEach(e => { counts[e.category] = (counts[e.category] || 0) + 1; });
+  const rows = cats.map((c, i) => {
+    const v = summary.by_category[c] || 0, cy = i * ROW + ROW / 2;
+    const w = v > 0 ? Math.max(6, v / max * 400) : 4;       // 空类固定 4px 灰条保持行对齐
+    const pct = total ? Math.round(v / total * 100) : 0;
+    return `<g class="exp-bar-row" tabindex="0" role="img" aria-label="${EXP_LABEL[c]} ${fmtMoney(v)}，${counts[c] || 0} 笔，占 ${pct}%" data-i="${i}" data-c="${c}"
+        onpointerenter="expBarHover(event)" onfocus="expBarHover(event)" onpointerleave="expBarLeave(event)" onblur="expBarLeave(event)">
+      <rect class="hit" x="0" y="${i * ROW}" width="${W}" height="${ROW}" fill="transparent"/>
+      <text x="0" y="${cy + 4}" font-size="13" fill="var(--text-2)">${EXP_LABEL[c]}</text>
+      <rect class="bar" x="64" y="${cy - 7}" width="${w.toFixed(1)}" height="14" rx="7" fill="${v > 0 ? EXP_COLOR[c] : 'var(--border)'}"/>
+      <text x="${W}" y="${cy + 4}" font-size="13" text-anchor="end" fill="var(--text)">${fmtMoney(v)}</text>
+    </g>`;
+  }).join('');
+  box._exp = { summary, counts, total, W, H, ROW };
+  box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="group" aria-label="本月支出分类条形图，逐行可聚焦读取">${rows}</svg><div class="wc-tip" aria-hidden="true"></div>`;
+}
+function expBarHover(e) {
+  const g = e.currentTarget, box = g.closest('#exp-chart'), d = box && box._exp;
+  const svg = box && box.querySelector('svg'), tip = box && box.querySelector('.wc-tip');
+  if (!d || !svg || !tip) return;
+  const c = g.dataset.c, i = +g.dataset.i, v = d.summary.by_category[c] || 0;
+  const pct = d.total ? Math.round(v / d.total * 100) : 0;
+  tip.innerHTML = `<b>${EXP_LABEL[c]} ${fmtMoney(v)}</b><div class="t-d">${d.counts[c] || 0} 笔 · 占本月 ${pct}%</div>`;
+  const rect = svg.getBoundingClientRect(); if (!rect.width) return;
+  const bw = parseFloat(g.querySelector('rect.bar').getAttribute('width')) || 0;
+  // 容器 padding-top 4px；tip 锚在条中点、行顶上方
+  const cx = (64 + bw / 2) / d.W * rect.width, cy = (i * d.ROW) / d.H * rect.height + 4;
+  tip.style.left = Math.max(70, Math.min(cx, rect.width - 70)) + 'px';
+  tip.style.top = (cy - 4) + 'px';
+  tip.classList.add('show');
+}
+function expBarLeave(e) {
+  const t = e.currentTarget.closest('#exp-chart')?.querySelector('.wc-tip');
+  if (t) t.classList.remove('show');
+}
+
+function openExpenseModal(id) {
+  const e = id ? (state.ledgerCache.find(x => x.id === id) || {}) : {};
+  const petOpts = `<option value="">家庭共同（不指定宠物）</option>` + state.pets.map(p =>
+    `<option value="${p.id}" ${e.pet_id === p.id ? 'selected' : ''}>${esc(p.avatar || TYPE_EMOJI[p.type] || '🐾')} ${esc(p.name)}</option>`).join('');
+  const catOpts = Object.entries(EXP_LABEL).map(([k, t]) => `<option value="${k}" ${(e.category || 'food') === k ? 'selected' : ''}>${t}</option>`).join('');
+  // 默认日期：看本月填今天；翻到别的月份则填该月 1 号，避免把旧账记到今天
+  const defDate = (state.ledgerYM && state.ledgerYM !== _ymNow()) ? state.ledgerYM + '-01' : todayISO();
+  openModal(`<h3>${id ? '编辑花销' : '记一笔花销'}</h3>
+  <form id="exp-form" onsubmit="return submitExpense(event, ${id ?? 'null'})">
+    <div class="form-grid">
+      <div class="form-field"><label>金额（元） <span class="req">*</span></label><input name="amount" type="number" step="0.01" min="0.01" required placeholder="如：128.00" value="${e.amount ?? ''}"></div>
+      <div class="form-field"><label>日期</label><input name="date" type="date" value="${esc(e.date || defDate)}"></div>
+      <div class="form-field"><label>分类</label><select name="category">${catOpts}</select></div>
+      <div class="form-field"><label>宠物</label><select name="pet_id">${petOpts}</select></div>
+      <div class="form-field full"><label>备注</label><textarea name="note" rows="2" maxlength="200" placeholder="如：疫苗第三针 / 双十一囤粮">${esc(e.note || '')}</textarea></div>
+    </div>
+    <div class="modal-actions">
+      ${id ? `<button type="button" class="btn danger" style="margin-right:auto" onclick="deleteExpense(${id}, this)">删除</button>` : ''}
+      <button type="button" class="btn" onclick="closeModal()">取消</button>
+      <button type="submit" class="btn primary" id="exp-save-btn">${id ? '保存修改' : '保存'}</button>
+    </div>
+  </form>`);
+}
+async function submitExpense(ev, id) {
+  ev.preventDefault();
+  const f = Object.fromEntries(new FormData(ev.target).entries());
+  const body = { category: f.category, amount: parseFloat(f.amount), note: (f.note || '').trim() };
+  if (f.date) body.date = f.date;
+  // pet_id：空 = 家庭共同；编辑态显式传 0 让后端清空（Pydantic int|None 不接受空串）
+  if (f.pet_id) body.pet_id = +f.pet_id; else if (id) body.pet_id = 0;
+  if (!(body.amount > 0)) { toast('金额必须大于 0', true); return false; }
+  try {
+    if (id) await api(`/api/expenses/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+    else await api('/api/expenses', { method: 'POST', body: JSON.stringify(body) });
+    flashSaved($('exp-save-btn'));
+    // 记到别的月份时跟过去，让用户立刻看见这一笔；日期留空（编辑保持原日期）则停在当前月
+    const ym = body.date ? body.date.slice(0, 7) : state.ledgerYM, jumped = ym !== state.ledgerYM;
+    state.ledgerYM = ym;
+    setTimeout(() => { closeModal(); renderLedger(); toast((id ? '花销已更新 ✓' : '已记账 ✓') + (jumped ? `（已切到 ${+ym.slice(5)} 月）` : '')); }, 450);
+  } catch (err) { toast(err.message, true); }
+  return false;
+}
+async function deleteExpense(id, btn) {
+  if (btn) btn.classList.add('shake');
+  try { await api(`/api/expenses/${id}`, { method: 'DELETE' }); closeModal(); renderLedger(); toast('花销已删除'); }
   catch (e) { toast(e.message, true); if (btn) btn.classList.remove('shake'); }
 }
 
@@ -2493,7 +2716,7 @@ async function checkNotify() {
   const REDUCE = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
 
   /* 1. 可点卡片类元素：Enter / Space 统一触发（行内真按钮/链接/输入不拦截） */
-  const CARD = '.logo,.stat-card.clickable,.reminder-item,.activity-item,.rec-row,.sess-item,.pet-card,.mem-card,.dropdown a';
+  const CARD = '.logo,.stat-card.clickable,.reminder-item,.activity-item,.rec-row,.exp-row,.sess-item,.pet-card,.mem-card,.dropdown a';
   document.addEventListener('keydown', e => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
     const el = e.target.closest && e.target.closest(CARD);

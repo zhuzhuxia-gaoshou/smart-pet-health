@@ -27,6 +27,8 @@ GENDERS = {"male": "公", "female": "母", "unknown": "未知"}
 REPEAT_RULES = {"": "不重复", "daily": "每天", "weekly": "每周", "monthly": "每月", "yearly": "每年"}
 # 用药状态
 MED_STATUS = {"active": "在用", "finished": "已结束"}
+# 花费分类（记账页与 AI 工具共用）
+EXPENSE_CATEGORIES = {"medical": "医疗", "food": "粮食", "supply": "用品", "grooming": "洗护", "other": "其他"}
 
 
 def get_conn() -> sqlite3.Connection:
@@ -93,12 +95,24 @@ CREATE TABLE IF NOT EXISTS app_kv(
   value TEXT,
   updated_at TEXT DEFAULT (datetime('now','localtime'))
 );
+CREATE TABLE IF NOT EXISTS expenses(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  pet_id INTEGER,
+  date TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'other',
+  amount REAL NOT NULL,
+  note TEXT DEFAULT '',
+  created_at TEXT DEFAULT (datetime('now','localtime')),
+  FOREIGN KEY(pet_id) REFERENCES pets(id) ON DELETE SET NULL
+);
 CREATE INDEX IF NOT EXISTS idx_records_pet ON health_records(pet_id, date);
 CREATE INDEX IF NOT EXISTS idx_records_next ON health_records(next_date);
 CREATE INDEX IF NOT EXISTS idx_weights_pet ON weight_logs(pet_id, date);
 CREATE INDEX IF NOT EXISTS idx_meds_pet ON medications(pet_id, status);
 CREATE INDEX IF NOT EXISTS idx_memories_pet ON memories(pet_id, date);
 CREATE INDEX IF NOT EXISTS idx_chat_session ON chat_history(session_id);
+CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);
+CREATE INDEX IF NOT EXISTS idx_expenses_pet ON expenses(pet_id, date);
 """
 
 
@@ -833,7 +847,7 @@ def reset_demo_data() -> dict:
     conn = get_conn()
     try:
         for t in ("chat_history", "chat_sessions", "app_kv", "weight_logs",
-                  "health_records", "medications", "memories", "pets"):
+                  "health_records", "medications", "memories", "expenses", "pets"):
             conn.execute(f"DELETE FROM {t}")
         conn.commit()
     finally:
@@ -877,6 +891,7 @@ def init_and_seed() -> None:
     seed()
     seed_memories()
     seed_medications()
+    seed_expenses()
 
 
 # ---------------------------------------------------------------- 用药记录
@@ -997,6 +1012,180 @@ def seed_medications() -> None:
                 "INSERT INTO medications(pet_id,name,dosage,frequency,start_date,end_date,status,note)"
                 " VALUES(?,?,?,?,?,?,?,?)",
                 (pid, med, dosage, freq, _d(s_off), _d(e_off) if e_off is not None else None, status, note))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------- 花费记账
+
+def _exp_rows(sql: str, args: tuple) -> list[dict]:
+    """expenses 行 → 字典（带分类标签与宠物名/头像；pet_id 可空=家庭共同）。"""
+    conn = get_conn()
+    try:
+        rows = conn.execute(sql, args).fetchall()
+        name_map = {r["id"]: dict(r) for r in conn.execute("SELECT id,name,type,avatar FROM pets")}
+    finally:
+        conn.close()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["category_label"] = EXPENSE_CATEGORIES.get(d["category"], d["category"])
+        pet = name_map.get(d.get("pet_id"))
+        d["pet_name"] = pet["name"] if pet else None
+        d["pet_avatar"] = (pet.get("avatar") if pet else None) or None
+        d["amount"] = round(d["amount"], 2)
+        out.append(d)
+    return out
+
+
+def list_expenses(year: int | None = None, month: int | None = None,
+                  pet_id: int | None = None, category: str | None = None,
+                  limit: int | None = None) -> list[dict]:
+    """花费流水：年/月（本地时区）、宠物、分类可组合筛选，日期倒序。"""
+    where, args = [], []
+    if year:
+        where.append("substr(e.date,1,4)=?"); args.append(str(year))
+    if month:
+        where.append("substr(e.date,6,2)=?"); args.append(f"{month:02d}")
+    if pet_id:
+        where.append("e.pet_id=?"); args.append(pet_id)
+    if category and category in EXPENSE_CATEGORIES:
+        where.append("e.category=?"); args.append(category)
+    sql = ("SELECT e.* FROM expenses e"
+           + (" WHERE " + " AND ".join(where) if where else "")
+           + " ORDER BY e.date DESC, e.id DESC")
+    if limit:
+        sql += f" LIMIT {int(limit)}"
+    return _exp_rows(sql, tuple(args))
+
+
+def expense_summary(year: int | None = None, month: int | None = None,
+                    pet_id: int | None = None, category: str | None = None) -> dict:
+    """聚合：合计金额/笔数 + 分类合计 + 按宠物合计（浮点统一 round(,2)）。
+    三条查询共用一个 WHERE，列名统一带 e. 前缀，避免 by_pet 的 JOIN 将来撞上 pets 同名列。"""
+    where, args = [], []
+    if year:
+        where.append("substr(e.date,1,4)=?"); args.append(str(year))
+    if month:
+        where.append("substr(e.date,6,2)=?"); args.append(f"{month:02d}")
+    if pet_id:
+        where.append("e.pet_id=?"); args.append(pet_id)
+    if category and category in EXPENSE_CATEGORIES:
+        where.append("e.category=?"); args.append(category)
+    clause = (" WHERE " + " AND ".join(where)) if where else ""
+    conn = get_conn()
+    try:
+        total, count = conn.execute(
+            f"SELECT COALESCE(SUM(e.amount),0), COUNT(*) FROM expenses e{clause}", args).fetchone()
+        by_cat = conn.execute(
+            f"SELECT e.category, SUM(e.amount) AS s FROM expenses e{clause} GROUP BY e.category", args).fetchall()
+        by_pet = conn.execute(
+            f"SELECT e.pet_id, COALESCE(p.name,'家庭共同') AS pet_name, SUM(e.amount) AS s"
+            f" FROM expenses e LEFT JOIN pets p ON p.id = e.pet_id{clause}"
+            f" GROUP BY e.pet_id ORDER BY s DESC", args).fetchall()
+    finally:
+        conn.close()
+    return {
+        "total": round(total or 0, 2),
+        "count": count,
+        "by_category": {r["category"]: round(r["s"] or 0, 2) for r in by_cat},
+        "by_pet": [{"pet_id": r["pet_id"], "pet_name": r["pet_name"],
+                    "total": round(r["s"] or 0, 2)} for r in by_pet],
+    }
+
+
+def get_expense(exp_id: int) -> dict | None:
+    rows = _exp_rows("SELECT e.* FROM expenses e WHERE e.id=?", (exp_id,))
+    return rows[0] if rows else None
+
+
+def add_expense(data: dict) -> dict | None:
+    """pet_id 为空/0 表示家庭共同支出；宠物 id 非空时必须存在（外键防孤儿）。"""
+    pid = data.get("pet_id") or None
+    if pid and get_pet(pid) is None:
+        return None
+    conn = get_conn()
+    try:
+        cur = conn.execute(
+            "INSERT INTO expenses(pet_id,date,category,amount,note) VALUES(?,?,?,?,?)",
+            (pid, data.get("date") or today_str(), data.get("category") or "other",
+             round(float(data["amount"]), 2), (data.get("note") or "").strip()))
+        conn.commit()
+        return get_expense(cur.lastrowid)
+    finally:
+        conn.close()
+
+
+def update_expense(exp_id: int, data: dict) -> dict | None:
+    conn = get_conn()
+    try:
+        row = conn.execute("SELECT * FROM expenses WHERE id=?", (exp_id,)).fetchone()
+        if row is None:
+            return None
+        # pet_id 约定：字段缺省=保持；0/None=转家庭共同（Pydantic int|None 不接受空串，前端清空传 0）
+        if "pet_id" in data:
+            pid = data["pet_id"] or None
+            if pid and get_pet(pid) is None:
+                return None
+        else:
+            pid = row["pet_id"]
+        fields = {
+            "pet_id": pid,
+            "date": data.get("date") or row["date"],
+            "category": data.get("category") if data.get("category") in EXPENSE_CATEGORIES else row["category"],
+            "amount": round(float(data["amount"]), 2) if data.get("amount") is not None else round(row["amount"], 2),
+            "note": (data.get("note") if data.get("note") is not None else row["note"]) or "",
+        }
+        conn.execute(
+            "UPDATE expenses SET pet_id=?, date=?, category=?, amount=?, note=? WHERE id=?",
+            (fields["pet_id"], fields["date"], fields["category"], fields["amount"], fields["note"], exp_id))
+        conn.commit()
+        return get_expense(exp_id)
+    finally:
+        conn.close()
+
+
+def delete_expense(exp_id: int) -> bool:
+    conn = get_conn()
+    try:
+        cur = conn.execute("DELETE FROM expenses WHERE id=?", (exp_id,))
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def seed_expenses() -> None:
+    """花费示例（仅当 expenses 表为空；与健康记录/用药呼应：疫苗¥120、外耳炎¥260、耳药水¥45…）。"""
+    conn = get_conn()
+    try:
+        if conn.execute("SELECT COUNT(*) FROM expenses").fetchone()[0] > 0:
+            return
+        pet_of = {r["name"]: r["id"] for r in conn.execute("SELECT id, name FROM pets")}
+        samples = [
+            # (宠物名/None=家庭共同, 相对天数偏移, 分类, 金额, 备注)
+            ("可乐", -350, "medical", 120.0, "狂犬疫苗接种"),
+            ("可乐", -200, "medical", 480.0, "年度体检套餐"),
+            ("可乐", -60, "medical", 85.0, "体内外驱虫滴剂（大宠爱）"),
+            ("可乐", -3, "medical", 68.0, "益生菌粉，肠胃调理两周量"),
+            ("可乐", -12, "food", 299.0, "狗粮一袋"),
+            ("可乐", -2, "supply", 35.0, "磨牙玩具球"),
+            ("布丁", -400, "medical", 150.0, "猫三联第三针"),
+            ("布丁", -40, "grooming", 120.0, "药浴洗护"),
+            ("布丁", -20, "food", 380.0, "减肥猫粮（医嘱限量）"),
+            ("布丁", -8, "medical", 260.0, "外耳炎就诊：挂号+上药"),
+            ("布丁", -8, "medical", 45.0, "耳药水（就诊开具，滴 7 天）"),
+            ("布丁", -5, "food", 46.0, "罐头一周量"),
+            ("翠翠", -15, "food", 56.0, "换羽期营养粮+墨鱼骨"),
+            ("翠翠", -45, "supply", 42.0, "鸟笼栖木配件"),
+            (None, -6, "supply", 89.0, "猫砂+尿垫（可乐布丁共用）"),
+        ]
+        for name, off, cat, amount, note in samples:
+            pid = pet_of.get(name)
+            conn.execute(
+                "INSERT INTO expenses(pet_id,date,category,amount,note) VALUES(?,?,?,?,?)",
+                (pid, _d(off), cat, amount, note))
         conn.commit()
     finally:
         conn.close()

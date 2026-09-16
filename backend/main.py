@@ -147,6 +147,40 @@ class MedicationIn(BaseModel):
         return _check_date(v)
 
 
+class ExpenseIn(BaseModel):
+    pet_id: int | None = Field(None, description="宠物 id；空或 0 表示家庭共同支出")
+    date: str | None = None
+    category: str = Field(..., description="medical|food|supply|grooming|other")
+    amount: float = Field(..., description="金额（元），>0 且最多两位小数")
+    note: str | None = Field(None, max_length=200)
+
+    @field_validator("date")
+    @classmethod
+    def _vd(cls, v):
+        return _check_date(v)
+
+    @field_validator("category")
+    @classmethod
+    def _vc(cls, v):
+        if v not in db.EXPENSE_CATEGORIES:
+            raise ValueError("分类无效，可选：" + "/".join(db.EXPENSE_CATEGORIES))
+        return v
+
+    @field_validator("amount")
+    @classmethod
+    def _va(cls, v):
+        # 中文校验替代 gt/le：NaN/inf 一并拦截；两位小数用整数化比较避开浮点误差
+        if v is None or v != v or v in (float("inf"), float("-inf")):
+            raise ValueError("金额无效")
+        if v <= 0:
+            raise ValueError("金额必须大于 0")
+        if v > 1_000_000:
+            raise ValueError("金额过大（上限 1,000,000）")
+        if abs(v * 100 - round(v * 100)) > 1e-6:
+            raise ValueError("金额最多保留两位小数")
+        return round(v, 2)
+
+
 # ---------------------------------------------------------------- 宠物 CRUD
 
 @app.get("/api/pets")
@@ -357,6 +391,75 @@ def api_update_medication(med_id: int, med: MedicationIn):
 def api_delete_medication(med_id: int):
     if not db.delete_medication(med_id):
         return {"error": "用药记录不存在"}
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------- 花费记账
+
+def _check_month(year: int | None, month: int | None) -> str | None:
+    if month is not None and not 1 <= month <= 12:
+        return "月份应在 1~12 之间"
+    if year is not None and not 2000 <= year <= 2100:
+        return "年份超出范围"
+    return None
+
+
+@app.get("/api/expenses")
+def api_list_expenses(year: int | None = None, month: int | None = None,
+                      pet_id: int | None = None, category: str | None = None):
+    """花费流水 + 聚合（合计/分类合计/按宠物合计）；year/month/pet_id/category 可组合筛选。"""
+    err = _check_month(year, month)
+    if err:
+        return JSONResponse(status_code=422, content={"error": err})
+    return {"expenses": db.list_expenses(year, month, pet_id, category),
+            "summary": db.expense_summary(year, month, pet_id, category)}
+
+
+@app.post("/api/expenses")
+def api_add_expense(body: ExpenseIn):
+    result = db.add_expense(body.model_dump(exclude_none=True))
+    if result is None:
+        return {"error": "宠物不存在"}
+    return {"expense": result}
+
+
+@app.get("/api/pets/{pet_id}/expenses")
+def api_pet_expenses(pet_id: int, year: int | None = None, month: int | None = None):
+    if db.get_pet(pet_id) is None:
+        return {"error": "宠物不存在"}
+    err = _check_month(year, month)
+    if err:
+        return JSONResponse(status_code=422, content={"error": err})
+    return {"expenses": db.list_expenses(year, month, pet_id),
+            "summary": db.expense_summary(year, month, pet_id)}
+
+
+@app.post("/api/pets/{pet_id}/expenses")
+def api_add_pet_expense(pet_id: int, body: ExpenseIn):
+    if db.get_pet(pet_id) is None:
+        return {"error": "宠物不存在"}
+    data = body.model_dump(exclude_none=True)
+    data["pet_id"] = pet_id
+    result = db.add_expense(data)
+    if result is None:
+        return {"error": "宠物不存在"}
+    return {"expense": result}
+
+
+@app.put("/api/expenses/{exp_id}")
+def api_update_expense(exp_id: int, body: ExpenseIn):
+    if db.get_expense(exp_id) is None:
+        return {"error": "花费记录不存在"}
+    result = db.update_expense(exp_id, body.model_dump(exclude_none=True))
+    if result is None:
+        return {"error": "宠物不存在"}
+    return {"expense": result}
+
+
+@app.delete("/api/expenses/{exp_id}")
+def api_delete_expense(exp_id: int):
+    if not db.delete_expense(exp_id):
+        return {"error": "花费记录不存在"}
     return {"ok": True}
 
 

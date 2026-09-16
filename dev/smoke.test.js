@@ -113,7 +113,7 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
 
   // ---------- 回忆集 ----------
   const tabTexts = [...doc.querySelectorAll('#nav-tabs .tab-btn')].map(b => b.textContent.trim()).join('|');
-  check('nav order 宠物→回忆集→AI助手', tabTexts === '仪表盘|宠物|回忆集|AI 助手', tabTexts);
+  check('nav order 宠物→记账→回忆集→AI助手', tabTexts === '仪表盘|宠物|记账|回忆集|AI 助手', tabTexts);
   T.go('memories');
   await sleep(700);
   const memAll = (await (await fetch(BASE + '/api/memories')).json()).memories.length;
@@ -241,7 +241,7 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
   // 无障碍补丁：skip link / aria-live / tab 语义 / 弹窗 dialog+label 关联 / 可点行键盘可达
   check('skip link injected', !!doc.querySelector('.skip-link'));
   check('toast root aria-live', doc.getElementById('toast-root').getAttribute('aria-live') === 'polite');
-  check('nav tabs have tab role', n('#nav-tabs [role=tab]') === 4);
+  check('nav tabs have tab role', n('#nav-tabs [role=tab]') === 5);
   window.openModal('<h3>t</h3><div class="form-field"><label>名字</label><input name="x"></div>');
   await sleep(80);
   check('modal has dialog role', doc.getElementById('modal-box').getAttribute('role') === 'dialog');
@@ -250,6 +250,50 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
   T.go('reminders'); await sleep(200);
   check('reminder rows keyboard reachable', n('#reminders-full-list .reminder-item') > 0 &&
     [...doc.querySelectorAll('#reminders-full-list .reminder-item')].every(el => el.getAttribute('role') === 'button' && el.getAttribute('tabindex') === '0'));
+
+  // ---------- 记账：聚合精度 / 校验 / 页面渲染 / 编辑与清空宠物 / 空态 / 清理 ----------
+  const kel = state().pets.find(p => p.name === '可乐');
+  check('可乐 exists for expense tests', !!kel);
+  if (kel) {
+    const today = new Date(), yy = today.getFullYear(), mm = today.getMonth() + 1;
+    const ym = `${yy}-${String(mm).padStart(2, '0')}`;
+    const fetchSum = async () => (await (await fetch(BASE + `/api/expenses?year=${yy}&month=${mm}`)).json()).summary;
+    const base = await fetchSum();
+    const e1 = await T.api('/api/expenses', { method: 'POST', body: JSON.stringify({ pet_id: kel.id, category: 'medical', amount: 12.34, note: '__smoke_exp1__' }) });
+    const e2 = await T.api('/api/expenses', { method: 'POST', body: JSON.stringify({ category: 'other', amount: 0.66, note: '__smoke_exp2__' }) });
+    check('expense created with labels', e1.expense?.pet_name === '可乐' && e1.expense.category_label === '医疗' && e2.expense?.pet_id === null);
+    const agg = await fetchSum();
+    check('expense summary adds up to cents', Math.round((agg.total - base.total) * 100) === 1300 && agg.count === base.count + 2, `${base.total}→${agg.total}`);
+    check('expense by_category tracks', Math.round(((agg.by_category.medical || 0) - (base.by_category.medical || 0)) * 100) === 1234);
+    check('家庭共同 appears in by_pet', agg.by_pet.some(p => p.pet_id === null && p.pet_name === '家庭共同'));
+    let err = '';
+    try { await T.api('/api/expenses', { method: 'POST', body: JSON.stringify({ category: 'food', amount: -1 }) }); } catch (e) { err = e.message; }
+    check('negative amount rejected in Chinese', err.includes('金额'), err);
+    err = '';
+    try { await T.api('/api/expenses', { method: 'POST', body: JSON.stringify({ category: 'food', amount: 1.005 }) }); } catch (e) { err = e.message; }
+    check('3-decimal amount rejected', err.includes('两位小数'), err);
+
+    T.go('ledger'); await sleep(700);
+    check('ledger month label', (T.$('ledger-month').textContent || '').includes(`${mm}月`), T.$('ledger-month').textContent);
+    check('ledger total card', (doc.querySelector('#ledger-total .exp-total') || {}).textContent?.includes('¥'));
+    check('ledger chart 5 bars', n('#exp-chart svg .exp-bar-row') === 5, 'got ' + n('#exp-chart svg .exp-bar-row'));
+    check('ledger rows = month rows', n('#ledger-list .exp-row') === agg.count, n('#ledger-list .exp-row') + ' vs ' + agg.count);
+    check('ledger has 家庭共同 group', [...doc.querySelectorAll('#ledger-list .exp-group-head')].some(h => h.textContent.includes('家庭共同')));
+    check('ledger rows keyboard reachable', [...doc.querySelectorAll('#ledger-list .exp-row')].every(el => el.getAttribute('role') === 'button' && el.getAttribute('tabindex') === '0'));
+    window.openExpenseModal(e1.expense.id); await sleep(80);
+    check('expense modal prefilled', doc.querySelector('#exp-form [name=amount]')?.value === '12.34' && doc.querySelector('#exp-form [name=pet_id]')?.value === String(kel.id));
+    window.closeModal(); await sleep(220);
+    const upd = await T.api('/api/expenses/' + e1.expense.id, { method: 'PUT', body: JSON.stringify({ pet_id: 0, category: 'medical', amount: 20 }) });
+    check('PUT pet_id=0 → 家庭共同 & note kept', upd.expense.pet_id === null && upd.expense.amount === 20 && upd.expense.note === '__smoke_exp1__');
+    state().ledgerYM = '2000-01'; await window.renderLedger(); await sleep(50);
+    check('ledger empty state on empty month', !!doc.querySelector('#ledger-list .empty-state') && T.$('ledger-today').style.display !== 'none');
+    window.ledgerToday(); await sleep(400);
+    check('ledger back to current month', state().ledgerYM === ym && T.$('ledger-today').style.display === 'none');
+    await T.api('/api/expenses/' + e1.expense.id, { method: 'DELETE' });
+    await T.api('/api/expenses/' + e2.expense.id, { method: 'DELETE' });
+    let gone = ''; try { await T.api('/api/expenses/' + e1.expense.id, { method: 'DELETE' }); } catch (e) { gone = e.message; }
+    check('expense delete idempotent error', gone.includes('不存在'));
+  }
 
   const fails = results.filter(r => !r.ok);
   for (const r of results) console.log((r.ok ? 'PASS ' : 'FAIL ') + r.name + (r.extra ? '  [' + r.extra + ']' : ''));

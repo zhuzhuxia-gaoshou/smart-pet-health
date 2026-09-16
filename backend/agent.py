@@ -72,7 +72,8 @@ TOOLS_BRIEF = """可用工具：
 - get_care_guide(宠物名或类型词): 查询物种护理规范——该物种适用的记录类型、该做的事、不该做的事（禁忌）与常见疾病；名字留空返回概览
 - create_record_draft(宠物名, 类型, 日期, 标题, 说明, 下次日期, 体重): 用户口述要记一笔健康事项时调用，起草待确认的记录草稿（不直接入库）
 - get_attention_ranking(): 多宠物关注优先级排序，回答"我该先管哪只"类问题；无需参数
-- query_medications(宠物名): 查该宠物的用药情况——在用药物的剂量/频次/疗程剩余天数与已结束的用药历史"""
+- query_medications(宠物名): 查该宠物的用药情况——在用药物的剂量/频次/疗程剩余天数与已结束的用药历史
+- query_expenses(宠物名, 月份): 查养宠花费——合计/分类占比/按宠物分摊/最近明细；宠物名留空表示全部，月份传 YYYY-MM 或 YYYY，留空表示本月"""
 
 SYSTEM_PROMPT = """你是「智能宠物健康管家」的 AI 助手，一个专业的宠物健康管理 Agent。
 你通过工具查询 SQLite 数据库中的真实宠物档案与健康记录，请遵循：
@@ -95,7 +96,7 @@ SYSTEM_PROMPT = """你是「智能宠物健康管家」的 AI 助手，一个专
 
 _MED_NOTE = "涉及医疗判断（是否生病、是否停药、指标是否异常）时，明确提示「请以兽医意见为准」。用简体中文，专业、温暖、克制。"
 
-ANALYST_PROMPT = """你是「智能宠物健康管家」的【健康分析师】。你的职责：基于数据库真实数据，回答事实查询与状况评估类问题——宠物档案、健康记录（疫苗/体检/驱虫/喂药/就诊）、临期与逾期提醒、综合健康分析、用药情况、多宠物的关注优先级。
+ANALYST_PROMPT = """你是「智能宠物健康管家」的【健康分析师】。你的职责：基于数据库真实数据，回答事实查询与状况评估类问题——宠物档案、健康记录（疫苗/体检/驱虫/喂药/就诊）、临期与逾期提醒、综合健康分析、用药情况、多宠物的关注优先级、养宠花费与开销构成。
 
 你只负责"查与析"，不负责：护理操作建议、生成正式报告、为用户起草健康记录。遇到这三类需求时，用一句话说明"这个问题更适合护理顾问或报告功能处理"即可，不要越界作答。
 
@@ -131,7 +132,7 @@ WRITER_PROMPT = """你是「智能宠物健康管家」的【报告撰稿人】�
 EXPERTS = {
     "health_analyst": {"label": "健康分析师", "prompt": ANALYST_PROMPT,
                        "tools": ["query_pet", "query_health_records", "get_reminders", "analyze_health",
-                                 "query_medications", "get_attention_ranking"]},
+                                 "query_medications", "get_attention_ranking", "query_expenses"]},
     "care_advisor":   {"label": "护理顾问", "prompt": ADVISOR_PROMPT,
                        "tools": ["query_pet", "get_care_guide", "query_medications", "get_reminders",
                                  "create_record_draft"]},
@@ -144,7 +145,7 @@ EXPERTS = {
 _ROUTE_DRAFT = re.compile(r"记一笔|记一下|记录一下|帮我记|帮我登记|登记一下|补充一条|添加一条记录|create_record_draft|起草")
 _ROUTE_REPORT = re.compile(r"报告|周报|月报|年报|报表|总结|成长回顾|回忆|故事|第一次")
 _ROUTE_CARE = re.compile(r"能吃|不能吃|可以吃|禁忌|该做|不该做|怎么照顾|照顾|护理|注意什么|怎么办|换羽|能不能|可不可以|注意事项")
-_ROUTE_HEALTH = re.compile(r"疫苗|驱虫|体检|用药|吃药|什么药|药物|剂量|体重|健康|分析|记录|提醒|到期|临期|逾期|过期|优先|先管|就诊|复诊|三联|狂犬|打针|接种")
+_ROUTE_HEALTH = re.compile(r"疫苗|驱虫|体检|用药|吃药|什么药|药物|剂量|体重|健康|分析|记录|提醒|到期|临期|逾期|过期|优先|先管|就诊|复诊|三联|狂犬|打针|接种|花了|开销|多少钱|花费|记账|花销|支出|费用|账单|开支")
 # 弱信号（"怎么样/多大"等）单独出现太泛（"今天天气怎么样"），只在句中带库内宠物名时才算健康问题
 _ROUTE_HEALTH_WEAK = re.compile(r"怎么样|状况|多大|多重|几岁|情况|正常吗")
 _VACCINE_WORDS = re.compile(r"疫苗|驱虫|接种")
@@ -245,6 +246,10 @@ def _build_tools():
         next_date: str = Field(default="", description="下次日期 YYYY-MM-DD，没有则留空")
         weight: float | None = Field(default=None, description="当时体重 kg，没有则省略")
 
+    class ExpenseQueryIn(BaseModel):
+        name: str = Field(default="", description="宠物名字；留空表示全部宠物（含家庭共同支出）")
+        month: str = Field(default="", description="YYYY-MM 查某月、YYYY 查全年；留空表示本月。'今年'换算为当前年份")
+
     return [
         StructuredTool.from_function(tools.query_pet, name="query_pet",
                                      description=tools.query_pet.__doc__.strip(),
@@ -287,6 +292,11 @@ def _build_tools():
         StructuredTool.from_function(tools.query_medications, name="query_medications",
                                      description=tools.query_medications.__doc__.strip(),
                                      args_schema=NameIn),
+        StructuredTool.from_function(
+            lambda name="", month="": tools.query_expenses(name, month),
+            name="query_expenses",
+            description=tools.query_expenses.__doc__.strip(),
+            args_schema=ExpenseQueryIn),
     ]
 
 
@@ -410,6 +420,22 @@ def _example_answer(message: str) -> str:
     record_kw = any(k in msg for k in ("疫苗", "驱虫", "体检", "喂药", "就诊", "记录", "打过", "接种"))
     care_kw = any(k in msg for k in ("该做", "不该做", "禁忌", "能吃", "不能吃", "注意什么", "护理", "照顾", "规范"))
     med_kw = any(k in msg for k in ("用药", "吃药", "什么药", "药物", "剂量", "停药", "疗程", "在吃"))
+    expense_kw = any(k in msg for k in ("花了", "开销", "多少钱", "花费", "记账", "花销", "支出", "费用", "账单", "开支"))
+
+    if expense_kw:
+        import re as _re
+        from datetime import date as _date
+        ym = _re.search(r"(20\d{2})[年\-/](\d{1,2})", msg)     # 2026年9 / 2026-09
+        yr = _re.search(r"(20\d{2})\s*年", msg)                # 2026年（全年）
+        if ym:
+            month_arg = f"{ym.group(1)}-{int(ym.group(2)):02d}"
+        elif yr:
+            month_arg = yr.group(1)
+        elif "今年" in msg:
+            month_arg = str(_date.today().year)
+        else:
+            month_arg = ""                                     # 本月
+        return tools.query_expenses(pet or "", month_arg) + "\n\n> 当前为示例回答模式（未配置 API Key）。"
 
     if care_kw:
         return (tools.get_care_guide(pet or "")

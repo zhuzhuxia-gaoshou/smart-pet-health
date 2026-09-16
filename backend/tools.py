@@ -408,6 +408,56 @@ def get_attention_ranking() -> str:
     return "\n".join(lines)
 
 
+def query_expenses(name: str = "", month: str = "") -> str:
+    """查询养宠花费：合计金额、分类占比、按宠物分摊与最近明细。name 留空表示全部宠物（含家庭共同支出）；
+    month 传 YYYY-MM 查某月、传 YYYY 查全年、留空查本月。只读，不做任何写入。"""
+    from datetime import date
+    name = (name or "").strip()
+    pet = None
+    if name:
+        pet = db.fetch_pet_by_name(name)
+        if not pet:
+            return _pet_missing_text(name)
+    m = (month or "").strip()
+    today = date.today()
+    year, mon, scope = today.year, today.month, "本月"
+    if m:
+        parts = m.replace("/", "-").split("-")
+        try:
+            if len(parts) == 1 and len(parts[0]) == 4 and parts[0].isdigit():
+                year, mon, scope = int(parts[0]), None, f"{parts[0]} 年全年"
+            elif len(parts) >= 2:
+                year, mon = int(parts[0]), int(parts[1])
+                scope = f"{year} 年 {mon} 月"
+                if not 1 <= mon <= 12:
+                    raise ValueError
+            else:
+                raise ValueError
+        except ValueError:
+            return f"月份「{month}」无法识别，请用 YYYY-MM（如 2026-09）或 YYYY（如 2026）。"
+    pid = pet["id"] if pet else None
+    summ = db.expense_summary(year, mon, pid)
+    rows = db.list_expenses(year, mon, pid, limit=8)
+    who = f"「{pet['name']}」" if pet else "全部宠物（含家庭共同支出）"
+    if not summ["count"]:
+        return f"{who}{scope}没有任何花费记录。"
+    lines = [f"{who}{scope}花费合计 ¥{summ['total']:.2f}，共 {summ['count']} 笔。"]
+    cats = sorted(summ["by_category"].items(), key=lambda kv: -kv[1])
+    if cats:
+        top = "；".join(f"{db.EXPENSE_CATEGORIES.get(k, k)} ¥{v:.2f}"
+                       f"（{round(v / summ['total'] * 100) if summ['total'] else 0}%）" for k, v in cats)
+        lines.append(f"- 分类：{top}")
+        lines.append(f"- 最大开销类别：{db.EXPENSE_CATEGORIES.get(cats[0][0], cats[0][0])}")
+    if not pet and len(summ["by_pet"]) > 1:
+        lines.append("- 按宠物：" + "；".join(f"{r['pet_name']} ¥{r['total']:.2f}" for r in summ["by_pet"]))
+    lines.append("- 最近明细：")
+    for r in rows:
+        owner = r["pet_name"] or "家庭共同"
+        lines.append(f"  - {r['date']} {owner}【{r['category_label']}】¥{r['amount']:.2f}"
+                     + (f" {r['note']}" if r.get("note") else ""))
+    return "\n".join(lines)
+
+
 # 供 agent.py 注册 LangChain 工具用的元信息
 TOOL_META = [
     ("query_pet", "按宠物名字查询该宠物的基本信息（品种/年龄/体重/健康状态）"),
@@ -420,4 +470,5 @@ TOOL_META = [
     ("create_record_draft", "根据用户口语描述起草健康记录草稿（不入库，用户确认后保存）。参数：宠物名、类型、日期、标题、说明、下次日期、体重"),
     ("get_attention_ranking", "多宠物关注优先级排序：综合逾期、临期、体重波动、记录陈旧度评分，回答'该先管哪只'类问题。无需参数"),
     ("query_medications", "按宠物名字查询用药情况：在用药物的剂量/频次/疗程剩余天数，以及已结束的用药历史"),
+    ("query_expenses", "查询养宠花费：合计/分类占比/按宠物分摊/最近明细。参数：宠物名（可为空表示全部）、月份 YYYY-MM 或 YYYY（可为空表示本月）"),
 ]
