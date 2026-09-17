@@ -832,7 +832,7 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
 .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; max-width: 960px; }
 .cal-dow { text-align: center; font-size: 12px; color: var(--text-2); padding: 4px 0 8px; font-weight: 600; }
 .cal-cell {
-  min-height: 86px; padding: 8px 9px; border: 1px solid var(--border); border-radius: var(--r-sm);
+  min-height: 104px; padding: 8px 9px; border: 1px solid var(--border); border-radius: var(--r-sm);
   background: var(--surface); cursor: pointer; display: flex; flex-direction: column; gap: 6px;
   transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
 }
@@ -845,6 +845,13 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
 .cal-dots { display: flex; gap: 4px; align-items: center; min-height: 7px; flex-wrap: wrap; }
 .cal-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 .cal-more { font-size: 11px; color: var(--text-2); }
+/* 月视图事件条：格内直读主要事件（色点承担分级色，文字统一 --text 保证可读） */
+.cal-events { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cal-evt { display: flex; align-items: center; gap: 5px; font-size: 11.5px; line-height: 1.3; color: var(--text); min-width: 0; }
+.cal-evt .cal-dot { margin-top: 0; }
+.cal-evt .evt-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-evt.overdue .evt-txt { color: var(--danger); font-weight: 600; }
+.cal-evt.soon .evt-txt { color: var(--warn); }
 .day-card-pet { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 
 /* ---------- 饮食页签（详情弹窗内） ---------- */
@@ -1946,21 +1953,24 @@ async function renderCalendar() {
   const html = DOW.map(d => `<div class="cal-dow">${d}</div>`).join('') + cells.map((c, idx) => {
     if (c.dim) return `<div class="cal-cell dim" aria-hidden="true"><span class="cal-num">${c.d}</span></div>`;
     const b = data.days[c.iso] || { reminders: [], records: [], meds: [] };
-    // 圆点取色优先级 逾期 > 临期 > 用药 > 待办，同色去重；已做记录不占圆点，以 ✓N 小字标示
-    const levels = [];
-    if (b.reminders.some(r => r.level === 'overdue')) levels.push('overdue');
-    if (b.reminders.some(r => r.level === 'soon')) levels.push('soon');
-    if (b.meds.length) levels.push('med');
-    if (b.reminders.some(r => r.level === 'todo')) levels.push('todo');
-    const dots = levels.slice(0, 3).map(l => `<i class="cal-dot" style="background:${CAL_DOT[l]}"></i>`).join('')
-      + (levels.length > 3 ? `<span class="cal-more">+${levels.length - 3}</span>` : '')
+    // 主要事件直读：提醒渲染为文字条（色点承担分级色），最多 2 条 + N；用药与已做保持圆点行（长期用药整月都有，写成文字反成噪音）
+    const evts = b.reminders.slice(0, 2).map(r => {
+      const label = r.level === 'overdue' ? '·逾期' : r.level === 'soon' ? '·临期' : '·待办';
+      return `<span class="cal-evt ${r.level}" title="${esc(r.title)}（${esc(r.pet_name)}${label}）">
+        <i class="cal-dot" style="background:${CAL_DOT[r.level]}"></i>
+        <span class="evt-txt">${esc(r.title)}·${esc(r.pet_name)}</span></span>`;
+    }).join('')
+      + (b.reminders.length > 2 ? `<span class="cal-more">还有 ${b.reminders.length - 2} 项</span>` : '');
+    const dots = (b.meds.length ? `<i class="cal-dot" style="background:${CAL_DOT.med}"></i>` : '')
       + (b.records.length ? `<span class="cal-more" title="已做记录">✓${b.records.length}</span>` : '');
-    const parts = b.reminders.map(r => `${r.type_label}(${r.pet_name}${r.level === 'overdue' ? '·逾期' : r.level === 'soon' ? '·临期' : '·待办'})`)
+    const parts = b.reminders.map(r => `${r.title}(${r.pet_name}${r.level === 'overdue' ? '·逾期' : r.level === 'soon' ? '·临期' : '·待办'})`)
       .concat(b.records.map(r => `已做${r.type_label}(${r.pet_name})`))
       .concat(b.meds.length ? [`用药中 ${b.meds.length} 项`] : []);
     const label = `${m}月${c.d}日 周${DOW[idx % 7]}${c.iso === today ? '（今天）' : ''}，${parts.length ? parts.length + ' 项：' + parts.join('、') : '无事项'}`;
     return `<div class="cal-cell${c.iso === today ? ' today' : ''}" role="button" tabindex="0" aria-label="${esc(label)}" onclick="openDayCard('${c.iso}')">
-      <span class="cal-num">${c.d}</span><div class="cal-dots">${dots}</div>
+      <span class="cal-num">${c.d}</span>
+      ${evts ? `<div class="cal-events" aria-hidden="true">${evts}</div>` : ''}
+      ${dots ? `<div class="cal-dots" aria-hidden="true">${dots}</div>` : ''}
     </div>`;
   }).join('');
   $('cal-grid').innerHTML = html;

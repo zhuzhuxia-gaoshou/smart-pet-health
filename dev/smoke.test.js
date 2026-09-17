@@ -322,7 +322,10 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
       check('calendar grid is whole weeks (28~42)', cells % 7 === 0 && cells >= 28 && cells <= 42, 'got ' + cells);
       const todayCell = doc.querySelector('#cal-grid .cal-cell.today');
       check('calendar today cell highlighted', !!todayCell && todayCell.querySelector('.cal-num').textContent === String(dd));
-      check('today cell shows dots (soon + med)', !!todayCell && todayCell.querySelectorAll('.cal-dot').length >= 2, 'got ' + (todayCell ? todayCell.querySelectorAll('.cal-dot').length : 0));
+      check('today cell shows event text + med dot', !!todayCell
+        && [...todayCell.querySelectorAll('.cal-evt .evt-txt')].some(e => e.textContent.includes('__smoke_cal__'))
+        && todayCell.querySelector('.cal-dot') !== null,
+        'evts=' + todayCell.querySelectorAll('.cal-evt').length + ' dots=' + todayCell.querySelectorAll('.cal-dot').length);
       check('active cells keyboard reachable', [...doc.querySelectorAll('#cal-grid .cal-cell:not(.dim)')].every(el => el.getAttribute('role') === 'button' && el.getAttribute('tabindex') === '0' && el.getAttribute('aria-label').includes('月')));
       check('dim cells not focusable', [...doc.querySelectorAll('#cal-grid .cal-cell.dim')].every(el => !el.hasAttribute('tabindex')));
       check('today cell aria says 今天', !!todayCell && (todayCell.getAttribute('aria-label') || '').includes('今天'));
