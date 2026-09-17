@@ -423,6 +423,30 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
     window.closeModal(); await sleep(220);
   }
 
+  // ---------- M3 统一打磨：文案区分 / token 纪律 / 焦点恢复 / 提示卡 Esc 可关 ----------
+  {
+    const css = html.match(/<style>([\s\S]*?)<\/style>/)[1];
+    check('diet raw badge uses --diet-raw token (AA)', /\.diet-badge\.raw\s*\{[^}]*var\(--diet-raw\)/.test(css) && /--diet-raw:\s*#/.test(css) && (css.match(/--diet-raw:/g) || []).length === 2);
+    check('cal-more uses text-2 (dark AA)', /\.cal-more\s*\{[^}]*var\(--text-2\)/.test(css));
+    check('no 760px breakpoint drift', !css.includes('max-width: 760px'));
+    await T.openDetail(kel.id); await sleep(400);
+    check('diet CTA says 记一餐 not 记一笔', (doc.querySelector('#pane-diet .med-head .btn') || {}).textContent?.includes('记一餐'));
+    T.go('ledger'); await sleep(600);
+    const rows = doc.querySelectorAll('#ledger-list .exp-row');
+    if (rows.length) {
+      rows[0].focus();
+      const label = rows[0].getAttribute('aria-label');
+      await window.renderLedger(); await sleep(50);
+      check('ledger rerender restores focus to same row', doc.activeElement && doc.activeElement.getAttribute('aria-label') === label && doc.activeElement !== rows[0]);
+    }
+    const tip = doc.querySelector('#exp-chart .wc-tip');
+    if (tip) {
+      tip.classList.add('show');
+      doc.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      check('Esc closes chart tooltip', !tip.classList.contains('show'));
+    }
+  }
+
   const fails = results.filter(r => !r.ok);
   for (const r of results) console.log((r.ok ? 'PASS ' : 'FAIL ') + r.name + (r.extra ? '  [' + r.extra + ']' : ''));
   console.log(`\n${results.length - fails.length}/${results.length} passed`);

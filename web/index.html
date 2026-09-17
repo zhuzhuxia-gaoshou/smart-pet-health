@@ -44,6 +44,7 @@
   --medication: #7559AE;              /* 记录类型色：喂药（白字 5.53:1） */
   --diet-wet: #2E6273;                /* 饮食类型色：湿粮（对 soft 底 ≈6.3:1） */
   --diet-wet-soft: rgba(46,98,115,.10);
+  --diet-raw: #A03A30;                /* 饮食类型色：生骨肉（--danger 对 soft 底仅 4.45:1，AA 需 4.5，单独加深至 5.83:1） */
   --overlay: rgba(23,22,20,.45);      /* 模态遮罩 */
   --overlay-strong: rgba(0,0,0,.55);  /* 图片上的迷你遮罩按钮 */
   --shadow-xs: 0 1px 3px rgba(0,0,0,.08);
@@ -80,6 +81,7 @@ html[data-theme="dark"] {
   --medication: #A78BD4;
   --diet-wet: #7FB8C9;
   --diet-wet-soft: rgba(127,184,201,.14);
+  --diet-raw: #EE9188;
   --overlay: rgba(0,0,0,.55); --overlay-strong: rgba(0,0,0,.65);
   --shadow-xs: 0 1px 3px rgba(0,0,0,.4);
   --shadow-sm: 0 2px 8px rgba(0,0,0,.35);
@@ -810,13 +812,13 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
 .exp-bar-row { cursor: default; outline: none; }
 .exp-bar-row rect.bar { transition: opacity var(--dur) var(--ease); }
 .exp-bar-row:hover rect.bar, .exp-bar-row:focus rect.bar { opacity: .82; }
-.exp-bar-row:focus-visible rect.hit { stroke: var(--accent); stroke-width: 1.5; rx: 6; }
+.exp-bar-row:focus rect.hit, .exp-bar-row:focus-visible rect.hit { stroke: var(--accent); stroke-width: 2; rx: 6; }
 .exp-cat-badge { padding: 2px 9px; border-radius: var(--r-pill); font-size: 11px; font-weight: 600; flex: none; }
 .exp-amt { margin-left: auto; font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums; flex: none; }
 .exp-group-head { display: flex; align-items: baseline; gap: 8px; margin: 16px 0 8px; font-weight: 600; font-size: 14px; }
 .exp-group-head:first-child { margin-top: 0; }
 .exp-group-head .g-sub { color: var(--text-2); font-weight: 500; font-size: 12.5px; }
-@media (max-width: 760px) { .exp-top { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .exp-top { grid-template-columns: 1fr; } }
 
 /* ---------- 健康日历 ---------- */
 .cal-legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12px; color: var(--text-2); align-items: center; margin-left: auto; }
@@ -836,7 +838,7 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
 .cal-cell.today .cal-num { background: var(--accent-strong); color: var(--on-accent); font-weight: 600; }
 .cal-dots { display: flex; gap: 4px; align-items: center; min-height: 7px; flex-wrap: wrap; }
 .cal-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
-.cal-more { font-size: 11px; color: var(--text-3); }
+.cal-more { font-size: 11px; color: var(--text-2); }
 .day-card-pet { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 
 /* ---------- 饮食页签（详情弹窗内） ---------- */
@@ -845,7 +847,7 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
 .diet-badge.kibble { background: var(--accent-soft); color: var(--accent-strong); }
 .diet-badge.wet { background: var(--diet-wet-soft); color: var(--diet-wet); }
 .diet-badge.treat { background: var(--warn-soft); color: var(--warn); }
-.diet-badge.raw { background: var(--danger-soft); color: var(--danger); }
+.diet-badge.raw { background: var(--danger-soft); color: var(--diet-raw); }
 .diet-row .rec-title { flex: none; max-width: 30%; }
 .diet-row .diet-note { flex: 1; min-width: 0; color: var(--text-2); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .diet-row:hover { background: var(--surface-2); }
@@ -1407,8 +1409,8 @@ async function openDetail(petId, from) {
     const [a, b, c, m, f] = await Promise.all([
       api(`/api/pets/${petId}`), api(`/api/pets/${petId}/records`), api(`/api/pets/${petId}/weights`),
       api(`/api/pets/${petId}/medications`),
-      // 饮食页签失败不阻塞详情页（详情页是"记一笔"的必经路径）
-      api(`/api/pets/${petId}/diet-logs`).catch(() => ({ logs: [], summary: { today: 0, week: 0, by_type_30d: {} } }))]);
+      // 饮食页签失败不阻塞详情页（详情页是"记一笔"的必经路径）；带 failed 标记，不能伪装成"还没有记录"
+      api(`/api/pets/${petId}/diet-logs`).catch(() => ({ logs: [], summary: { today: 0, week: 0, by_type_30d: {} }, failed: true }))]);
     pet = a.pet; records = b.records; weights = c.weights; meds = m.medications || []; diet = f;
   } catch (e) { toast(e.message || '宠物不存在', true); go('library'); return; }
   state.weightsCache[petId] = weights;
@@ -1449,7 +1451,7 @@ async function openDetail(petId, from) {
     <div class="tab-pane active" id="pane-timeline" role="tabpanel">${timelineHTML(records)}</div>
     <div class="tab-pane" id="pane-weight" role="tabpanel"><div class="card card-pad" id="weight-chart"></div></div>
     <div class="tab-pane" id="pane-meds" role="tabpanel">${medsHTML(meds)}</div>
-    <div class="tab-pane" id="pane-diet" role="tabpanel">${dietHTML(diet.logs, diet.summary)}</div>
+    <div class="tab-pane" id="pane-diet" role="tabpanel">${dietHTML(diet.logs, diet.summary, diet.failed)}</div>
     <div class="tab-pane" id="pane-care" role="tabpanel">${careHTML(p)}</div>
     <div class="tab-pane" id="pane-props" role="tabpanel">${propsHTML(p)}</div>`;
   document.querySelectorAll('#nav-tabs .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.view === 'library'));
@@ -1603,14 +1605,16 @@ async function deleteMed(id, btn) {
 
 /* ---------- 饮食日志（档案详情页签） ---------- */
 const dietTabLabel = s => (s && s.today) ? `饮食 · ${s.today}` : '饮食';
-function dietHTML(logs, summary) {
+function dietHTML(logs, summary, failed) {
   logs = logs || []; summary = summary || { today: 0, week: 0 };
   const head = `<div class="med-head"><div class="card-title" style="margin:0">饮食记录</div>
-    <button class="btn primary sm" onclick="openDietModal()">＋ 记一笔</button></div>`;
+    <button class="btn primary sm" onclick="openDietModal()">＋ 记一餐</button></div>`;
+  if (failed) return `<div class="card card-pad">${head}
+    <div class="empty-hint">饮食记录加载失败，<button type="button" class="tl-del" onclick="reloadDiet().catch(e => toast(e.message, true))">重试</button></div></div>`;
   if (!logs.length) return `<div class="card card-pad">${head}
     <div class="empty-state"><div class="big" aria-hidden="true">🍖</div><h3>还没有饮食记录</h3>
     <p>记下每顿吃什么、吃多少——食欲变化是最早的健康信号，AI 分析也会参考。</p>
-    <button class="btn primary sm" onclick="openDietModal()">记第一顿</button></div></div>`;
+    <button class="btn primary sm" onclick="openDietModal()">记第一餐</button></div></div>`;
   const badge = l => l.food_type === 'other'
     ? `<span class="badge plain">${esc(l.type_label)}</span>`
     : `<span class="diet-badge ${esc(l.food_type)}">${esc(l.type_label)}</span>`;
@@ -1779,7 +1783,8 @@ function expBarHover(e) {
   // 容器 padding-top 4px；tip 锚在条中点、行顶上方
   const cx = (64 + bw / 2) / d.W * rect.width, cy = (i * d.ROW) / d.H * rect.height + 4;
   tip.style.left = Math.max(70, Math.min(cx, rect.width - 70)) + 'px';
-  tip.style.top = (cy - 4) + 'px';
+  // 首行的卡向上弹会探出卡片顶边：底边至少压在 54px（card-title 高度）处，宁盖标题不溢出
+  tip.style.top = Math.max(54, cy - 4) + 'px';
   tip.classList.add('show');
 }
 function expBarLeave(e) {
@@ -1889,7 +1894,7 @@ async function renderCalendar() {
     const dots = levels.slice(0, 3).map(l => `<i class="cal-dot" style="background:${CAL_DOT[l]}"></i>`).join('')
       + (levels.length > 3 ? `<span class="cal-more">+${levels.length - 3}</span>` : '')
       + (b.records.length ? `<span class="cal-more" title="已做记录">✓${b.records.length}</span>` : '');
-    const parts = b.reminders.map(r => `${r.type_label}(${r.pet_name}${r.level === 'overdue' ? '·逾期' : r.level === 'soon' ? '·临期' : ''})`)
+    const parts = b.reminders.map(r => `${r.type_label}(${r.pet_name}${r.level === 'overdue' ? '·逾期' : r.level === 'soon' ? '·临期' : '·待办'})`)
       .concat(b.records.map(r => `已做${r.type_label}(${r.pet_name})`))
       .concat(b.meds.length ? [`用药中 ${b.meds.length} 项`] : []);
     const label = `${m}月${c.d}日 周${DOW[idx % 7]}${c.iso === today ? '（今天）' : ''}，${parts.length ? parts.length + ' 项：' + parts.join('、') : '无事项'}`;
@@ -1932,7 +1937,7 @@ function openDayCard(iso) {
       <div class="day-card-pet">${petBtns}</div>
       <div style="display:flex;gap:8px">
         <button class="btn" onclick="closeModal()">关闭</button>
-        <button class="btn primary" onclick="closeModal(); openRecordModal(${petIds.length === 1 ? petIds[0] : ''})">＋ 记一笔</button>
+        <button class="btn primary" onclick="closeModal(); openRecordModal(${petIds.length === 1 ? petIds[0] : ''})">＋ 健康记录</button>
       </div>
     </div>`);
 }
@@ -3142,6 +3147,30 @@ async function checkNotify() {
   const skip = document.createElement('a');
   skip.className = 'skip-link'; skip.href = '#main-content'; skip.textContent = '跳到主内容';
   document.body.prepend(skip);
+
+  /* 9. 悬浮提示卡可关闭（WCAG 1.4.13）：图表行聚焦弹出的 .wc-tip 按 Esc 收起 */
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    document.querySelectorAll('#exp-chart .wc-tip.show, #weight-chart .wc-tip.show').forEach(t => t.classList.remove('show'));
+  });
+
+  /* 10. 列表重渲染后焦点恢复（WCAG 2.4.3）：记账/日历保存或完成后 innerHTML 重建，
+        closeModal 回焦的旧节点已脱离文档；按 aria-label 找回同一行/格，找不到则落到容器首个可聚焦项 */
+  for (const fn of ['renderLedger', 'renderCalendar']) {
+    const orig = window[fn];
+    if (typeof orig !== 'function') continue;
+    window[fn] = async function () {
+      const a = document.activeElement;
+      const box = a && a.closest && a.closest('#ledger-list, #cal-grid');
+      const key = box && a.getAttribute('aria-label');
+      const out = await orig.apply(this, arguments);
+      if (box) {
+        const items = [...box.querySelectorAll('[aria-label][tabindex="0"]')];
+        (items.find(el => el.getAttribute('aria-label') === key) || items[0])?.focus?.();
+      }
+      return out;
+    };
+  }
 })();
 </script>
 </body>
