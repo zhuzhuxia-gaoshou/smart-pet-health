@@ -42,6 +42,8 @@
   --text-3: #7D6F5C;                  /* 三级弱文字（奶油底上 4.68:1） */
   --on-accent: #FFFFFF;               /* 强调色/实色填充之上的文字 */
   --medication: #7559AE;              /* 记录类型色：喂药（白字 5.53:1） */
+  --diet-wet: #2E6273;                /* 饮食类型色：湿粮（对 soft 底 ≈6.3:1） */
+  --diet-wet-soft: rgba(46,98,115,.10);
   --overlay: rgba(23,22,20,.45);      /* 模态遮罩 */
   --overlay-strong: rgba(0,0,0,.55);  /* 图片上的迷你遮罩按钮 */
   --shadow-xs: 0 1px 3px rgba(0,0,0,.08);
@@ -76,6 +78,8 @@ html[data-theme="dark"] {
   --text-3: #8F8375;
   --on-accent: #171614;               /* 暗色下浅橙/状态色底配深字（白字仅 2.72:1 不达标） */
   --medication: #A78BD4;
+  --diet-wet: #7FB8C9;
+  --diet-wet-soft: rgba(127,184,201,.14);
   --overlay: rgba(0,0,0,.55); --overlay-strong: rgba(0,0,0,.65);
   --shadow-xs: 0 1px 3px rgba(0,0,0,.4);
   --shadow-sm: 0 2px 8px rgba(0,0,0,.35);
@@ -354,13 +358,14 @@ html[data-theme="light"] .icon-sun { display: none; }
 .compact-card .reminder-item { padding: 7px 8px; }
 
 /* 全部记录 / 提醒列表 */
-.rec-row, .exp-row {
+.rec-row, .exp-row, .diet-row {
   display: flex; align-items: center; gap: 11px; padding: 11px 12px;
   border-radius: 10px; cursor: pointer; border: 1px solid transparent;
   transition: background var(--dur), border-color var(--dur), transform var(--dur);
 }
+.diet-row { cursor: default; }
 .rec-row:hover, .exp-row:hover { background: var(--surface-2); border-color: var(--border); transform: translateX(2px); }
-.rec-row + .rec-row, .exp-row + .exp-row { margin-top: 2px; }
+.rec-row + .rec-row, .exp-row + .exp-row, .diet-row + .diet-row { margin-top: 2px; }
 .rec-date { color: var(--text-2); font-size: 12.5px; font-variant-numeric: tabular-nums; flex: none; width: 44px; }
 .rec-type { font-size: 11px; font-weight: 600; color: var(--on-accent); padding: 2px 8px; border-radius: var(--r-pill); flex: none; }
 .rec-pet { font-weight: 600; font-size: 13.5px; flex: none; }
@@ -829,6 +834,19 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
 .cal-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 .cal-more { font-size: 11px; color: var(--text-3); }
 .day-card-pet { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+
+/* ---------- 饮食页签（详情弹窗内） ---------- */
+.diet-sum { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+.diet-badge { padding: 3px 10px; border-radius: var(--r-pill); font-size: 12px; font-weight: 600; flex: none; }
+.diet-badge.kibble { background: var(--accent-soft); color: var(--accent-strong); }
+.diet-badge.wet { background: var(--diet-wet-soft); color: var(--diet-wet); }
+.diet-badge.treat { background: var(--warn-soft); color: var(--warn); }
+.diet-badge.raw { background: var(--danger-soft); color: var(--danger); }
+.diet-row .rec-title { flex: none; max-width: 30%; }
+.diet-row .diet-note { flex: 1; min-width: 0; color: var(--text-2); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.diet-row:hover { background: var(--surface-2); }
+.diet-row .tl-ops { display: flex; gap: 8px; flex: none; }
+@media (hover: hover) { .diet-row .tl-ops { opacity: 0; transition: opacity var(--dur) var(--ease); } .diet-row:hover .tl-ops, .diet-row:focus-within .tl-ops { opacity: 1; } }
 </style>
 </head>
 <body>
@@ -1111,7 +1129,7 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
 const API = '';           // 同源部署（FastAPI 托管），跨端口调试时改为 http://127.0.0.1:8000
 const state = {
   pets: [], reminders: [], stats: null, recent: [],
-  detailPetId: null, detailTab: 'timeline', detailRecords: [], detailMeds: [],
+  detailPetId: null, detailTab: 'timeline', detailRecords: [], detailMeds: [], detailDiet: null,
   chat: [], agentMode: null, weightsCache: {}, weightRange: 'all',
   memories: [], memWallPetId: null, memImg: '',
   species: null,
@@ -1128,6 +1146,7 @@ const EXP_COLOR = { medical:'var(--accent-strong)', food:'var(--success)', suppl
 const EXP_SOFT  = { medical:'var(--accent-soft)', food:'var(--success-soft)', supply:'var(--warn-soft)',
                     grooming:'color-mix(in srgb, var(--medication) 12%, transparent)', other:'var(--surface-2)' };
 const fmtMoney = v => '¥' + Number(v || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const DIET_LABEL = { kibble:'干粮', wet:'湿粮', treat:'零食', raw:'生骨肉', other:'其他' };
 const STATUS_LABEL = { healthy:'健康', attention:'需关注', ill:'治疗中' };
 const TYPE_EMOJI = { cat:'🐱', dog:'🐶', bird:'🦜', fish:'🐟', other:'🐾' };
 const PET_TYPE_LABEL = { cat:'猫', dog:'狗', bird:'鸟', fish:'鱼', other:'其他' };
@@ -1376,16 +1395,19 @@ async function openDetail(petId, from) {
   vd.classList.add('active');
   vd.innerHTML = `<div class="card detail-head"><div class="skel sk-av" style="border-radius:20px"></div><div style="flex:1"><div class="skel sk-line w40" style="height:20px"></div><div class="skel sk-line w60"></div><div class="skel sk-line w40" style="margin-bottom:0"></div></div></div>
     <div class="card card-pad"><div class="skel sk-line w60"></div><div class="skel sk-line w40"></div><div class="skel sk-line w60" style="margin-bottom:0"></div></div>`;
-  let pet, records, weights, meds;
+  let pet, records, weights, meds, diet;
   try {
-    const [a, b, c, m] = await Promise.all([
+    const [a, b, c, m, f] = await Promise.all([
       api(`/api/pets/${petId}`), api(`/api/pets/${petId}/records`), api(`/api/pets/${petId}/weights`),
-      api(`/api/pets/${petId}/medications`)]);
-    pet = a.pet; records = b.records; weights = c.weights; meds = m.medications || [];
+      api(`/api/pets/${petId}/medications`),
+      // 饮食页签失败不阻塞详情页（详情页是"记一笔"的必经路径）
+      api(`/api/pets/${petId}/diet-logs`).catch(() => ({ logs: [], summary: { today: 0, week: 0, by_type_30d: {} } }))]);
+    pet = a.pet; records = b.records; weights = c.weights; meds = m.medications || []; diet = f;
   } catch (e) { toast(e.message || '宠物不存在', true); go('library'); return; }
   state.weightsCache[petId] = weights;
   state.detailRecords = records;
   state.detailMeds = meds;
+  state.detailDiet = diet;
   const p = pet;
   const worst = (p.upcoming || []).reduce((m, r) => Math.min(m, r.days_left), 999);
   $('view-detail').innerHTML = `
@@ -1413,12 +1435,14 @@ async function openDetail(petId, from) {
       <button class="detail-tab active" role="tab" aria-selected="true" data-tab="timeline" onclick="switchTab('timeline', this)">健康时间线</button>
       <button class="detail-tab" role="tab" aria-selected="false" data-tab="weight" onclick="switchTab('weight', this)">体重趋势</button>
       <button class="detail-tab" role="tab" aria-selected="false" data-tab="meds" onclick="switchTab('meds', this)">${medTabLabel(meds)}</button>
+      <button class="detail-tab" role="tab" aria-selected="false" data-tab="diet" onclick="switchTab('diet', this)">${dietTabLabel(diet.summary)}</button>
       <button class="detail-tab" role="tab" aria-selected="false" data-tab="care" onclick="switchTab('care', this)">护理要点</button>
       <button class="detail-tab" role="tab" aria-selected="false" data-tab="props" onclick="switchTab('props', this)">资料</button>
     </div>
     <div class="tab-pane active" id="pane-timeline" role="tabpanel">${timelineHTML(records)}</div>
     <div class="tab-pane" id="pane-weight" role="tabpanel"><div class="card card-pad" id="weight-chart"></div></div>
     <div class="tab-pane" id="pane-meds" role="tabpanel">${medsHTML(meds)}</div>
+    <div class="tab-pane" id="pane-diet" role="tabpanel">${dietHTML(diet.logs, diet.summary)}</div>
     <div class="tab-pane" id="pane-care" role="tabpanel">${careHTML(p)}</div>
     <div class="tab-pane" id="pane-props" role="tabpanel">${propsHTML(p)}</div>`;
   document.querySelectorAll('#nav-tabs .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.view === 'library'));
@@ -1567,6 +1591,78 @@ async function finishMed(id) {
 async function deleteMed(id, btn) {
   if (btn) btn.classList.add('shake');
   try { await api(`/api/medications/${id}`, { method: 'DELETE' }); await reloadMeds(); toast('用药记录已删除'); }
+  catch (e) { toast(e.message, true); if (btn) btn.classList.remove('shake'); }
+}
+
+/* ---------- 饮食日志（档案详情页签） ---------- */
+const dietTabLabel = s => (s && s.today) ? `饮食 · ${s.today}` : '饮食';
+function dietHTML(logs, summary) {
+  logs = logs || []; summary = summary || { today: 0, week: 0 };
+  const head = `<div class="med-head"><div class="card-title" style="margin:0">饮食记录</div>
+    <button class="btn primary sm" onclick="openDietModal()">＋ 记一笔</button></div>`;
+  if (!logs.length) return `<div class="card card-pad">${head}
+    <div class="empty-state"><div class="big" aria-hidden="true">🍖</div><h3>还没有饮食记录</h3>
+    <p>记下每顿吃什么、吃多少——食欲变化是最早的健康信号，AI 分析也会参考。</p>
+    <button class="btn primary sm" onclick="openDietModal()">记第一顿</button></div></div>`;
+  const badge = l => l.food_type === 'other'
+    ? `<span class="badge plain">${esc(l.type_label)}</span>`
+    : `<span class="diet-badge ${esc(l.food_type)}">${esc(l.type_label)}</span>`;
+  return `<div class="card card-pad">${head}
+    <div class="diet-sum">
+      <div class="wc-stat"><div class="k">今日</div><div class="v">${summary.today} 顿</div></div>
+      <div class="wc-stat"><div class="k">本周（周一起）</div><div class="v">${summary.week} 次</div></div>
+    </div>
+    ${logs.map(l => `<div class="diet-row">
+      <span class="rec-date">${esc((l.date || '').slice(5))}</span>${badge(l)}
+      <span class="rec-title">${esc(l.amount)}</span>
+      <span class="diet-note">${esc(l.note || '')}</span>
+      <span class="tl-ops"><button class="tl-del" onclick="openDietModal(${l.id})">编辑</button><button class="tl-del" onclick="deleteDiet(${l.id}, this)">删除</button></span>
+    </div>`).join('')}
+  </div>`;
+}
+async function reloadDiet() {
+  const d = await api(`/api/pets/${state.detailPetId}/diet-logs`);
+  state.detailDiet = d;
+  const pane = $('pane-diet'); if (pane) pane.innerHTML = dietHTML(d.logs, d.summary);
+  const tab = document.querySelector('.detail-tab[data-tab="diet"]'); if (tab) tab.textContent = dietTabLabel(d.summary);
+}
+function openDietModal(id) {
+  const l = id ? ((state.detailDiet && state.detailDiet.logs) || []).find(x => x.id === id) : null;
+  const pet = state.pets.find(x => x.id === state.detailPetId);
+  const typeOpts = Object.entries(DIET_LABEL).map(([k, t]) => `<option value="${k}" ${(l ? l.food_type : 'kibble') === k ? 'selected' : ''}>${t}</option>`).join('');
+  openModal(`
+  <h3>${l ? '编辑饮食记录' : '记一笔饮食'}${pet ? ` · ${esc(pet.name)}` : ''}</h3>
+  <form id="diet-form" onsubmit="return submitDiet(event, ${l ? l.id : 'null'})">
+    <div class="form-grid">
+      <div class="form-field"><label>日期</label><input name="date" type="date" value="${esc(l?.date || todayISO())}"></div>
+      <div class="form-field"><label>类型</label><select name="food_type">${typeOpts}</select></div>
+      <div class="form-field full"><label>份量 <span class="req">*</span></label><input name="amount" required maxlength="40" placeholder="如：80 g / 1 罐 / 半勺" value="${esc(l?.amount || '')}"></div>
+      <div class="form-field full"><label>备注</label><textarea name="note" rows="2" maxlength="200" placeholder="食欲、排便、是否吃完…">${esc(l?.note || '')}</textarea></div>
+    </div>
+    <div class="modal-actions">
+      ${l ? `<button type="button" class="btn danger" style="margin-right:auto" onclick="deleteDiet(${l.id}, this)">删除</button>` : ''}
+      <button type="button" class="btn" onclick="closeModal()">取消</button>
+      <button type="submit" class="btn primary" id="diet-save-btn">${l ? '保存修改' : '保存'}</button>
+    </div>
+  </form>`);
+}
+async function submitDiet(e, id) {
+  e.preventDefault();
+  const f = Object.fromEntries(new FormData(e.target).entries());
+  const body = { food_type: f.food_type, amount: (f.amount || '').trim(), note: (f.note || '').trim() };
+  if (f.date) body.date = f.date;
+  if (!body.amount) { toast('份量不能为空', true); return false; }
+  try {
+    if (id) await api(`/api/diet-logs/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+    else await api(`/api/pets/${state.detailPetId}/diet-logs`, { method: 'POST', body: JSON.stringify(body) });
+    flashSaved($('diet-save-btn'));
+    setTimeout(async () => { closeModal(); await reloadDiet(); toast(id ? '饮食记录已更新 ✓' : '已记下这一顿 ✓'); }, 450);
+  } catch (err) { toast(err.message, true); }
+  return false;
+}
+async function deleteDiet(id, btn) {
+  if (btn) btn.classList.add('shake');
+  try { await api(`/api/diet-logs/${id}`, { method: 'DELETE' }); closeModal(); await reloadDiet(); toast('饮食记录已删除'); }
   catch (e) { toast(e.message, true); if (btn) btn.classList.remove('shake'); }
 }
 

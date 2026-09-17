@@ -344,6 +344,41 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
     }
   }
 
+  // ---------- 饮食日志：详情第 6 页签 / 小结 / CRUD / 校验 ----------
+  if (kel) {
+    const before = await (await fetch(BASE + `/api/pets/${kel.id}/diet-logs`)).json();
+    const created = await T.api(`/api/pets/${kel.id}/diet-logs`, { method: 'POST', body: JSON.stringify({ food_type: 'wet', amount: '__smoke 1 罐', note: '__smoke_diet__' }) });
+    try {
+      // 日期以服务端返回为准，避免跨零点时客户端/服务端"今天"不一致
+      check('diet log created with label', created.log?.type_label === '湿粮' && /^\d{4}-\d{2}-\d{2}$/.test(created.log.date));
+      const after = await (await fetch(BASE + `/api/pets/${kel.id}/diet-logs`)).json();
+      check('diet summary today/week +1', after.summary.today === before.summary.today + 1 && after.summary.week === before.summary.week + 1);
+      let err = '';
+      try { await T.api(`/api/pets/${kel.id}/diet-logs`, { method: 'POST', body: JSON.stringify({ food_type: 'pizza', amount: '1' }) }); } catch (e) { err = e.message; }
+      check('diet type whitelist rejected in Chinese', err.includes('饮食类型'), err);
+      err = '';
+      try { await T.api(`/api/pets/${kel.id}/diet-logs`, { method: 'POST', body: JSON.stringify({ food_type: 'kibble', amount: '   ' }) }); } catch (e) { err = e.message; }
+      check('diet blank amount rejected', err.includes('份量'), err);
+      await T.openDetail(kel.id); await sleep(500);
+      const tabs = [...doc.querySelectorAll('#view-detail .detail-tab')].map(b => b.dataset.tab).join('|');
+      check('detail tabs: diet sits after meds', tabs === 'timeline|weight|meds|diet|care|props', tabs);
+      check('diet tab label shows today count', doc.querySelector('.detail-tab[data-tab=diet]').textContent.includes(`饮食 · ${after.summary.today}`));
+      T.switchTab('diet', doc.querySelector('[data-tab=diet]')); await sleep(100);
+      check('diet pane rows = logs', n('#pane-diet .diet-row') === after.logs.length, n('#pane-diet .diet-row') + ' vs ' + after.logs.length);
+      check('diet summary stats', n('#pane-diet .wc-stat') === 2 && doc.querySelector('#pane-diet .wc-stat .v').textContent.includes(`${after.summary.today} 顿`));
+      check('diet wet badge rendered', [...doc.querySelectorAll('#pane-diet .diet-badge.wet')].some(b => b.textContent === '湿粮'));
+      window.openDietModal(created.log.id); await sleep(80);
+      check('diet modal prefilled', doc.querySelector('#diet-form [name=amount]')?.value === '__smoke 1 罐' && doc.querySelector('#diet-form [name=food_type]')?.value === 'wet');
+      window.closeModal(); await sleep(220);
+      const upd = await T.api('/api/diet-logs/' + created.log.id, { method: 'PUT', body: JSON.stringify({ food_type: 'treat', amount: '2 条' }) });
+      check('diet PUT keeps note', upd.log.food_type === 'treat' && upd.log.amount === '2 条' && upd.log.note === '__smoke_diet__');
+    } finally {
+      if (created.log) await T.api('/api/diet-logs/' + created.log.id, { method: 'DELETE' }).catch(() => {});
+    }
+    let gone = ''; try { await T.api('/api/diet-logs/' + (created.log ? created.log.id : 0), { method: 'DELETE' }); } catch (e) { gone = e.message; }
+    check('diet delete idempotent error', gone.includes('不存在'));
+  }
+
   const fails = results.filter(r => !r.ok);
   for (const r of results) console.log((r.ok ? 'PASS ' : 'FAIL ') + r.name + (r.extra ? '  [' + r.extra + ']' : ''));
   console.log(`\n${results.length - fails.length}/${results.length} passed`);

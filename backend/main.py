@@ -181,6 +181,33 @@ class ExpenseIn(BaseModel):
         return round(v, 2)
 
 
+class FeedingIn(BaseModel):
+    date: str | None = None
+    food_type: str = Field(..., description="kibble|wet|treat|raw|other")
+    amount: str = Field(..., min_length=1, max_length=40, description="份量文本，如：80 g / 1 罐 / 半勺")
+    note: str | None = Field(None, max_length=200)
+
+    @field_validator("date")
+    @classmethod
+    def _vd(cls, v):
+        return _check_date(v)
+
+    @field_validator("food_type")
+    @classmethod
+    def _vt(cls, v):
+        if v not in db.FEEDING_TYPES:
+            raise ValueError("饮食类型无效，可选：" + "/".join(db.FEEDING_TYPES))
+        return v
+
+    @field_validator("amount")
+    @classmethod
+    def _va(cls, v):
+        v = (v or "").strip()
+        if not v:
+            raise ValueError("份量不能为空")
+        return v
+
+
 # ---------------------------------------------------------------- 宠物 CRUD
 
 @app.get("/api/pets")
@@ -460,6 +487,38 @@ def api_update_expense(exp_id: int, body: ExpenseIn):
 def api_delete_expense(exp_id: int):
     if not db.delete_expense(exp_id):
         return {"error": "花费记录不存在"}
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------- 饮食日志
+
+@app.get("/api/pets/{pet_id}/diet-logs")
+def api_list_diet(pet_id: int):
+    if db.get_pet(pet_id) is None:
+        return {"error": "宠物不存在"}
+    return {"logs": db.list_feeding_logs(pet_id), "summary": db.feeding_summary(pet_id)}
+
+
+@app.post("/api/pets/{pet_id}/diet-logs")
+def api_add_diet(pet_id: int, body: FeedingIn):
+    result = db.add_feeding_log(pet_id, body.model_dump(exclude_none=True))
+    if result is None:
+        return {"error": "宠物不存在"}
+    return {"log": result}
+
+
+@app.put("/api/diet-logs/{log_id}")
+def api_update_diet(log_id: int, body: FeedingIn):
+    result = db.update_feeding_log(log_id, body.model_dump(exclude_none=True))
+    if result is None:
+        return {"error": "饮食记录不存在"}
+    return {"log": result}
+
+
+@app.delete("/api/diet-logs/{log_id}")
+def api_delete_diet(log_id: int):
+    if not db.delete_feeding_log(log_id):
+        return {"error": "饮食记录不存在"}
     return {"ok": True}
 
 

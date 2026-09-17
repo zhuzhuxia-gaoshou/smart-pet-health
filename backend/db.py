@@ -29,6 +29,8 @@ REPEAT_RULES = {"": "不重复", "daily": "每天", "weekly": "每周", "monthly
 MED_STATUS = {"active": "在用", "finished": "已结束"}
 # 花费分类（记账页与 AI 工具共用）
 EXPENSE_CATEGORIES = {"medical": "医疗", "food": "粮食", "supply": "用品", "grooming": "洗护", "other": "其他"}
+# 饮食类型（饮食日志页签与 AI 工具共用）
+FEEDING_TYPES = {"kibble": "干粮", "wet": "湿粮", "treat": "零食", "raw": "生骨肉", "other": "其他"}
 
 
 def get_conn() -> sqlite3.Connection:
@@ -105,6 +107,16 @@ CREATE TABLE IF NOT EXISTS expenses(
   created_at TEXT DEFAULT (datetime('now','localtime')),
   FOREIGN KEY(pet_id) REFERENCES pets(id) ON DELETE SET NULL
 );
+CREATE TABLE IF NOT EXISTS feeding_logs(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  pet_id INTEGER NOT NULL,
+  date TEXT NOT NULL,
+  food_type TEXT NOT NULL DEFAULT 'kibble',
+  amount TEXT DEFAULT '',
+  note TEXT DEFAULT '',
+  created_at TEXT DEFAULT (datetime('now','localtime')),
+  FOREIGN KEY(pet_id) REFERENCES pets(id) ON DELETE CASCADE
+);
 CREATE INDEX IF NOT EXISTS idx_records_pet ON health_records(pet_id, date);
 CREATE INDEX IF NOT EXISTS idx_records_next ON health_records(next_date);
 CREATE INDEX IF NOT EXISTS idx_weights_pet ON weight_logs(pet_id, date);
@@ -113,6 +125,7 @@ CREATE INDEX IF NOT EXISTS idx_memories_pet ON memories(pet_id, date);
 CREATE INDEX IF NOT EXISTS idx_chat_session ON chat_history(session_id);
 CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);
 CREATE INDEX IF NOT EXISTS idx_expenses_pet ON expenses(pet_id, date);
+CREATE INDEX IF NOT EXISTS idx_feeding_pet ON feeding_logs(pet_id, date);
 """
 
 
@@ -847,7 +860,7 @@ def reset_demo_data() -> dict:
     conn = get_conn()
     try:
         for t in ("chat_history", "chat_sessions", "app_kv", "weight_logs",
-                  "health_records", "medications", "memories", "expenses", "pets"):
+                  "health_records", "medications", "memories", "expenses", "feeding_logs", "pets"):
             conn.execute(f"DELETE FROM {t}")
         conn.commit()
     finally:
@@ -892,6 +905,7 @@ def init_and_seed() -> None:
     seed_memories()
     seed_medications()
     seed_expenses()
+    seed_feeding()
 
 
 # ---------------------------------------------------------------- 用药记录
@@ -1262,6 +1276,139 @@ def calendar_month(year: int, month: int) -> dict:
             "med_days": sum(1 for d in days.values() if d["meds"]),
         },
     }
+
+
+# ---------------------------------------------------------------- 饮食日志
+
+FEEDING_FIELDS = ("date", "food_type", "amount", "note")
+
+
+def _feed_dict(row) -> dict:
+    d = dict(row)
+    d["food_type"] = d.get("food_type") or "other"
+    d["type_label"] = FEEDING_TYPES.get(d["food_type"], d["food_type"])
+    return d
+
+
+def list_feeding_logs(pet_id: int, limit: int | None = None) -> list[dict]:
+    """某宠物饮食流水，日期倒序（同日按录入顺序倒序）。"""
+    conn = get_conn()
+    try:
+        sql = "SELECT * FROM feeding_logs WHERE pet_id=? ORDER BY date DESC, id DESC"
+        if limit:
+            sql += f" LIMIT {int(limit)}"
+        return [_feed_dict(r) for r in conn.execute(sql, (pet_id,)).fetchall()]
+    finally:
+        conn.close()
+
+
+def feeding_summary(pet_id: int) -> dict:
+    """今日顿数 + 本周（周一起算）次数 + 近 30 天类型分布，供页签小结卡与 AI 分析。"""
+    today = date.today()
+    week_start = (today - timedelta(days=today.weekday())).isoformat()
+    month_ago = (today - timedelta(days=30)).isoformat()
+    conn = get_conn()
+    try:
+        today_n = conn.execute("SELECT COUNT(*) FROM feeding_logs WHERE pet_id=? AND date=?",
+                               (pet_id, today.isoformat())).fetchone()[0]
+        week_n = conn.execute("SELECT COUNT(*) FROM feeding_logs WHERE pet_id=? AND date>=?",
+                              (pet_id, week_start)).fetchone()[0]
+        by_type = conn.execute(
+            "SELECT food_type, COUNT(*) AS n FROM feeding_logs WHERE pet_id=? AND date>=? GROUP BY food_type",
+            (pet_id, month_ago)).fetchall()
+    finally:
+        conn.close()
+    return {"today": today_n, "week": week_n,
+            "by_type_30d": {r["food_type"]: r["n"] for r in by_type}}
+
+
+def get_feeding_log(log_id: int) -> dict | None:
+    conn = get_conn()
+    try:
+        row = conn.execute("SELECT * FROM feeding_logs WHERE id=?", (log_id,)).fetchone()
+        return _feed_dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def add_feeding_log(pet_id: int, data: dict) -> dict | None:
+    if get_pet(pet_id) is None:
+        return None
+    conn = get_conn()
+    try:
+        cur = conn.execute(
+            "INSERT INTO feeding_logs(pet_id,date,food_type,amount,note) VALUES(?,?,?,?,?)",
+            (pet_id, data.get("date") or today_str(),
+             data.get("food_type") if data.get("food_type") in FEEDING_TYPES else "other",
+             (data.get("amount") or "").strip(), (data.get("note") or "").strip()))
+        conn.commit()
+        return get_feeding_log(cur.lastrowid)
+    finally:
+        conn.close()
+
+
+def update_feeding_log(log_id: int, data: dict) -> dict | None:
+    conn = get_conn()
+    try:
+        row = conn.execute("SELECT * FROM feeding_logs WHERE id=?", (log_id,)).fetchone()
+        if row is None:
+            return None
+        fields = {k: v for k, v in data.items() if k in FEEDING_FIELDS and v is not None}
+        if "food_type" in fields and fields["food_type"] not in FEEDING_TYPES:
+            fields.pop("food_type")
+        if "date" in fields and not fields["date"]:
+            fields.pop("date")
+        if fields:
+            conn.execute("UPDATE feeding_logs SET " + ",".join(f"{k}=?" for k in fields) + " WHERE id=?",
+                         list(fields.values()) + [log_id])
+            conn.commit()
+        return get_feeding_log(log_id)
+    finally:
+        conn.close()
+
+
+def delete_feeding_log(log_id: int) -> bool:
+    conn = get_conn()
+    try:
+        cur = conn.execute("DELETE FROM feeding_logs WHERE id=?", (log_id,))
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def seed_feeding() -> None:
+    """饮食示例（仅当表为空；与体重/用药呼应：可乐减肥粮过渡、布丁罐头限量、翠翠换羽期营养粮）。"""
+    conn = get_conn()
+    try:
+        if conn.execute("SELECT COUNT(*) FROM feeding_logs").fetchone()[0] > 0:
+            return
+        pet_of = {r["name"]: r["id"] for r in conn.execute("SELECT id, name FROM pets")}
+        samples = [
+            # (宠物名, 相对天数, 类型, 份量, 备注)
+            ("可乐", 0, "kibble", "70 g", "减肥粮过渡第 5 天，早餐吃完"),
+            ("可乐", -1, "kibble", "70 g", "晚餐剩了一点"),
+            ("可乐", -1, "treat", "2 块", "训练奖励，冻干鸡肉"),
+            ("可乐", -2, "kibble", "80 g", "拌益生菌粉一起吃"),
+            ("可乐", -3, "kibble", "80 g", ""),
+            ("可乐", -4, "raw", "1 块", "生骨肉试吃，排便正常"),
+            ("布丁", 0, "wet", "半罐", "罐头限量，医嘱减肥"),
+            ("布丁", -1, "kibble", "40 g", "减肥猫粮"),
+            ("布丁", -1, "wet", "半罐", ""),
+            ("布丁", -3, "kibble", "40 g", "食欲一般，外耳炎滴药后有点闹"),
+            ("布丁", -5, "treat", "1 条", "猫条，安抚"),
+            ("翠翠", 0, "kibble", "1 小勺", "换羽期营养粮"),
+            ("翠翠", -2, "other", "少量", "墨鱼骨补钙"),
+        ]
+        for name, off, ft, amt, note in samples:
+            pid = pet_of.get(name)
+            if pid is None:
+                continue
+            conn.execute("INSERT INTO feeding_logs(pet_id,date,food_type,amount,note) VALUES(?,?,?,?,?)",
+                         (pid, _d(off), ft, amt, note))
+        conn.commit()
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":

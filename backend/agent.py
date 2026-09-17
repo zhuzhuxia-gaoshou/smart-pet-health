@@ -73,7 +73,8 @@ TOOLS_BRIEF = """可用工具：
 - create_record_draft(宠物名, 类型, 日期, 标题, 说明, 下次日期, 体重): 用户口述要记一笔健康事项时调用，起草待确认的记录草稿（不直接入库）
 - get_attention_ranking(): 多宠物关注优先级排序，回答"我该先管哪只"类问题；无需参数
 - query_medications(宠物名): 查该宠物的用药情况——在用药物的剂量/频次/疗程剩余天数与已结束的用药历史
-- query_expenses(宠物名, 月份): 查养宠花费——合计/分类占比/按宠物分摊/最近明细；宠物名留空表示全部，月份传 YYYY-MM 或 YYYY，留空表示本月"""
+- query_expenses(宠物名, 月份): 查养宠花费——合计/分类占比/按宠物分摊/最近明细；宠物名留空表示全部，月份传 YYYY-MM 或 YYYY，留空表示本月
+- query_feeding(宠物名): 查该宠物的饮食日志——今日/本周喂食次数、近 30 天类型分布（干粮/湿粮/零食/生骨肉）与最近流水"""
 
 SYSTEM_PROMPT = """你是「智能宠物健康管家」的 AI 助手，一个专业的宠物健康管理 Agent。
 你通过工具查询 SQLite 数据库中的真实宠物档案与健康记录，请遵循：
@@ -96,7 +97,7 @@ SYSTEM_PROMPT = """你是「智能宠物健康管家」的 AI 助手，一个专
 
 _MED_NOTE = "涉及医疗判断（是否生病、是否停药、指标是否异常）时，明确提示「请以兽医意见为准」。用简体中文，专业、温暖、克制。"
 
-ANALYST_PROMPT = """你是「智能宠物健康管家」的【健康分析师】。你的职责：基于数据库真实数据，回答事实查询与状况评估类问题——宠物档案、健康记录（疫苗/体检/驱虫/喂药/就诊）、临期与逾期提醒、综合健康分析、用药情况、多宠物的关注优先级、养宠花费与开销构成。
+ANALYST_PROMPT = """你是「智能宠物健康管家」的【健康分析师】。你的职责：基于数据库真实数据，回答事实查询与状况评估类问题——宠物档案、健康记录（疫苗/体检/驱虫/喂药/就诊）、临期与逾期提醒、综合健康分析、用药情况、饮食日志（吃什么/吃多少/食欲变化）、多宠物的关注优先级、养宠花费与开销构成。
 
 你只负责"查与析"，不负责：护理操作建议、生成正式报告、为用户起草健康记录。遇到这三类需求时，用一句话说明"这个问题更适合护理顾问或报告功能处理"即可，不要越界作答。
 
@@ -132,7 +133,7 @@ WRITER_PROMPT = """你是「智能宠物健康管家」的【报告撰稿人】�
 EXPERTS = {
     "health_analyst": {"label": "健康分析师", "prompt": ANALYST_PROMPT,
                        "tools": ["query_pet", "query_health_records", "get_reminders", "analyze_health",
-                                 "query_medications", "get_attention_ranking", "query_expenses"]},
+                                 "query_medications", "get_attention_ranking", "query_expenses", "query_feeding"]},
     "care_advisor":   {"label": "护理顾问", "prompt": ADVISOR_PROMPT,
                        "tools": ["query_pet", "get_care_guide", "query_medications", "get_reminders",
                                  "create_record_draft"]},
@@ -145,7 +146,7 @@ EXPERTS = {
 _ROUTE_DRAFT = re.compile(r"记一笔|记一下|记录一下|帮我记|帮我登记|登记一下|补充一条|添加一条记录|create_record_draft|起草")
 _ROUTE_REPORT = re.compile(r"报告|周报|月报|年报|报表|总结|成长回顾|回忆|故事|第一次")
 _ROUTE_CARE = re.compile(r"能吃|不能吃|可以吃|禁忌|该做|不该做|怎么照顾|照顾|护理|注意什么|怎么办|换羽|能不能|可不可以|注意事项")
-_ROUTE_HEALTH = re.compile(r"疫苗|驱虫|体检|用药|吃药|什么药|药物|剂量|体重|健康|分析|记录|提醒|到期|临期|逾期|过期|优先|先管|就诊|复诊|三联|狂犬|打针|接种|花了|开销|多少钱|花费|记账|花销|支出|费用|账单|开支")
+_ROUTE_HEALTH = re.compile(r"疫苗|驱虫|体检|用药|吃药|什么药|药物|剂量|体重|健康|分析|记录|提醒|到期|临期|逾期|过期|优先|先管|就诊|复诊|三联|狂犬|打针|接种|花了|开销|多少钱|花费|记账|花销|支出|费用|账单|开支|喂了|喂食|喂过|在吃什么|吃了什么|最近吃|饮食|食欲|食量|吃得")
 # 弱信号（"怎么样/多大"等）单独出现太泛（"今天天气怎么样"），只在句中带库内宠物名时才算健康问题
 _ROUTE_HEALTH_WEAK = re.compile(r"怎么样|状况|多大|多重|几岁|情况|正常吗")
 _VACCINE_WORDS = re.compile(r"疫苗|驱虫|接种")
@@ -297,6 +298,9 @@ def _build_tools():
             name="query_expenses",
             description=tools.query_expenses.__doc__.strip(),
             args_schema=ExpenseQueryIn),
+        StructuredTool.from_function(tools.query_feeding, name="query_feeding",
+                                     description=tools.query_feeding.__doc__.strip(),
+                                     args_schema=NameIn),
     ]
 
 
@@ -421,6 +425,12 @@ def _example_answer(message: str) -> str:
     care_kw = any(k in msg for k in ("该做", "不该做", "禁忌", "能吃", "不能吃", "注意什么", "护理", "照顾", "规范"))
     med_kw = any(k in msg for k in ("用药", "吃药", "什么药", "药物", "剂量", "停药", "疗程", "在吃"))
     expense_kw = any(k in msg for k in ("花了", "开销", "多少钱", "花费", "记账", "花销", "支出", "费用", "账单", "开支"))
+    feeding_kw = any(k in msg for k in ("喂了", "喂食", "喂过", "在吃什么", "吃了什么", "最近吃", "饮食", "食欲", "食量", "吃得"))
+
+    # 「在吃什么药」「最近吃药了吗」含"药"字属用药场景，让位给下方 med 分支；
+    # 不能用 med_kw 判定（其词"在吃"是"在吃什么"的子串，会误伤纯饮食问题）
+    if pet and feeding_kw and not care_kw and "药" not in msg:
+        return tools.query_feeding(pet) + "\n\n> 当前为示例回答模式（未配置 API Key）。"
 
     if expense_kw:
         import re as _re
@@ -552,7 +562,10 @@ def weight_insight(pet_id: int) -> dict:
     if len(weights) < 2:
         return {"text": "体重记录还不足两条，暂无趋势可解读。通过「＋ 记体重」积累几次数据后再来。",
                 "mode": "example", "cached": True}
-    sig = f"{len(weights)}|{weights[-1]['weight']}|{weights[-1]['date']}|{records[0]['id'] if records else 0}"
+    feed = db.feeding_summary(pet_id)
+    feed_total = sum(feed["by_type_30d"].values())
+    # 签名纳入近 30 天饮食条数：新增饮食记录后解读随之刷新
+    sig = f"{len(weights)}|{weights[-1]['weight']}|{weights[-1]['date']}|{records[0]['id'] if records else 0}|{feed_total}"
     key = f"weight-insight:{pet_id}"
     meta = db.kv_get_meta(key)
     if meta:
@@ -566,9 +579,12 @@ def weight_insight(pet_id: int) -> dict:
     if provider() and not _agent_failed:
         w_lines = "\n".join(f"- {w['date']}：{w['weight']} kg" for w in weights)
         r_lines = "\n".join(f"- {r['date']}【{r['type_label']}】{r['title']}" for r in records) or "- 暂无"
+        f_line = ("、".join(f"{db.FEEDING_TYPES.get(k, k)}{v}次" for k, v in
+                           sorted(feed["by_type_30d"].items(), key=lambda kv: -kv[1]))
+                  + f"（本周 {feed['week']} 次）") if feed_total else "暂无记录"
         prompt = (f"请对宠物「{pet['name']}」（{species.type_label(pet['type'])}）的体重趋势给出 80 字以内的解读，"
-                  "内容包括：变化方向与幅度是否合理、可能原因、一条可执行的建议。直接输出解读正文。\n"
-                  f"体重记录：\n{w_lines}\n近期健康记录：\n{r_lines}")
+                  "内容包括：变化方向与幅度是否合理、可能原因（结合饮食结构，如零食/生骨肉比例）、一条可执行的建议。直接输出解读正文。\n"
+                  f"体重记录：\n{w_lines}\n近期健康记录：\n{r_lines}\n近 30 天饮食：{f_line}")
         try:
             result = _ask_agent(prompt)
             if result.startswith("⚠️"):

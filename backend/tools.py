@@ -199,6 +199,15 @@ def analyze_health(name: str) -> str:
             f"{m['name']}" + (f"（{m['frequency']}）" if m.get("frequency") else "") for m in meds))
         if overdue_meds:
             lines.append("- ⚠️ 有药物已超出计划疗程：" + "、".join(m["name"] for m in overdue_meds) + "，建议确认是否停药或复诊。")
+    feed = db.feeding_summary(pet["id"])
+    if feed["by_type_30d"]:
+        total_feed = sum(feed["by_type_30d"].values())
+        dist = "、".join(f"{db.FEEDING_TYPES.get(k, k)}{v}次"
+                        for k, v in sorted(feed["by_type_30d"].items(), key=lambda kv: -kv[1]))
+        lines.append(f"- 饮食：今日 {feed['today']} 顿，本周 {feed['week']} 次；近 30 天 {dist}")
+        treats = feed["by_type_30d"].get("treat", 0)
+        if total_feed and treats / total_feed >= 0.3:
+            lines.append("- ⚠️ 零食占比 ≥30%，若正在控制体重建议减少零食。")
     return "\n".join(lines)
 
 
@@ -458,6 +467,25 @@ def query_expenses(name: str = "", month: str = "") -> str:
     return "\n".join(lines)
 
 
+def query_feeding(name: str) -> str:
+    """查询某只宠物的饮食日志：今日/本周喂食次数、近 30 天饮食类型分布，以及最近 10 条流水（吃什么、吃多少、备注）。只读。"""
+    pet = db.fetch_pet_by_name(name)
+    if not pet:
+        return _pet_missing_text(name)
+    logs = db.list_feeding_logs(pet["id"], limit=10)
+    if not logs:
+        return f"「{pet['name']}」还没有饮食记录，可以在档案的「饮食」页签记下第一顿。"
+    s = db.feeding_summary(pet["id"])
+    lines = [f"「{pet['name']}」饮食情况：今日 {s['today']} 顿，本周 {s['week']} 次。"]
+    if s["by_type_30d"]:
+        lines.append("- 近 30 天类型：" + "、".join(
+            f"{db.FEEDING_TYPES.get(k, k)}{v}次" for k, v in sorted(s["by_type_30d"].items(), key=lambda kv: -kv[1])))
+    lines.append("- 最近记录：")
+    for l in logs:
+        lines.append(f"  - {l['date']}【{l['type_label']}】{l['amount']}" + (f"：{l['note']}" if l.get("note") else ""))
+    return "\n".join(lines)
+
+
 # 供 agent.py 注册 LangChain 工具用的元信息
 TOOL_META = [
     ("query_pet", "按宠物名字查询该宠物的基本信息（品种/年龄/体重/健康状态）"),
@@ -471,4 +499,5 @@ TOOL_META = [
     ("get_attention_ranking", "多宠物关注优先级排序：综合逾期、临期、体重波动、记录陈旧度评分，回答'该先管哪只'类问题。无需参数"),
     ("query_medications", "按宠物名字查询用药情况：在用药物的剂量/频次/疗程剩余天数，以及已结束的用药历史"),
     ("query_expenses", "查询养宠花费：合计/分类占比/按宠物分摊/最近明细。参数：宠物名（可为空表示全部）、月份 YYYY-MM 或 YYYY（可为空表示本月）"),
+    ("query_feeding", "按宠物名字查询饮食日志：今日/本周喂食次数、近 30 天类型分布与最近流水"),
 ]
