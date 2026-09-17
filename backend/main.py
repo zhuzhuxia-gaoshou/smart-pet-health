@@ -788,9 +788,23 @@ def welcome():
 
 @app.get("/app")
 def index():
-    """主应用单页（仪表盘/宠物/回忆集/AI 助手）。"""
+    """主应用单页（仪表盘/宠物/记账/日历/回忆集/AI 助手）。"""
     return FileResponse(os.path.join(WEB_DIR, "index.html"),
                         headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/manifest.json")
+def web_manifest():
+    """PWA 清单（可安装；刻意不做 Service Worker，避免缓存干扰开发）。"""
+    return FileResponse(os.path.join(WEB_DIR, "manifest.json"),
+                        media_type="application/manifest+json",
+                        headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/icon.svg")
+def web_icon():
+    """应用图标（爪印 SVG，manifest 与浏览器标签共用）。"""
+    return FileResponse(os.path.join(WEB_DIR, "icon.svg"), media_type="image/svg+xml")
 
 
 if __name__ == "__main__":
