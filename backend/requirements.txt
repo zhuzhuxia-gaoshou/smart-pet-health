@@ -8,3 +8,4 @@ langchain-anthropic
 dashscope
 pydantic
 python-dotenv
+pytest>=8
