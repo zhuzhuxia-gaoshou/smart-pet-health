@@ -1248,21 +1248,40 @@ def calendar_month(year: int, month: int) -> dict:
         if r["date"] and lo <= r["date"] <= hi:
             bucket(r["date"])["records"].append({**base, "date": r["date"], "note": r.get("note") or ""})
 
+    month_first = date(year, month, 1)
+    month_last = date(year, month, calendar.monthrange(year, month)[1])
     for m in meds:
         m = dict(m)
         start = max(m["start_date"] or lo, lo)
         end = min(m["end_date"] or hi, hi)
+        freq = m.get("frequency") or ""
         try:
-            cur = datetime.strptime(start, "%Y-%m-%d").date()
+            d0 = datetime.strptime(m["start_date"], "%Y-%m-%d").date() if m["start_date"] else None
             stop = datetime.strptime(end, "%Y-%m-%d").date()
         except ValueError:
             continue          # 老库脏日期：跳过这一条，不让整月日历 500
         item = {"id": m["id"], "pet_id": m["pet_id"], "pet_name": m["pet_name"], "name": m["name"],
-                "dosage": m.get("dosage") or "", "frequency": m.get("frequency") or "",
+                "dosage": m.get("dosage") or "", "frequency": freq,
                 "start_date": m["start_date"], "end_date": m.get("end_date")}
-        while cur <= stop:
-            bucket(cur.isoformat())["meds"].append(item)
-            cur += timedelta(days=1)
+        if "每月" in freq and d0:
+            # 「每月一次」不是每天都要用：只标每月该用的那天（与 start 同日号，钳制月末）
+            cand = date(year, month, min(d0.day, month_last.day))
+            if d0 <= cand <= stop:
+                bucket(cand.isoformat())["meds"].append(item)
+        elif "每周" in freq and d0:
+            # 「每周一次」：从 start 起每 7 天一次，只标落在查询月内的
+            cur = d0
+            while cur < month_first:
+                cur += timedelta(days=7)
+            while cur <= stop and cur <= month_last:
+                bucket(cur.isoformat())["meds"].append(item)
+                cur += timedelta(days=7)
+        else:
+            # 每日/每日两次/未填频次/无开始日期 → 疗程内每天都要用，逐日展开
+            cur = datetime.strptime(start, "%Y-%m-%d").date()
+            while cur <= stop:
+                bucket(cur.isoformat())["meds"].append(item)
+                cur += timedelta(days=1)
 
     level_rank = {"overdue": 0, "soon": 1, "todo": 2}
     for d in days.values():

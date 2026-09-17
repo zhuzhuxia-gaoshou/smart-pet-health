@@ -325,7 +325,7 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
       check('today cell shows self-explaining events', !!todayCell
         && [...todayCell.querySelectorAll('.cal-evt .evt-txt')].some(e => e.textContent.includes('__smoke_cal__'))
         && todayCell.textContent.includes('今天到期')             // days_left=0 → 措辞「今天到期」
-        && !!todayCell.querySelector('.cal-evt.med') && todayCell.textContent.includes('用药中'),
+        && !!todayCell.querySelector('.cal-evt.med .evt-tag') && todayCell.querySelector('.cal-evt.med .evt-tag').textContent.trim().length > 0,  // 用药行角标 = 频次原文或「用药」
         'evts=' + todayCell.querySelectorAll('.cal-evt').length);
       check('active cells keyboard reachable', [...doc.querySelectorAll('#cal-grid .cal-cell:not(.dim)')].every(el => el.getAttribute('role') === 'button' && el.getAttribute('tabindex') === '0' && el.getAttribute('aria-label').includes('月')));
       check('dim cells not focusable', [...doc.querySelectorAll('#cal-grid .cal-cell.dim')].every(el => !el.hasAttribute('tabindex')));

@@ -1078,7 +1078,7 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
         <span><i style="background:var(--danger)"></i>已逾期</span>
         <span><i style="background:var(--warn)"></i>临期该做</span>
         <span><i style="background:var(--text-3)"></i>未来待办</span>
-        <span><i style="background:var(--medication)"></i>用药中</span>
+        <span><i style="background:var(--medication)"></i>这天用药</span>
         <span>✓ 已做</span>
       </div>
     </div>
@@ -1969,9 +1969,9 @@ async function renderCalendar() {
     });
     if (b.meds.length) {
       const m0 = b.meds[0];
-      evtRows.push(`<span class="cal-evt med" title="用药中：${esc(m0.name)}·${esc(m0.pet_name)}${b.meds.length > 1 ? ` 等 ${b.meds.length} 项` : ''}">
+      evtRows.push(`<span class="cal-evt med" title="这天用药：${esc(m0.name)}·${esc(m0.pet_name)}${m0.frequency ? `（${esc(m0.frequency)}）` : ''}${b.meds.length > 1 ? ` 等 ${b.meds.length} 项` : ''}">
         <i class="cal-dot" style="background:${CAL_DOT.med}"></i>
-        <span class="evt-txt">${esc(m0.name)}·${esc(m0.pet_name)}</span><span class="evt-tag">用药中</span></span>`);
+        <span class="evt-txt">${esc(m0.name)}·${esc(m0.pet_name)}</span><span class="evt-tag">${esc(m0.frequency || '用药')}</span></span>`);
     }
     if (b.records.length) {
       const r0 = b.records[0];

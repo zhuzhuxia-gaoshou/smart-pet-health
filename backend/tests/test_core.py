@@ -130,6 +130,33 @@ def test_calendar_med_null_or_dirty_dates_skipped(tmp_db):
     assert "m-null" in names and "m-dirty" not in names
 
 
+def test_calendar_med_frequency_semantics(tmp_db):
+    """用药频次决定展开方式：每日=疗程内每天；每月一次=只标每月该用的那天；每周一次=只标每周那天。"""
+    keke = db.fetch_pet_by_name("两两")
+    today = date.today()
+    m_first = today.replace(day=1)
+    y, m = today.year, today.month
+    import calendar as _cal
+    m_last = date(y, m, _cal.monthrange(y, m)[1])
+    start = (today - timedelta(days=400)).isoformat()          # 久远的开始，覆盖完整周期
+    db.add_medication(keke["id"], {"name": "f-daily", "frequency": "每日两次", "start_date": start})
+    db.add_medication(keke["id"], {"name": "f-monthly", "frequency": "每月一次", "start_date": start})
+    db.add_medication(keke["id"], {"name": "f-weekly", "frequency": "每周一次", "start_date": start})
+    cal = db.calendar_month(y, m)
+
+    def days_of(name):
+        return sorted(d for d, b in cal["days"].items() for x in b["meds"] if x["name"] == name)
+
+    daily = days_of("f-daily")
+    assert len(daily) >= 20 and daily[0] == m_first.isoformat() and daily[-1] <= m_last.isoformat()
+    monthly = days_of("f-monthly")
+    assert len(monthly) == 1                                    # 只标每月该用的那天（与 start 同日号）
+    weekly = days_of("f-weekly")
+    assert 4 <= len(weekly) <= 5                                # 一个月 4~5 个周期日
+    gaps = {(date.fromisoformat(b) - date.fromisoformat(a)).days for a, b in zip(weekly, weekly[1:])}
+    assert gaps == {7}
+
+
 # ---------------------------------------------------------------- complete_record 幂等与滚动
 
 def test_complete_record_idempotent_and_roll(tmp_db):
