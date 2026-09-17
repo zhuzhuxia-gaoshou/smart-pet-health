@@ -379,6 +379,50 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
     check('diet delete idempotent error', gone.includes('不存在'));
   }
 
+  // ---------- 症状分诊向导：入口 / 问卷渲染 / 按物种症状 / 组装文本 / disabled 逻辑 ----------
+  if (kel) {
+    T.go('chat'); await sleep(300);
+    check('triage entry button in chat head', !!doc.querySelector('#view-chat #triage-open') && doc.querySelector('#triage-open').textContent.includes('症状速查'));
+    if (!state().species) { state().species = (await (await fetch(BASE + '/api/species')).json()).species; }
+    window.openTriageModal(); await sleep(80);
+    check('triage modal is wide dialog', doc.getElementById('modal-overlay').classList.contains('open') && doc.getElementById('modal-box').classList.contains('wide'));
+    check('triage pet chips = pets', n('#triage-pets .chip') === state().pets.length, 'got ' + n('#triage-pets .chip'));
+    check('triage go disabled initially', doc.getElementById('triage-go').disabled === true);
+    const kelChip = doc.querySelector(`#triage-pets .chip[data-pet="${kel.id}"]`);
+    window.triagePick(kel.id, kelChip); await sleep(30);
+    const dogDiseases = state().species[kel.type].diseases;
+    check('pet chip single-select aria-pressed', kelChip.classList.contains('on') && kelChip.getAttribute('aria-pressed') === 'true'
+      && [...doc.querySelectorAll('#triage-pets .chip')].filter(c => c.getAttribute('aria-pressed') === 'true').length === 1);
+    check('symptom chips follow species', n('#triage-symptoms .chip') === dogDiseases.length && doc.getElementById('triage-l2').textContent.includes('可多选'), 'got ' + n('#triage-symptoms .chip'));
+    check('still disabled with pet but no symptom', doc.getElementById('triage-go').disabled === true);
+    const symBtns = doc.querySelectorAll('#triage-symptoms .chip');
+    window.triageToggle(symBtns[0]); window.triageToggle(symBtns[1]);
+    const preview = doc.getElementById('triage-preview').value;
+    const speciesLabel = state().species[kel.type].label;
+    check('preview text has pet + species + both symptoms', preview.includes(`${kel.name}（${speciesLabel}）`) && preview.includes(dogDiseases[0]) && preview.includes(dogDiseases[1]) && preview.includes('紧急程度'), preview);
+    check('go enabled after selection', doc.getElementById('triage-go').disabled === false);
+    doc.getElementById('triage-extra').value = '持续两天'; doc.getElementById('triage-extra').dispatchEvent(new window.Event('input', { bubbles: true }));
+    check('extra note appended', doc.getElementById('triage-preview').value.includes('补充：持续两天'));
+    window.triageToggle(symBtns[1]);
+    check('toggle off removes symptom', !doc.getElementById('triage-preview').value.includes(dogDiseases[1]) && symBtns[1].getAttribute('aria-pressed') === 'false');
+    // 用户手改预览后不再自动重填（通过真实 input 事件置脏标记）
+    const pv = doc.getElementById('triage-preview');
+    pv.value = '手改文本'; pv.dispatchEvent(new window.Event('input', { bubbles: true }));
+    window.triageToggle(symBtns[2]);
+    check('dirty preview not overwritten', pv.value === '手改文本');
+    pv.value = ''; pv.dispatchEvent(new window.Event('input', { bubbles: true }));
+    check('empty preview disables go', doc.getElementById('triage-go').disabled === true);
+    // 换宠物必须重置 dirty，否则旧宠物的手改文本会跟着新症状一起发出
+    const other = state().pets.find(p => p.id !== kel.id);
+    if (other) {
+      pv.value = '手改文本'; pv.dispatchEvent(new window.Event('input', { bubbles: true }));
+      window.triagePick(other.id, doc.querySelector(`#triage-pets .chip[data-pet="${other.id}"]`)); await sleep(30);
+      window.triageToggle(doc.querySelectorAll('#triage-symptoms .chip')[0]);
+      check('switching pet resets dirty preview', pv.value.includes(other.name) && !pv.value.includes('手改文本'), pv.value);
+    }
+    window.closeModal(); await sleep(220);
+  }
+
   const fails = results.filter(r => !r.ok);
   for (const r of results) console.log((r.ok ? 'PASS ' : 'FAIL ') + r.name + (r.extra ? '  [' + r.extra + ']' : ''));
   console.log(`\n${results.length - fails.length}/${results.length} passed`);

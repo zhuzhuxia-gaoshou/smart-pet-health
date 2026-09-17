@@ -345,6 +345,10 @@ html[data-theme="light"] .icon-sun { display: none; }
   transition: all var(--dur) ease-out;
 }
 .chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); transform: translateY(-1px); }
+/* 全站通用选中态（症状分诊 chip 等）：实色底用 --accent-strong + --on-accent，暗色自动反转 */
+.chip.on, .chip.on:hover { background: var(--accent-strong); border-color: var(--accent-strong); color: var(--on-accent); }
+.chip-group { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
 .stat-card.clickable { cursor: pointer; }
 .stat-card.clickable:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -1093,8 +1097,11 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
         <div class="page-title">AI 智能助手</div>
         <div class="page-sub" id="chat-sub">基于你家宠物的真实档案回答问题 · 可一键生成健康报告</div>
       </div>
-      <button class="btn sm chat-hist-btn" style="margin-left:auto" onclick="openSessionsModal()">历史</button>
-      <button class="btn sm" style="margin-left:auto" onclick="newChatSession()">＋ 新对话</button>
+      <div class="mem-tools" style="margin-left:auto">
+        <button class="btn sm" id="triage-open" onclick="openTriageModal()">🩺 症状速查</button>
+        <button class="btn sm chat-hist-btn" onclick="openSessionsModal()">历史</button>
+        <button class="btn sm" onclick="newChatSession()">＋ 新对话</button>
+      </div>
     </div>
     <div class="chat-layout">
       <aside class="chat-sessions" id="chat-sessions"></aside>
@@ -2607,6 +2614,86 @@ function msgHTML(m) {  const av = m.role === 'user' ? '我' : '<svg viewBox="0 0
   return `<div class="msg ${m.role}"><div class="msg-avatar">${av}</div>
     <div><div class="bubble">${mdLite(m.text)}</div>${actions}</div></div>`;
 }
+/* ---------- 症状分诊向导：选宠物 → 按物种勾症状 → 组装描述 → 一键提问（纯前端组装，不新增写路径） ---------- */
+let _triage = null;   // { petId, symptoms:Set, dirty }：dirty=用户手动改过预览，之后不再自动重填
+function openTriageModal() {
+  _triage = { petId: null, symptoms: new Set(), dirty: false };
+  if (!state.pets.length) {
+    openModal(`<h3>🩺 症状速查</h3>
+      <div class="empty-state"><div class="big" aria-hidden="true">🐾</div><h3>先建立宠物档案</h3>
+        <p>选不了症状——档案里要有宠物才能分诊。</p>
+        <button class="btn primary sm" onclick="closeModal(); openPetModal()">＋ 新增宠物</button></div>
+      <div class="modal-actions"><button class="btn" onclick="closeModal()">关闭</button></div>`);
+    return;
+  }
+  if (!state.species) api('/api/species').then(d => { state.species = d.species; triageRenderSymptoms(); })
+    .catch(() => { const b = $('triage-symptoms');
+      if (b && _triage) b.innerHTML = '<div class="empty-hint">症状清单加载失败，<button type="button" class="chip" onclick="openTriageModal()">重试</button></div>'; });
+  openModal(`<h3>🩺 症状速查</h3>
+    <div class="med-group" id="triage-l1">① 选宠物</div>
+    <div class="chip-group" role="group" aria-labelledby="triage-l1" id="triage-pets">${state.pets.map(p =>
+      `<button type="button" class="chip" aria-pressed="false" data-pet="${p.id}" onclick="triagePick(${p.id}, this)">${esc(p.avatar || TYPE_EMOJI[p.type] || '🐾')} ${esc(p.name)}</button>`).join('')}</div>
+    <div class="med-group" id="triage-l2">② 勾选症状</div>
+    <div class="chip-group" role="group" aria-labelledby="triage-l2" id="triage-symptoms"><div class="empty-hint" style="padding:6px 0">先选一只宠物，症状清单按物种给出。</div></div>
+    <div class="form-field full" style="margin-top:10px"><label for="triage-extra">补充说明（可选）</label>
+      <textarea id="triage-extra" rows="2" maxlength="300" placeholder="持续几天？精神食欲如何？…"></textarea></div>
+    <div class="med-group" id="triage-l3">③ 确认描述（可直接修改）</div>
+    <div class="form-field full"><label for="triage-preview" class="sr-only">描述文本</label>
+      <textarea id="triage-preview" rows="4" placeholder="选好宠物和症状后，这里会自动生成描述"></textarea>
+      <div class="care-note">发送后将进入 AI 助手对话，可直接继续追问 · 分析结果请以兽医意见为准</div></div>
+    <div class="modal-actions">
+      <button type="button" class="btn" onclick="closeModal()">取消</button>
+      <button type="button" class="btn primary" id="triage-go" disabled onclick="triageGo(this)">生成描述并提问</button>
+    </div>`, true);
+  $('triage-extra').addEventListener('input', triageBuild);
+  $('triage-preview').addEventListener('input', () => { _triage.dirty = true; triageSync(); });
+  // openModal 的 30ms 自动聚焦命中的是补充说明 textarea；键盘入口应从第一枚宠物 chip 开始
+  setTimeout(() => $('triage-pets')?.querySelector('.chip')?.focus(), 40);
+}
+function triagePick(pid, btn) {
+  // 换宠物必须重置 dirty：否则旧宠物的手改预览会连同新症状一起静默发出
+  _triage.petId = pid; _triage.symptoms = new Set(); _triage.dirty = false;
+  document.querySelectorAll('#triage-pets .chip').forEach(b => { const on = b === btn; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+  triageRenderSymptoms(); triageBuild();
+}
+function triageRenderSymptoms() {
+  const box = $('triage-symptoms'); if (!box || !_triage || !_triage.petId) return;
+  const pet = state.pets.find(p => p.id === _triage.petId);
+  const sp = state.species && pet && state.species[pet.type];
+  if (!sp) { box.innerHTML = '<div class="skel sk-line w60"></div><div class="skel sk-line w40"></div>'; return; }
+  const label = $('triage-l2'); if (label) label.textContent = `② 勾选症状（${sp.label} · 可多选）`;
+  box.innerHTML = (sp.diseases || []).map(s => `<button type="button" class="chip${_triage.symptoms.has(s) ? ' on' : ''}" aria-pressed="${_triage.symptoms.has(s)}" data-sym="${esc(s)}" onclick="triageToggle(this)">${esc(s)}</button>`).join('');
+}
+function triageToggle(btn) {
+  const s = btn.dataset.sym;
+  if (!s) return;
+  if (_triage.symptoms.has(s)) _triage.symptoms.delete(s); else _triage.symptoms.add(s);
+  const on = _triage.symptoms.has(s);
+  btn.classList.toggle('on', on); btn.setAttribute('aria-pressed', String(on));
+  triageBuild();
+}
+function triageText() {
+  const pet = state.pets.find(p => p.id === _triage.petId);
+  if (!pet || !_triage.symptoms.size) return '';
+  const sp = state.species && state.species[pet.type];
+  const extra = ($('triage-extra')?.value || '').trim();
+  return `${pet.name}（${sp ? sp.label : (PET_TYPE_LABEL[pet.type] || '宠物')}）出现以下症状：${[..._triage.symptoms].join('、')}。`
+    + (extra ? `补充：${extra}。` : '') + '请帮我分析可能的原因和紧急程度。';
+}
+function triageBuild() {
+  const ta = $('triage-preview'); if (!ta) return;
+  if (!_triage.dirty) ta.value = triageText();
+  triageSync();
+}
+function triageSync() {
+  const btn = $('triage-go'); if (!btn) return;
+  btn.disabled = !(_triage.petId && _triage.symptoms.size > 0 && ($('triage-preview')?.value || '').trim());
+}
+function triageGo(btn) {
+  const text = ($('triage-preview')?.value || '').trim(); if (!text) return;
+  closeModal(); go('chat'); $('chat-input').value = text; sendChat();
+}
+
 function askFromSuggest(q) {
   go('chat');
   $('chat-input').value = q;
