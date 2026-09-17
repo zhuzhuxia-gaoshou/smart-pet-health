@@ -9,12 +9,13 @@
       "route": "rule:health",
       "mode": "agent",
       "route_strict": true,
+      "expect_llm_route": false,
       "route_ok": true,
       "fact_ok": true,
       "draft_ok": null,
       "degrade_ok": true,
-      "latency_ms": 16525,
-      "reply_head": "**结论：可乐接下来最该打的是狂犬疫苗——上一针的复种时间已逾期 14 天，需要尽快补种。**  关键事实（柯基，公，3 岁，狗）：  - **狂犬疫苗**：2"
+      "latency_ms": 15209,
+      "reply_head": "可乐（柯基，公，3岁）接下来记录中到期的疫苗是**狂犬疫苗**，下次日期 2026-09-21，**还剩 4 天**。  关键事实（来自健康记录）： - 【疫苗"
     },
     {
       "id": "H02",
@@ -24,12 +25,13 @@
       "route": "rule:health",
       "mode": "agent",
       "route_strict": true,
+      "expect_llm_route": false,
       "route_ok": true,
       "fact_ok": true,
       "draft_ok": null,
       "degrade_ok": true,
-      "latency_ms": 7880,
-      "reply_head": "目前共有 **4 项已逾期**事项，且未来 7 天内没有新的临期项目（数据截至 2026-09-16）。  **布丁** - ⚠️ 已逾期 21 天：【疫苗】猫"
+      "latency_ms": 12300,
+      "reply_head": "截至今天（2026-09-17），共有 **4 项**需要关注：1 项已逾期、3 项临期，集中在布丁（英短蓝猫，2岁1个月，状态\"需关注\"）和可乐（柯基，3岁，"
     },
     {
       "id": "H03",
@@ -39,12 +41,13 @@
       "route": "rule:health",
       "mode": "agent",
       "route_strict": true,
+      "expect_llm_route": false,
       "route_ok": true,
       "fact_ok": true,
       "draft_ok": null,
       "degrade_ok": true,
-      "latency_ms": 21054,
-      "reply_head": "布丁（英短蓝猫）目前系统状态为「需关注」：有 2 项事项已逾期、体重波动超过 10%，且外耳炎用药已超出计划疗程。  **档案** - 英短蓝猫，母，2岁1个月"
+      "latency_ms": 14521,
+      "reply_head": "布丁（英短蓝猫，2岁1个月，4.6kg）目前整体状态为「需关注」：有一项疫苗已逾期、外耳炎复诊就在今天，且体重涨幅偏大。  关键事实如下：  - **已逾期事项"
     },
     {
       "id": "H04",
@@ -54,12 +57,13 @@
       "route": "rule:health",
       "mode": "agent",
       "route_strict": true,
+      "expect_llm_route": false,
       "route_ok": true,
       "fact_ok": true,
       "draft_ok": null,
       "degrade_ok": true,
-      "latency_ms": 12353,
-      "reply_head": "结论：可乐的体重变化**不在正常波动范围内**——近一年上升幅度已超过 10% 的提示阈值。  关键事实（来自可乐的健康分析）： - 当前体重：**11.2kg"
+      "latency_ms": 12979,
+      "reply_head": "结论：可乐的体重变化**不算正常波动范围**——一年内上升了 14.3%，系统已标记「体重波动超过 10%，建议咨询医生」。  关键数据（可乐，公，柯基，3岁）"
     },
     {
       "id": "H05",
@@ -69,12 +73,13 @@
       "route": "rule:health",
       "mode": "agent",
       "route_strict": true,
+      "expect_llm_route": false,
       "route_ok": true,
       "fact_ok": true,
       "draft_ok": null,
       "degrade_ok": true,
-      "latency_ms": 12730,
-      "reply_head": "**建议先管布丁（猫），可乐（狗）紧随其后**——两者关注评分并列 8 分，但布丁的整体状态更紧。  **布丁（猫，2岁1个月，4.6kg，状态：需关注）** "
+      "latency_ms": 7244,
+      "reply_head": "建议**先管布丁**。  当前多宠物关注优先级如下（评分越高越紧急）：  1. **布丁（猫）—— 评分 7**    - **1 项逾期**：猫三联（第三针）"
     },
     {
       "id": "H06",
@@ -84,12 +89,13 @@
       "route": "rule:health",
       "mode": "agent",
       "route_strict": true,
+      "expect_llm_route": false,
       "route_ok": true,
       "fact_ok": true,
       "draft_ok": null,
       "degrade_ok": true,
-      "latency_ms": 8101,
-      "reply_head": "是的，布丁的猫三联疫苗**已经过期了**。  关键信息：  - **上次接种**：2025-07-24 猫三联（第三针） - **应接种日期**：2026-08"
+      "latency_ms": 7254,
+      "reply_head": "是的，布丁的猫三联**已逾期 3 天**，建议尽快补种。  关键信息：  - **疫苗记录**：2025-08-12 接种「猫三联（第三针）」，接种后观察30分"
     },
     {
       "id": "H07",
@@ -99,12 +105,13 @@
       "route": "rule:health",
       "mode": "agent",
       "route_strict": true,
+      "expect_llm_route": false,
       "route_ok": true,
       "fact_ok": true,
       "draft_ok": null,
       "degrade_ok": true,
-      "latency_ms": 6220,
-      "reply_head": "可乐（柯基，3岁）目前**在用 2 种药物/用品**，无已结束的用药记录：  1. **益生菌粉**    - 剂量：1 袋，每日一次（拌在早餐粮里）    -"
+      "latency_ms": 8451,
+      "reply_head": "可乐（柯基，3 岁，公，当前 11.2kg，状态\"健康\"）目前在用 **2 种药物**，已结束 0 项：  - **益生菌粉**：1 袋，每日一次，自 2026"
     },
     {
       "id": "H08",
@@ -114,12 +121,141 @@
       "route": "rule:health",
       "mode": "agent",
       "route_strict": true,
+      "expect_llm_route": false,
       "route_ok": true,
       "fact_ok": true,
       "draft_ok": null,
       "degrade_ok": true,
-      "latency_ms": 36457,
-      "reply_head": "翠翠现在 **1岁2个月**，当前体重 **0.04 kg（约 40 g）**。  关键档案信息： - 物种/品种：鸟 · 虎皮鹦鹉（母） - 生日：2025-"
+      "latency_ms": 5136,
+      "reply_head": "翠翠现在 **1岁1个月**，体重 **0.04 kg（约 40 克）**。  - 名字：翠翠｜类型：鸟（虎皮鹦鹉）｜性别：母 - 生日：2025-07-23 "
+    },
+    {
+      "id": "H09",
+      "message": "可乐这个月花多少钱？",
+      "expected": "health_analyst",
+      "expert": "health_analyst",
+      "route": "rule:health",
+      "mode": "agent",
+      "route_strict": true,
+      "expect_llm_route": false,
+      "route_ok": true,
+      "fact_ok": true,
+      "draft_ok": null,
+      "degrade_ok": true,
+      "latency_ms": 10240,
+      "reply_head": "可乐（柯基，3岁）2026 年 9 月共花费 **¥402.00，3 笔**。  **分类占比** - 粮食 ¥299.00（74%）—— 最大开销类别 - 医"
+    },
+    {
+      "id": "H10",
+      "message": "今年医疗开销大头是什么？",
+      "expected": "health_analyst",
+      "expert": "health_analyst",
+      "route": "rule:health",
+      "mode": "agent",
+      "route_strict": true,
+      "expect_llm_route": false,
+      "route_ok": true,
+      "fact_ok": true,
+      "draft_ok": null,
+      "degrade_ok": true,
+      "latency_ms": 19590,
+      "reply_head": "今年（2026）医疗是养宠花费的最大类别，合计 **¥938.00，占全年 ¥2005.00 的 47%**；其中近八成集中在两笔大额支出上。  **医疗开销构"
+    },
+    {
+      "id": "H11",
+      "message": "可乐最近在吃什么？",
+      "expected": "health_analyst",
+      "expert": "health_analyst",
+      "route": "rule:health",
+      "mode": "agent",
+      "route_strict": true,
+      "expect_llm_route": false,
+      "route_ok": true,
+      "fact_ok": true,
+      "draft_ok": null,
+      "degrade_ok": true,
+      "latency_ms": 10001,
+      "reply_head": "可乐（柯基，3岁，公）最近以**干粮为主、正在做减肥粮过渡**，近 30 天饮食类型为：干粮4次、生骨肉1次、零食1次。  **喂食频次** - 今日 1 顿，"
+    },
+    {
+      "id": "L01",
+      "message": "我该给可乐买什么牌子的狗粮？",
+      "expected": "care_advisor",
+      "expert": "care_advisor",
+      "route": "llm:care_advisor",
+      "mode": "agent",
+      "route_strict": false,
+      "expect_llm_route": true,
+      "route_ok": true,
+      "fact_ok": true,
+      "draft_ok": null,
+      "degrade_ok": true,
+      "latency_ms": 33669,
+      "reply_head": "先确认一下：可乐是 3 岁成年柯基（公），当前 11.2 kg，健康状态良好、性格贪吃 —— 下面按\"狗\"的护理规范来答。  关于**具体品牌**，我没法替某款"
+    },
+    {
+      "id": "L02",
+      "message": "可乐最近老是挠耳朵，是不是有耳螨？",
+      "expected": "health_analyst",
+      "expert": "health_analyst",
+      "route": "llm:health_analyst",
+      "mode": "agent",
+      "route_strict": false,
+      "expect_llm_route": true,
+      "route_ok": true,
+      "fact_ok": true,
+      "draft_ok": null,
+      "degrade_ok": true,
+      "latency_ms": 28534,
+      "reply_head": "先给结论：从数据库现有记录看，**无法判断可乐是不是耳螨**——耳螨需要耳道分泌物镜检才能确诊，请以兽医意见为准；但有一条数据与\"挠耳朵\"高度相关，值得你今天就"
+    },
+    {
+      "id": "L03",
+      "message": "帮我写一段可乐的领养介绍文案",
+      "expected": "report_writer",
+      "expert": "report_writer",
+      "route": "llm:report_writer",
+      "mode": "agent",
+      "route_strict": false,
+      "expect_llm_route": true,
+      "route_ok": true,
+      "fact_ok": true,
+      "draft_ok": null,
+      "degrade_ok": true,
+      "latency_ms": 54706,
+      "reply_head": "# 可乐 · 领养介绍  它叫可乐，一只 3 岁的公柯基，生日在 2023 年 9 月 12 日，体重 11.2 公斤，目前健康状况良好。  可乐的性格，一句话"
+    },
+    {
+      "id": "L04",
+      "message": "可乐和布丁谁更乖？",
+      "expected": "general_agent",
+      "expert": "general_agent",
+      "route": "llm:general",
+      "mode": "agent",
+      "route_strict": false,
+      "expect_llm_route": true,
+      "route_ok": true,
+      "fact_ok": true,
+      "draft_ok": null,
+      "degrade_ok": true,
+      "latency_ms": 11933,
+      "reply_head": "「乖」这件事，它俩走的是完全不同的路线，档案和回忆里看得很清楚 👇  ## 🐶 可乐（柯基，3岁，11.2kg） - **性格**：活泼贪吃，见到球就走不动路 "
+    },
+    {
+      "id": "L05",
+      "message": "布丁吐了一次，要紧吗？",
+      "expected": "health_analyst",
+      "expert": "health_analyst",
+      "route": "llm:health_analyst",
+      "mode": "agent",
+      "route_strict": false,
+      "expect_llm_route": true,
+      "route_ok": true,
+      "fact_ok": true,
+      "draft_ok": null,
+      "degrade_ok": true,
+      "latency_ms": 67131,
+      "reply_head": "先说结论：数据库里**没有布丁任何呕吐相关的记录**，所以这次呕吐我无法从数据判断严重程度；但布丁目前本身就有几项待处理事项，值得重视。  **布丁档案**：英"
     },
     {
       "id": "C01",
@@ -129,12 +265,13 @@
       "route": "rule:care",
       "mode": "agent",
       "route_strict": true,
+      "expect_llm_route": false,
       "route_ok": true,
       "fact_ok": true,
       "draft_ok": null,
       "degrade_ok": true,
-      "latency_ms": 11701,
-      "reply_head": "布丁是**英短蓝猫**（2岁、4.6kg），我按猫的护理规范来回答。  **先说结论**：猫吃少量西瓜果肉通常不算中毒（这属于**一般性建议**，猫的护理规范里"
+      "latency_ms": 22981,
+      "reply_head": "布丁是英短蓝猫（2岁1个月，4.6kg，当前健康状态标记为\"需关注\"）。猫能吃西瓜吗——猫科护理规范里并没有把西瓜列入禁忌（明确的禁忌是洋葱、大蒜、巧克力、纯牛"
     },
     {
       "id": "C02",
@@ -144,12 +281,13 @@
       "route": "rule:care",
       "mode": "agent",
       "route_strict": true,
+      "expect_llm_route": false,
       "route_ok": true,
       "fact_ok": true,
       "draft_ok": null,
       "degrade_ok": true,
-      "latency_ms": 11588,
-      "reply_head": "# 狗的饮食禁忌  根据犬类护理规范，以下是**明确禁忌**（有毒，务必避免）：  🚫 **绝对不能吃** - **巧克力**（可可碱中毒，越黑越危险） - *"
+      "latency_ms": 16912,
+      "reply_head": "# 狗的饮食禁忌  根据犬类护理规范，以下是**明确禁止**喂食的：  ## 🚫 绝对不能吃（有毒） | 食物 | 风险 | |---|---| | **巧克力"
     },
     {
       "id": "C03",
@@ -159,12 +297,13 @@
       "route": "rule:species-boundary",
       "mode": "agent",
       "route_strict": true,
+      "expect_llm_route": false,
       "route_ok": true,
       "fact_ok": true,
       "draft_ok": null,
       "degrade_ok": true,
-      "latency_ms": 10349,
-      "reply_head": "关于翠翠的疫苗问题，需要先做个小澄清：  **翠翠是虎皮鹦鹉（鸟类），宠物鸟一般不接种常规疫苗。** 目前禽类疫苗主要针对养殖禽（如新城疫、马立克等），家养单只"
+      "latency_ms": 13285,
+      "reply_head": "翠翠是一只 1 岁多的**虎皮鹦鹉**，关于疫苗这件事，需要先帮你纠正一个常见误区：  ## 🐦 鸟类不需要打常规疫苗  宠物鸟（包括虎皮鹦鹉）**一般不接种常"
     },
     {
       "id": "C04",
@@ -174,12 +313,13 @@
       "route": "rule:care",
       "mode": "agent",
       "route_strict": true,
+      "expect_llm_route": false,
       "route_ok": true,
       "fact_ok": true,
       "draft_ok": null,
       "degrade_ok": true,
-      "latency_ms": 13193,
-      "reply_head": "可乐是 3 岁柯基（11.2kg，健康状态良好），我按犬类护理规范给你梳理夏季要点。  > 小提示：今天已是 9 月 16 日（初秋），但\"秋老虎\"的高温天依然"
+      "latency_ms": 19675,
+      "reply_head": "可乐是 3 岁柯基，夏天重点可以放在“防暑、防虫、皮肤护理和规律运动”上。  ## 现在可以做 - **避开高温时段外出**：尽量选清晨或傍晚遛狗，减少正午暴晒"
     },
     {
       "id": "C05",
@@ -189,12 +329,13 @@
       "route": "rule:care",
       "mode": "agent",
       "route_strict": true,
+      "expect_llm_route": false,
       "route_ok": true,
       "fact_ok": true,
       "draft_ok": null,
       "degrade_ok": true,
-      "latency_ms": 16236,
-      "reply_head": "布丁是只 2 岁的英短蓝猫，体重 4.6kg，目前健康状态标记为「需关注」。我查了一下它的用药记录，发现一个重要情况，先跟你说清楚：  **布丁其实正在治耳朵的"
+      "latency_ms": 26220,
+      "reply_head": "布丁是英短蓝猫（2岁1个月，4.6kg），目前状态标记为「需关注」。查它的记录发现：**它现在正在用治外耳炎的耳药水**，所以这件事不能按\"新发问题\"来处理。 "
     },
     {
       "id": "C06",
@@ -204,12 +345,13 @@
       "route": "rule:draft",
       "mode": "agent",
       "route_strict": true,
+      "expect_llm_route": false,
       "route_ok": true,
       "fact_ok": true,
       "draft_ok": true,
       "degrade_ok": true,
-      "latency_ms": 10872,
-      "reply_head": "已为可乐起草好这条记录，请在下方卡片中确认或取消（确认后才入库）。  **草稿内容** - 可乐（柯基，3岁，11.2kg）· 疫苗 · 2026-09-16 "
+      "latency_ms": 15994,
+      "reply_head": "已为可乐（柯基，3岁，11.2kg）准备好一条疫苗记录草稿：**狂犬疫苗接种 · 2026-09-17**，请在下方卡片中确认保存或取消。  接种后照护（一般性"
     },
     {
       "id": "C07",
@@ -219,12 +361,13 @@
       "route": "rule:draft",
       "mode": "agent",
       "route_strict": true,
+      "expect_llm_route": false,
       "route_ok": true,
       "fact_ok": true,
       "draft_ok": true,
       "degrade_ok": true,
-      "latency_ms": 11121,
-      "reply_head": "已为布丁起草好这条记录，请在下方卡片中确认或取消 👇 （布丁 · 就诊 · 2026-09-16 · 外耳炎复诊 · 备注：医生意见为继续滴耳药水）  **现在"
+      "latency_ms": 12430,
+      "reply_head": "已为布丁起草好这条「就诊」记录，请在下方卡片中确认保存或取消：  - 日期：2026-09-17（今天） - 标题：外耳炎复诊 - 体重：4.6 kg（取自档案"
     },
     {
       "id": "C08",
@@ -234,12 +377,13 @@
       "route": "rule:care",
       "mode": "agent",
       "route_strict": true,
+      "expect_llm_route": false,
       "route_ok": true,
-      "fact_ok": true,
+      "fact_ok": false,
       "draft_ok": null,
       "degrade_ok": true,
-      "latency_ms": 17765,
-      "reply_head": "布丁是一只 2 岁 1 个月的英短蓝猫（母，4.6 kg），目前状态标记为「需关注」。结合猫的日常护理规范，给你梳理如下：  ## 一、现在可以做  **优先处"
+      "latency_ms": 31287,
+      "reply_head": "## 布丁（英短蓝猫 · 母 · 2岁1个月 · 4.6kg · 状态：需关注）  先说两件**眼下最紧要**的事（来自布丁自己的健康档案）：  1. **今天"
     },
     {
       "id": "C09",
@@ -249,12 +393,13 @@
       "route": "rule:care",
       "mode": "agent",
       "route_strict": true,
+      "expect_llm_route": false,
       "route_ok": true,
       "fact_ok": true,
       "draft_ok": null,
       "degrade_ok": true,
-      "latency_ms": 15770,
-      "reply_head": "先帮你把概念对齐一下：**鱼类没有\"腹泻\"这个病症框架**，那是哺乳动物（猫狗）的说法。鱼身上对应的表现是**粪便形态异常**（白便、透明便、长拖便、空便）和*"
+      "latency_ms": 23790,
+      "reply_head": "先帮你把概念对齐一下：**鱼类没有\"腹泻\"这个病症框架**（那是哺乳动物的表述）。你在水面或缸壁上看到的\"白便、透明拖便、粪便细长不成形、肛门红肿\"，在鱼的护理"
     },
     {
       "id": "R01",
@@ -264,12 +409,13 @@
       "route": "rule:report",
       "mode": "agent",
       "route_strict": true,
+      "expect_llm_route": false,
       "route_ok": true,
       "fact_ok": true,
       "draft_ok": null,
       "degrade_ok": true,
-      "latency_ms": 10763,
-      "reply_head": "# 可乐 健康报告（近30天）  > 统计周期：2026-08-17 至 2026-09-16 ｜ 生成日期：2026-09-16  ## 导语  可乐（柯基，"
+      "latency_ms": 14341,
+      "reply_head": "# 可乐 健康报告（2026年9月）  > **导语：** 可乐本月整体状态良好，日常健康记录仅涉及一次肠胃调理用药，无异常就诊。但需重点关注两项即将到期的预防"
     },
     {
       "id": "R02",
@@ -279,12 +425,13 @@
       "route": "rule:report",
       "mode": "agent",
       "route_strict": true,
+      "expect_llm_route": false,
       "route_ok": true,
       "fact_ok": true,
       "draft_ok": null,
       "degrade_ok": true,
-      "latency_ms": 18197,
-      "reply_head": "# 全体宠物健康报告（近一个月）  **统计周期：** 近 30 天（截至 2026-09-16）   **覆盖对象：** 可乐、布丁、翠翠、不好吃  本期四只"
+      "latency_ms": 11199,
+      "reply_head": "# 全体宠物健康报告（近一个月）  近一个月三只宠物整体状况平稳，可乐与翠翠处于健康状态，布丁因外耳炎就诊标记为\"需关注\"。本期最需关注两点：布丁的猫三联第三针"
     },
     {
       "id": "R03",
@@ -294,12 +441,13 @@
       "route": "rule:report",
       "mode": "agent",
       "route_strict": true,
+      "expect_llm_route": false,
       "route_ok": true,
       "fact_ok": true,
       "draft_ok": null,
       "degrade_ok": true,
-      "latency_ms": 6047,
-      "reply_head": "# 可乐 健康报告（近365天）  过去一年，可乐整体处于健康状态，日常照护以体检、驱虫和短期肠胃调理为主，未出现就诊类记录。但本期存在两项逾期未处理事项（驱虫"
+      "latency_ms": 13821,
+      "reply_head": "# 可乐 健康报告（近365天）  可乐在过去一年整体状态良好，被评估为\"健康\"，完成了年度体检、狂犬疫苗和常规驱虫。当前最需关注的是驱虫与疫苗即将到期（分别剩"
     },
     {
       "id": "R04",
@@ -309,57 +457,77 @@
       "route": "rule:report",
       "mode": "agent",
       "route_strict": true,
+      "expect_llm_route": false,
       "route_ok": true,
       "fact_ok": true,
       "draft_ok": null,
       "degrade_ok": true,
-      "latency_ms": 13690,
-      "reply_head": "# 可乐的成长故事  **柯基 · 公 · 3 岁（生日 2023-08-24）· 当前体重 11.2 kg · 健康状态：健康**  从 2023 年 9 月"
+      "latency_ms": 8935,
+      "reply_head": "# 可乐的成长故事  从 2023 年 10 月 2 日到今天，可乐已经陪伴了你 1101 天。三条记录，刚好串起它从一只缩在纸箱里的小家伙，长成如今能在家里\""
+    },
+    {
+      "id": "R05",
+      "message": "帮我总结布丁这个月的健康",
+      "expected": "report_writer",
+      "expert": "report_writer",
+      "route": "rule:report",
+      "mode": "agent",
+      "route_strict": true,
+      "expect_llm_route": false,
+      "route_ok": true,
+      "fact_ok": true,
+      "draft_ok": null,
+      "degrade_ok": true,
+      "latency_ms": 15003,
+      "reply_head": "# 布丁 健康报告（近30天）  布丁（英短蓝猫，母，2岁1个月）近30天整体状态为「需关注」。本期最需优先处理的是**猫三联第三针疫苗已逾期3天**，以及**"
     },
     {
       "id": "G01",
       "message": "你好，你都能做什么？",
       "expected": "general_agent",
       "expert": "general_agent",
-      "route": "default",
+      "route": "llm:general",
       "mode": "agent",
       "route_strict": false,
+      "expect_llm_route": false,
       "route_ok": true,
       "fact_ok": true,
       "draft_ok": null,
       "degrade_ok": true,
-      "latency_ms": 11986,
-      "reply_head": "你好！我是你的**智能宠物健康管家** 🐾 我可以帮你把家里毛孩子的健康档案管得明明白白。具体能做这些事：  ## 📋 档案与记录 - **查档案**：每只宠物"
+      "latency_ms": 12639,
+      "reply_head": "你好！我是你的**智能宠物健康管家** 🐾 可以帮你把家里毛孩子的健康档案、日程和花销都管起来。先说个要紧的：  > ⚠️ **布丁**的猫三联第三针已逾期 3"
     },
     {
       "id": "G02",
       "message": "养柯基好还是养英短好？",
       "expected": "general_agent",
-      "expert": "general_agent",
-      "route": "default",
+      "expert": "care_advisor",
+      "route": "llm:care_advisor",
       "mode": "agent",
       "route_strict": false,
-      "route_ok": true,
+      "expect_llm_route": false,
+      "route_ok": false,
       "fact_ok": true,
       "draft_ok": null,
       "degrade_ok": true,
-      "latency_ms": 19963,
-      "reply_head": "## 🐕 柯基 vs 🐈 英短：怎么选？  没有绝对的\"更好\"，关键看你的**生活方式**和**精力预算**。下面从几个维度帮你对比：  ---  ### ⏰ "
+      "latency_ms": 33179,
+      "reply_head": "这两种是完全不同的生活方式选择，没有绝对好坏，关键看你能给什么。下面把**照护负担**（来自犬/猫护理规范）和**一般性建议**分开说。  ## 一、日常照护硬"
     },
     {
       "id": "G03",
       "message": "今天天气怎么样？",
       "expected": "general_agent",
       "expert": "general_agent",
-      "route": "default",
+      "route": "llm:general",
       "mode": "agent",
       "route_strict": false,
+      "expect_llm_route": false,
       "route_ok": true,
       "fact_ok": true,
       "draft_ok": null,
       "degrade_ok": true,
-      "latency_ms": 8663,
-      "reply_head": "哈哈，这个可超出我的本领范围啦～我是宠物健康管家，手头没有天气数据，不敢瞎报，免得你出门踩坑。🌦️ 建议看一眼手机天气 App 确认。  不过如果你是想判断**"
+      "latency_ms": 6377,
+      "reply_head": "抱歉，我这边没法查到天气 🌤️ —— 我是宠物健康管家，能读取的是你记录在系统里的宠物档案、健康记录、饮食和花费数据，暂时没有接入天气信息，也不想凭猜测给你一个"
     },
     {
       "id": "G04",
@@ -369,12 +537,13 @@
       "route": "rule:health",
       "mode": "agent",
       "route_strict": true,
+      "expect_llm_route": false,
       "route_ok": true,
       "fact_ok": true,
       "draft_ok": null,
       "degrade_ok": true,
-      "latency_ms": 65639,
-      "reply_head": "可乐当前体重 **11.2kg**，但近一年涨幅偏大，需要留意。  - 当前体重：11.2kg（柯基，公，3岁，健康状态：健康） - 体重变化：从 9.8kg "
+      "latency_ms": 8252,
+      "reply_head": "可乐当前体重 **11.2kg**（柯基，公，3岁），但这一年涨得偏多，需要留意。  - 当前体重：11.2kg，健康状态记录为「健康」 - 体重变化：9.8k"
     }
   ]
 }

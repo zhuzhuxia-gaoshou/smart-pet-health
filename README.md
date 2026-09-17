@@ -60,23 +60,27 @@ python main.py            # 启动 http://127.0.0.1:8000
 ## 功能一览
 
 - **仪表盘**：宠物总数 / 健康记录数 / 临期项目数、到期提醒（逾期优先，行内「✓ 完成」直接处理）、「＋ 记一笔」一步入口、最近动态、按真实宠物生成的 AI 建议问题
-- **宠物档案**：卡片网格 + 搜索（名字/品种）+ 类型/状态筛选 + 排序；新增/编辑/删除（确认提示）；状态徽章与临期角标；搜索无结果与真空态区分
-- **健康记录**：疫苗/体检/驱虫/喂药/就诊五类；下次日期驱动提醒；全部记录页支持按宠物/类型筛选；宠物详情含时间线、体重趋势图、用药方案、护理要点、资料五个页签
-- **体重趋势图**：手绘 SVG，区间切换（全部/近1年/90天/30天）、悬停参考线与数据提示卡（较上次差值）、区间统计（最新/最低/最高/平均）、一键 AI 解读
+- **宠物档案**：卡片网格 + 搜索（名字/品种）+ 类型/状态筛选 + 排序；新增/编辑/删除（确认提示）；状态徽章与临期角标；搜索无结果与真空态区分；宠物详情含时间线、体重趋势图、用药方案、**饮食**、护理要点、资料六个页签
+- **健康记录**：疫苗/体检/驱虫/喂药/就诊五类；下次日期驱动提醒；全部记录页按月份分组（时间线视图）+ 按宠物/类型筛选 + 底部合计行
+- **体重趋势图**：手绘 SVG，区间切换（全部/近1年/90天/30天）、悬停参考线与数据提示卡（较上次差值）、区间统计（最新/最低/最高/平均）、一键 AI 解读（上下文纳入近 30 天饮食）
 - **到期提醒 + 重复周期**：有"下次日期"的记录 ≤7 天标"临期"、已过标"逾期"；记录可设每天/每周/每月/每年重复，点「完成」清空本轮并自动生成下一轮记录（逾期完成从今天起算、月末钳制 1/31→2/28）
 - **用药方案**：药名/剂量/频次/疗程/备注，在用卡片带疗程进度条与超期提示，已结束分组；AI 分析会纳入在用药物并提示超出疗程
+- **饮食日志**：详情页「饮食」页签——今日/本周小结、干粮/湿粮/零食/生骨肉四色徽章、流水增改删；AI 分析与体重解读都会参考饮食结构（零食占比 ≥30% 主动警示）
+- **花费记账**：顶栏「记账」页签——月份切换、本月合计卡、五分类 SVG 条形图（悬停提示卡）、按宠物分组流水（家庭共同支出）、月度预算（超支琥珀徽章）、增改删；花费 CSV 导出
+- **健康日历**：顶栏「日历」页签——月历栅格、圆点分级（逾期红/临期琥珀/待办灰/用药紫）、点日期弹当日事项卡（完成提醒 / 查看宠物 / 记健康记录）
+- **症状分诊向导**：AI 助手页「🩺 症状速查」——选宠物 → 按物种勾症状 → 自动组装描述 → 一键提问
 - **回忆集**：情感向回忆时间轴——屏 1 全局时间轴（年份分组/宠物筛选/缩略图/大图预览），屏 2 单宠回忆墙（陪伴天数）；支持新增/编辑/删除，图片前端压缩为 base64 存库；AI 助手可通过 `query_memories` 工具回忆故事
-- **实用工具**：浏览器到期通知（🔔 开关，新事项弹窗直达宠物）、数据导出（宠物/记录 CSV、AI 会话 .md、数据库备份）、清空全部数据并重建示例（需输入「清空」二次确认）
+- **实用工具**：浏览器到期通知（🔔 开关）、数据导出（宠物/记录/花费 CSV、AI 会话 .md、数据库备份）、清空全部数据并重建示例（需输入「清空」二次确认）、PWA 可安装（manifest + 图标，无 Service Worker）
 - **物种档案**：按物种（狗/猫/鸟/鱼/其他）明确该做与不该做的事——详情页「护理要点」页签、新增记录按物种过滤类型（鱼类无疫苗、无"腹泻"）并附常见病症快捷填入、后端校验兜底；AI 通过 `get_care_guide` 遵守物种边界回答
-- **界面**：Notion 暖色极简，:root 设计 token（含暗色主题）、全站统一缓动的微交互（按压/焦点环/卡片浮起/弹窗关闭动画/toast 三态/骨架屏/空状态体系），欢迎页回访直达
+- **界面**：Notion 暖色极简，:root 设计 token（含暗色主题）、全站统一缓动的微交互（按压/焦点环/卡片浮起/弹窗关闭动画/toast 三态/骨架屏/空状态体系）、WCAG 2.2 AA（键盘委托/弹窗焦点/ARIA/对比度）、欢迎页回访直达 + 真实数据统计条
 - **AI 助手（分层多专家 Agent）**：
-  - **路由 → 专家 → 降级**：规则路由（建档 > 物种边界 > 报告 > 护理 > 健康）把问题分给「健康分析师 / 护理顾问 / 报告撰稿人」三位专家（各自提示词 + 工具子集），专家失败降级通用 Agent，再降级规则模式；回答标签显示专家身份
-  - 十个工具：`query_pet` / `query_health_records` / `get_reminders` / `analyze_health` / `generate_report` / `query_memories` / `get_care_guide` / `create_record_draft` / `get_attention_ranking` / `query_medications`
+  - **路由 → 专家 → 降级**：规则路由（建档 > 物种边界 > 报告 > 护理 > 健康）把问题分给「健康分析师 / 护理顾问 / 报告撰稿人」三位专家（各自提示词 + 工具子集），专家失败降级通用 Agent，再降级规则模式；回答标签显示专家身份；规则未命中可选 LLM 兜底分类（`LLM_ROUTE=1` 开启，默认关）
+  - 十二个工具：`query_pet` / `query_health_records` / `get_reminders` / `analyze_health` / `generate_report` / `query_memories` / `get_care_guide` / `create_record_draft` / `get_attention_ranking` / `query_medications` / `query_expenses` / `query_feeding`
   - **自然语言建档**：对 AI 说"帮我记一下：可乐今天打了狂犬疫苗，明年这时候再打"，护理顾问解析相对日期起草记录，前端确认卡片一键入库（AI 提议、人确认，物种校验兜底；全系统唯一写路径）
   - **对话会话**：历史会话自动保存，随时回看、继续聊（支持"那它的体重呢？"式追问）；单个会话可删除、可重命名；移动端有「历史」弹窗入口
-  - **体重 AI 解读** / **AI 护理计划** / **多宠物关注优先级** / **仪表盘 AI 今日简报**：同前
+  - **体重 AI 解读** / **AI 护理计划** / **多宠物关注优先级** / **仪表盘 AI 今日简报（含本月花销概览）**：同前
   - **供应商容错**：百炼 qwen3.8-flash → DeepSeek → 通义，欠费熔断、故障顺延，全部不可用才降级示例回答
-  - **评估套件**：`dev/eval_cases.json` 25 条用例（路由/事实/草稿 HITL/降级四维打分），`dev/eval_agent.py --routing-only` 零成本回归路由规则
+  - **评估套件**：`dev/eval_cases.json` 31 条用例（26 条规则路由 + 5 条 LLM 兜底；路由/事实/草稿 HITL/降级四维打分），`dev/eval_agent.py --routing-only` 零成本回归路由规则
   - 报告答案支持 Markdown 渲染 + 复制 + 下载 `.md`
 
 ## API
@@ -101,10 +105,16 @@ python main.py            # 启动 http://127.0.0.1:8000
 | PUT / DELETE | `/api/chat/sessions/{id}` | 会话重命名 / 删除单个历史会话及其全部消息 |
 | GET | `/api/pets/{id}/weight-insight` | 体重趋势 AI 解读（按数据签名缓存） |
 | GET | `/api/care-plan/{id}` | AI 月度护理计划（结构化计划项，可逐项转记录） |
-| GET | `/api/export/pets.csv` · `/api/export/records.csv` · `/api/export/db` | 导出宠物 / 健康记录 CSV、下载数据库备份 |
+| GET | `/api/export/pets.csv` · `/api/export/records.csv` · `/api/export/expenses.csv` · `/api/export/db` | 导出宠物 / 健康记录 / 花费 CSV（可 `?year=&month=` 筛选）、下载数据库备份 |
+| GET | `/api/expenses?year=&month=&pet_id=&category=` | 花费流水 + 聚合（total / by_category / by_pet） |
+| POST | `/api/expenses` · GET/POST `/api/pets/{id}/expenses` | 记一笔（pet_id 空/0 = 家庭共同）/ 按宠物记 |
+| PUT/DELETE | `/api/expenses/{id}` · GET/PUT `/api/expenses/budget` | 改 / 删花销 · 月度预算读写（0/null 清除） |
+| GET | `/api/calendar?year=&month=` | 健康日历聚合：提醒（逾期/临期/待办分级）+ 已做记录 + 进行中用药，按日期分桶 |
+| GET/POST | `/api/pets/{id}/diet-logs` · PUT/DELETE `/api/diet-logs/{id}` | 饮食日志（流水 + 今日/本周/近30天小结）/ 增改删 |
 | POST | `/api/admin/reset-demo` | 清空全部数据并重建示例（危险操作，前端需输入「清空」确认） |
 | GET/POST | `/api/briefing` | 今日 AI 健康简报（按天+数据签名缓存）/ 手动重新生成 |
 | GET | `/api/agent/status` | 当前 AI 运行模式探测 |
+| GET | `/manifest.json` · `/icon.svg` | PWA 清单与图标 |
 | GET | `/` | 欢迎页（入口） |
 | GET | `/app` | 主应用单页 |
 
@@ -127,15 +137,22 @@ smart-pet-health/
 ├── backend/
 │   ├── main.py            # FastAPI 路由 + 静态托管
 │   ├── db.py              # SQLite 建库/CRUD/示例数据/提醒计算
-│   ├── tools.py           # 五个 Agent 工具（LangChain 与降级模式共用）
-│   ├── agent.py           # LangChain ReAct Agent + 无Key ExampleAgent
+│   ├── tools.py           # 十二个 Agent 工具（LangChain 与降级模式共用，全部只读或草稿）
+│   ├── agent.py           # 分层多专家 Agent（规则路由/LLM兜底/专家/降级链）
+│   ├── species.py         # 物种档案（记录类型/常见疾病/护理规范）
 │   ├── requirements.txt
-│   └── env.example        # 密钥模板（复制为 .env；.env 不进 git）
+│   ├── env.example        # 密钥模板（复制为 .env；.env 不进 git）
+│   └── tests/             # pytest 核心单测（roll_date 钳制/聚合校验/日历分级/complete 幂等）
 ├── web/
-│   ├── welcome.html       # 欢迎页（入口，含过渡动画，无外部依赖）
-│   └── index.html         # 单页前端（视图/样式/微交互全内含）
+│   ├── welcome.html       # 欢迎页（入口，含过渡动画与真实数据统计条）
+│   ├── index.html         # 单页前端（六栏目视图/样式/微交互全内含）
+│   ├── manifest.json      # PWA 清单（可安装，无 Service Worker）
+│   └── icon.svg           # 爪印图标
 ├── dev/
-│   └── smoke.test.js      # jsdom 端到端冒烟测试（46 项断言）
+│   ├── smoke.test.js      # jsdom 端到端冒烟测试（156 项断言）
+│   ├── welcome.test.js    # 欢迎页测试（10 项）
+│   ├── eval_agent.py      # AI 评估运行器（--routing-only 零成本 / 全量真实 LLM）
+│   └── eval_cases.json    # 31 条评估用例（26 规则路由 + 5 LLM 兜底）
 └── README.md
 ```
 
@@ -144,12 +161,15 @@ smart-pet-health/
 ```bash
 # 后端启动后，在装有 Node 的机器上：
 npm install jsdom
-node dev/smoke.test.js       # 73/73：渲染、筛选、时间线、体重图区间、重复周期、用药、微交互、CRUD 闭环、AI 问答、主题
+node dev/smoke.test.js       # 156/156：六栏目渲染、记账聚合与校验、日历分级与当日卡、饮食页签、分诊向导、重复周期、无障碍、CRUD 闭环
 node dev/welcome.test.js     # 10/10：欢迎页脚本、主题键、过渡与跳转
 
+# 后端核心单测（临时库，不碰真实数据）
+backend/.venv/Scripts/python.exe -m pytest backend/tests -q   # 9 passed
+
 # AI 多专家评估（进程内直调，不需要起服务）
-backend/.venv/Scripts/python.exe dev/eval_agent.py --routing-only   # 只测路由规则，零成本
-backend/.venv/Scripts/python.exe dev/eval_agent.py                  # 25 条真实 LLM：路由/事实/草稿/降级
+backend/.venv/Scripts/python.exe dev/eval_agent.py --routing-only   # 只测路由规则，零成本（26/26 + L 系列 skip）
+backend/.venv/Scripts/python.exe dev/eval_agent.py                  # 31 条真实 LLM：路由/事实/草稿/降级 + LLM 兜底 5 条（默认开 LLM_ROUTE）
 ```
 
 ## 开发阶段（每阶段 git 提交）

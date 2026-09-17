@@ -11,7 +11,7 @@ message
   │    draft > species-boundary > report > care > health(含弱信号+宠物名)
   │    │ 命中 → 直接返回 (expert, "rule:*")           ← 26 条 strict 用例，零变化
   │    ▼ 未命中
-  ├─ [新增] LLM 分类节点（仅 default 分支，≤3s，单轮，A/B/C/D 单字母输出）
+  ├─ [新增] LLM 分类节点（仅 default 分支，≤6s，单轮，A/B/C/D 单字母输出，空输出重试一次）
   │    │ 成功 → (expert, "llm:<label>")   label ∈ 四类
   │    │ 失败/超时/非法/熔断/无Key → 走原路径
   │    ▼
@@ -26,7 +26,7 @@ message
 
 | 场景 | 处理 |
 |---|---|
-| 分类超时（>3s） | 异常捕获 → `None` → 落 `general_agent/default`，连续失败计数 +1 |
+| 分类超时（>6s） | 异常捕获 → `None` → 落 `general_agent/default`，连续失败计数 +1 |
 | 返回非法标签（非 A-D） | 正则白名单校验失败视为失败，同上（计数 +1，不缓存） |
 | 供应商全熔断/无 Key | `current_provider()` 为空或 `_agent_failed` → 直接跳过分类，0 等待 |
 | 连续失败 ≥3 次 | 进程内置停用标记，后续 default 直接回落，不再白等 3s（与 `_dead_providers` 同思路） |
@@ -69,23 +69,23 @@ def _llm_route_enabled() -> bool:
 
 
 def _classify_llm(prov: str):
-    """分类专用轻量 LLM：temperature=0、max_tokens=64（给思考块留余量）、超时 3s、不重试。"""
+    """分类专用轻量 LLM：temperature=0、max_tokens=512（qwen3.8-flash 思考块会吃 token，64 实测间歇空输出）、超时 6s（冷启动实测 7s）、不重试；空输出同供应商重试一次。"""
     if prov == "bailian":
         from langchain_anthropic import ChatAnthropic
         return ChatAnthropic(model=os.environ.get("BAILIAN_MODEL", "qwen3.8-flash"),
                              api_key=bailian_key(),
                              base_url=os.environ.get("BAILIAN_BASE_URL", "https://dashscope.aliyuncs.com/apps/anthropic"),
-                             temperature=0, max_tokens=64, timeout=3, max_retries=0)
+                             temperature=0, max_tokens=512, timeout=6, max_retries=0)
     if prov == "deepseek":
         from langchain_openai import ChatOpenAI
         return ChatOpenAI(model=os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"),
                           api_key=deepseek_key(),
                           base_url=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
-                          temperature=0, max_tokens=64, timeout=3, max_retries=0)
+                          temperature=0, max_tokens=512, timeout=6, max_retries=0)
     from langchain_community.chat_models.tongyi import ChatTongyi
     return ChatTongyi(model=os.environ.get("QWEN_MODEL", "qwen-plus"),
                       dashscope_api_key=dashscope_key(),
-                      temperature=0, max_tokens=64, request_timeout=3)
+                      temperature=0, max_tokens=512, request_timeout=6)
 
 
 def _cache_put(msg: str, label: str) -> None:
@@ -177,8 +177,8 @@ def _llm_classify(message: str) -> str | None:
 
 - 回滚 = 一个环境变量：`.env` 或进程环境 `LLM_ROUTE=0`（或删掉该行），重启后行为与改动前逐字节一致；代码级回滚只 revert `_route` 尾部 4 行即可。
 - 缓存取舍：进程内 FIFO 128 条，只缓存成功结果（失败可重试，熔断兜底）；同文本重发零延迟；代价是改提示词后需重启才生效——单用户可接受。
-- 主要风险：qwen3.8-flash 若默认输出思考块，`max_tokens=64` 内可能被截断 → 解析失败 → 静默回落 general，不产生错误答案；连续 3 次即自动停用，不会拖慢后续闲聊。
-- 每条 default 消息多 1 次 flash 级调用（输入约 300 token、输出 1 字母），费用可忽略；延迟上限 +3s，仅在规则未命中的闲聊上发生。
+- 主要风险：qwen3.8-flash 若默认输出思考块，`max_tokens=512` 已放宽（64 时实测间歇空输出）；极端情况仍可能截断 → 解析失败 → 静默回落 general，不产生错误答案；连续 3 次即自动停用，不会拖慢后续闲聊。
+- 每条 default 消息多 1 次 flash 级调用（输入约 300 token、输出 1 字母），费用可忽略；延迟上限 +6s（冷启动首条可能再久一点），仅在规则未命中的闲聊上发生。
 
 ## 6. 结论建议
 

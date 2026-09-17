@@ -180,7 +180,7 @@ def _llm_route_enabled() -> bool:
 
 
 def _classify_llm(prov: str):
-    """分类专用轻量构建：temperature=0、max_tokens=64（给思考块留余量）、超时 3s、不重试。"""
+    """分类专用轻量构建：temperature=0、max_tokens=512（qwen3.8-flash 思考块吃 token，64 实测间歇空输出）、超时 6s（冷启动实测 7s）、不重试。"""
     if prov == "bailian":
         from langchain_anthropic import ChatAnthropic
         return ChatAnthropic(model=os.environ.get("BAILIAN_MODEL", "qwen3.8-flash"),
