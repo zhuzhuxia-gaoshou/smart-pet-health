@@ -128,6 +128,9 @@ h1 em{font-family:'Fraunces',var(--serif);font-style:italic;font-weight:500;
 .lede .q{color:var(--text);border-bottom:1px dashed var(--ring)}
 
 .cta-row{display:flex;align-items:center;gap:14px;margin-top:34px;flex-wrap:wrap}
+.hero-stats{margin-top:18px;font-size:13.5px;color:var(--text-2);font-variant-numeric:tabular-nums}
+.hero-stats b{font-family:var(--font-title);font-size:17px;font-weight:600;color:var(--text)}
+.hero-stats .sep{margin:0 10px;opacity:.5}
 .btn{display:inline-flex;align-items:center;gap:9px;background:var(--accent-strong);color:#faf9f5;
   font-size:15px;font-weight:500;padding:13px 26px;border-radius:8px;position:relative;
   overflow:hidden;box-shadow:var(--shadow);transition:transform .2s,background-color .2s,box-shadow .2s}
@@ -333,6 +336,7 @@ h1 em{font-family:'Fraunces',var(--serif);font-style:italic;font-weight:500;
         </a>
         <a href="#features" class="btn-ghost" data-toast="">了解更多</a>
       </div>
+      <div class="hero-stats" id="hero-stats" hidden aria-live="polite"></div>
     </div>
 
     <div class="hero-visual">
@@ -487,6 +491,19 @@ const io = new IntersectionObserver(entries => {
   });
 }, { threshold: 0.15 });
 document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+/* ---------- 真实数据统计条：拉 /api/stats，失败保持隐藏（欢迎页不因后端未起而破相） ---------- */
+if (typeof window.fetch === 'function') {
+  fetch('/api/stats').then(r => r.json()).then(d => {
+    const s = d && d.stats;
+    if (!s || !s.pet_count) return;
+    const box = document.getElementById('hero-stats');
+    box.innerHTML = `已守护 <b>${s.pet_count}</b> 只宠物<span class="sep">·</span>`
+      + `<b>${s.record_count}</b> 条健康记录<span class="sep">·</span>`
+      + `<b>${s.due_count}</b> 项事项待处理`;
+    box.hidden = false;
+  }).catch(() => {});
+}
 
 /* ---------- 「开始使用」→ 全屏欢迎过渡页 ----------
    过渡动画播完（约 2.1 秒）自动跳转 APP_URL；留空则只播放动画，方便单独预览。
