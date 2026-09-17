@@ -1957,8 +1957,7 @@ async function renderCalendar() {
   const html = DOW.map(d => `<div class="cal-dow">${d}</div>`).join('') + cells.map((c, idx) => {
     if (c.dim) return `<div class="cal-cell dim" aria-hidden="true"><span class="cal-num">${c.d}</span></div>`;
     const b = data.days[c.iso] || { reminders: [], records: [], meds: [] };
-    // 每行自解释「这天和这件事的关系」：到期该做（红=已逾期/琥珀=临期/灰=还没到）、用药中（紫）、已做（✓）
-    // 容量 3 行：提醒优先（逾期>临期>待办），再用药 1 条，再已做 1 条，超出计数
+    // 该做的（提醒）与这天要用的药全部直读；已做属历史回顾，压缩为一行；上限 6 行防数据异常撑爆格子
     const evtRows = [];
     b.reminders.forEach(r => {
       const tag = r.level === 'overdue' ? `已逾期${-r.days_left}天`
@@ -1967,20 +1966,18 @@ async function renderCalendar() {
         <i class="cal-dot" style="background:${CAL_DOT[r.level]}"></i>
         <span class="evt-txt">${esc(r.title)}·${esc(r.pet_name)}</span>${tag ? `<span class="evt-tag">${tag}</span>` : ''}</span>`);
     });
-    if (b.meds.length) {
-      const m0 = b.meds[0];
-      evtRows.push(`<span class="cal-evt med" title="这天用药：${esc(m0.name)}·${esc(m0.pet_name)}${m0.frequency ? `（${esc(m0.frequency)}）` : ''}${b.meds.length > 1 ? ` 等 ${b.meds.length} 项` : ''}">
+    b.meds.forEach(m0 => {
+      evtRows.push(`<span class="cal-evt med" title="这天用药：${esc(m0.name)}·${esc(m0.pet_name)}${m0.frequency ? `（${esc(m0.frequency)}）` : ''}">
         <i class="cal-dot" style="background:${CAL_DOT.med}"></i>
         <span class="evt-txt">${esc(m0.name)}·${esc(m0.pet_name)}</span><span class="evt-tag">${esc(m0.frequency || '用药')}</span></span>`);
-    }
+    });
     if (b.records.length) {
       const r0 = b.records[0];
-      evtRows.push(`<span class="cal-evt done" title="这天已做：${esc(r0.title)}·${esc(r0.pet_name)}${b.records.length > 1 ? ` 等 ${b.records.length} 条` : ''}">
-        <span class="evt-txt">✓ ${esc(r0.type_label)}·${esc(r0.pet_name)}</span></span>`);
+      evtRows.push(`<span class="cal-evt done" title="这天已做：${b.records.map(r => `${r.title}·${r.pet_name}`).join('、')}">
+        <span class="evt-txt">✓ 已做 ${b.records.length} 条</span></span>`);
     }
-    const total = b.reminders.length + (b.meds.length ? 1 : 0) + (b.records.length ? 1 : 0);
-    const evts = evtRows.slice(0, 3).join('')
-      + (total > 3 ? `<span class="cal-more">还有 ${total - 3} 项</span>` : '');
+    const evts = evtRows.slice(0, 6).join('')
+      + (evtRows.length > 6 ? `<span class="cal-more">还有 ${evtRows.length - 6} 项</span>` : '');
     const parts = b.reminders.map(r => `${r.title}(${r.pet_name}${r.level === 'overdue' ? '·已逾期' : r.level === 'soon' ? `·还剩${r.days_left}天` : '·待办'})`)
       .concat(b.meds.length ? [`用药中：${b.meds.map(m => m.name).join('、')}`] : [])
       .concat(b.records.map(r => `这天已做：${r.title}(${r.pet_name})`));
