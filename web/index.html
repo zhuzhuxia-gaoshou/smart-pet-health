@@ -832,7 +832,7 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
 .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; max-width: 960px; }
 .cal-dow { text-align: center; font-size: 12px; color: var(--text-2); padding: 4px 0 8px; font-weight: 600; }
 .cal-cell {
-  min-height: 104px; padding: 8px 9px; border: 1px solid var(--border); border-radius: var(--r-sm);
+  min-height: 112px; padding: 8px 9px; border: 1px solid var(--border); border-radius: var(--r-sm);
   background: var(--surface); cursor: pointer; display: flex; flex-direction: column; gap: 6px;
   transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
 }
@@ -845,13 +845,16 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
 .cal-dots { display: flex; gap: 4px; align-items: center; min-height: 7px; flex-wrap: wrap; }
 .cal-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 .cal-more { font-size: 11px; color: var(--text-2); }
-/* 月视图事件条：格内直读主要事件（色点承担分级色，文字统一 --text 保证可读） */
+/* 月视图事件条：每行自解释「这天和这件事的关系」——到期该做（红=已逾期/琥珀=临期/灰=未来）、用药中（紫）、已做（✓） */
 .cal-events { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .cal-evt { display: flex; align-items: center; gap: 5px; font-size: 11.5px; line-height: 1.3; color: var(--text); min-width: 0; }
 .cal-evt .cal-dot { margin-top: 0; }
 .cal-evt .evt-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-evt .evt-tag { flex: none; font-size: 10.5px; opacity: .85; }
 .cal-evt.overdue .evt-txt { color: var(--danger); font-weight: 600; }
 .cal-evt.soon .evt-txt { color: var(--warn); }
+.cal-evt.med .evt-txt { color: var(--medication); }
+.cal-evt.done { color: var(--text-3); }
 .day-card-pet { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 
 /* ---------- 饮食页签（详情弹窗内） ---------- */
@@ -1062,7 +1065,7 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
   <section class="view" id="view-calendar">
     <div class="page-head">
       <div class="page-title">健康日历</div>
-      <div class="page-sub">提醒、已做记录与用药，一个月看全</div>
+      <div class="page-sub">这天该做什么、做了什么、在用什么药，一个月看全</div>
     </div>
     <div class="exp-toolbar">
       <div class="mon-nav" role="group" aria-label="月份切换">
@@ -1072,10 +1075,11 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
         <button class="btn ghost sm" id="cal-today" style="display:none" onclick="calToday()">回到今天</button>
       </div>
       <div class="cal-legend" aria-hidden="true">
-        <span><i style="background:var(--danger)"></i>逾期</span>
-        <span><i style="background:var(--warn)"></i>临期</span>
-        <span><i style="background:var(--text-3)"></i>待办</span>
+        <span><i style="background:var(--danger)"></i>已逾期</span>
+        <span><i style="background:var(--warn)"></i>临期该做</span>
+        <span><i style="background:var(--text-3)"></i>未来待办</span>
         <span><i style="background:var(--medication)"></i>用药中</span>
+        <span>✓ 已做</span>
       </div>
     </div>
     <div class="cal-grid" id="cal-grid"></div>
@@ -1953,24 +1957,37 @@ async function renderCalendar() {
   const html = DOW.map(d => `<div class="cal-dow">${d}</div>`).join('') + cells.map((c, idx) => {
     if (c.dim) return `<div class="cal-cell dim" aria-hidden="true"><span class="cal-num">${c.d}</span></div>`;
     const b = data.days[c.iso] || { reminders: [], records: [], meds: [] };
-    // 主要事件直读：提醒渲染为文字条（色点承担分级色），最多 2 条 + N；用药与已做保持圆点行（长期用药整月都有，写成文字反成噪音）
-    const evts = b.reminders.slice(0, 2).map(r => {
-      const label = r.level === 'overdue' ? '·逾期' : r.level === 'soon' ? '·临期' : '·待办';
-      return `<span class="cal-evt ${r.level}" title="${esc(r.title)}（${esc(r.pet_name)}${label}）">
+    // 每行自解释「这天和这件事的关系」：到期该做（红=已逾期/琥珀=临期/灰=还没到）、用药中（紫）、已做（✓）
+    // 容量 3 行：提醒优先（逾期>临期>待办），再用药 1 条，再已做 1 条，超出计数
+    const evtRows = [];
+    b.reminders.forEach(r => {
+      const tag = r.level === 'overdue' ? `已逾期${-r.days_left}天`
+        : r.days_left === 0 ? '今天到期' : r.level === 'soon' ? `还剩${r.days_left}天` : '';
+      evtRows.push(`<span class="cal-evt ${r.level}" title="${esc(r.title)}·${esc(r.pet_name)}${tag ? `（${tag}）` : ''}">
         <i class="cal-dot" style="background:${CAL_DOT[r.level]}"></i>
-        <span class="evt-txt">${esc(r.title)}·${esc(r.pet_name)}</span></span>`;
-    }).join('')
-      + (b.reminders.length > 2 ? `<span class="cal-more">还有 ${b.reminders.length - 2} 项</span>` : '');
-    const dots = (b.meds.length ? `<i class="cal-dot" style="background:${CAL_DOT.med}"></i>` : '')
-      + (b.records.length ? `<span class="cal-more" title="已做记录">✓${b.records.length}</span>` : '');
-    const parts = b.reminders.map(r => `${r.title}(${r.pet_name}${r.level === 'overdue' ? '·逾期' : r.level === 'soon' ? '·临期' : '·待办'})`)
-      .concat(b.records.map(r => `已做${r.type_label}(${r.pet_name})`))
-      .concat(b.meds.length ? [`用药中 ${b.meds.length} 项`] : []);
-    const label = `${m}月${c.d}日 周${DOW[idx % 7]}${c.iso === today ? '（今天）' : ''}，${parts.length ? parts.length + ' 项：' + parts.join('、') : '无事项'}`;
+        <span class="evt-txt">${esc(r.title)}·${esc(r.pet_name)}</span>${tag ? `<span class="evt-tag">${tag}</span>` : ''}</span>`);
+    });
+    if (b.meds.length) {
+      const m0 = b.meds[0];
+      evtRows.push(`<span class="cal-evt med" title="用药中：${esc(m0.name)}·${esc(m0.pet_name)}${b.meds.length > 1 ? ` 等 ${b.meds.length} 项` : ''}">
+        <i class="cal-dot" style="background:${CAL_DOT.med}"></i>
+        <span class="evt-txt">${esc(m0.name)}·${esc(m0.pet_name)}</span><span class="evt-tag">用药中</span></span>`);
+    }
+    if (b.records.length) {
+      const r0 = b.records[0];
+      evtRows.push(`<span class="cal-evt done" title="这天已做：${esc(r0.title)}·${esc(r0.pet_name)}${b.records.length > 1 ? ` 等 ${b.records.length} 条` : ''}">
+        <span class="evt-txt">✓ ${esc(r0.type_label)}·${esc(r0.pet_name)}</span></span>`);
+    }
+    const total = b.reminders.length + (b.meds.length ? 1 : 0) + (b.records.length ? 1 : 0);
+    const evts = evtRows.slice(0, 3).join('')
+      + (total > 3 ? `<span class="cal-more">还有 ${total - 3} 项</span>` : '');
+    const parts = b.reminders.map(r => `${r.title}(${r.pet_name}${r.level === 'overdue' ? '·已逾期' : r.level === 'soon' ? `·还剩${r.days_left}天` : '·待办'})`)
+      .concat(b.meds.length ? [`用药中：${b.meds.map(m => m.name).join('、')}`] : [])
+      .concat(b.records.map(r => `这天已做：${r.title}(${r.pet_name})`));
+    const label = `${m}月${c.d}日 周${DOW[idx % 7]}${c.iso === today ? '（今天）' : ''}，${parts.length ? parts.join('；') : '无事项'}`;
     return `<div class="cal-cell${c.iso === today ? ' today' : ''}" role="button" tabindex="0" aria-label="${esc(label)}" onclick="openDayCard('${c.iso}')">
       <span class="cal-num">${c.d}</span>
       ${evts ? `<div class="cal-events" aria-hidden="true">${evts}</div>` : ''}
-      ${dots ? `<div class="cal-dots" aria-hidden="true">${dots}</div>` : ''}
     </div>`;
   }).join('');
   $('cal-grid').innerHTML = html;
