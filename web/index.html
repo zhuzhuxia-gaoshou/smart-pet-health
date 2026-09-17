@@ -1279,7 +1279,21 @@ async function renderRecords() {
       <button class="btn sm" onclick="$('rec-filter-pet').value='';$('rec-filter-type').value='';renderRecords()">清除筛选</button></div></div>`;
     return;
   }
-  $('records-list').innerHTML = `<div class="card card-pad">` + list.map(r => {
+  // 按月份分组（时间线视图）：组头「YYYY 年 M 月 · N 条」，组内沿用接口的日期倒序
+  const ymGroups = new Map();
+  list.forEach(r => {
+    const ym = (r.date || '未知日期').slice(0, 7);
+    if (!ymGroups.has(ym)) ymGroups.set(ym, []);
+    ymGroups.get(ym).push(r);
+  });
+  const ymLabel = ym => {
+    const [y, m] = ym.split('-').map(Number);
+    return Number.isFinite(y) && Number.isFinite(m) ? `${y} 年 ${m} 月` : '未知日期';
+  };
+  const monthNow = todayISO().slice(0, 7);
+  $('records-list').innerHTML = `<div class="card card-pad">` + [...ymGroups.entries()].map(([ym, items]) => `
+    <div class="exp-group-head">${esc(ymLabel(ym))} <span class="g-sub">· ${items.length} 条${ym === monthNow ? ' · 本月' : ''}</span></div>
+    ${items.map(r => {
     let nextChip = '';
     if (r.next_date) {
       const cls = r.days_left < 0 ? 'ill' : r.days_left <= 7 ? 'attention' : 'plain';
@@ -1293,7 +1307,7 @@ async function renderRecords() {
       <span class="rec-title">${esc(r.title)}</span>
       ${nextChip}
     </div>`;
-  }).join('') + `<div class="rec-foot">本月新增 ${list.filter(r => (r.date || '').startsWith(todayISO().slice(0, 7))).length} 条 · ${filtering ? '筛选' : '累计'} ${list.length} 条</div></div>`;
+  }).join('')}`).join('') + `<div class="rec-foot">本月新增 ${list.filter(r => (r.date || '').startsWith(monthNow)).length} 条 · ${filtering ? '筛选' : '累计'} ${list.length} 条</div></div>`;
 }
 
 /* ---------- 全部到期提醒页 ---------- */

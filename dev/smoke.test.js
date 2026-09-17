@@ -53,6 +53,8 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
   await sleep(600);
   const recCount = (await (await fetch(BASE + '/api/records')).json()).records.length;
   check('records view lists all', n('#records-list .rec-row') === recCount, n('#records-list .rec-row') + ' vs ' + recCount);
+  check('records grouped by month headers', n('#records-list .exp-group-head') >= 1
+    && [...doc.querySelectorAll('#records-list .exp-group-head')].every(h => /年.*月/.test(h.textContent)));
   T.go('reminders');
   await sleep(200);
   check('reminders view lists all', n('#reminders-full-list .reminder-item') === state().reminders.length,
