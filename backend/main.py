@@ -354,6 +354,19 @@ def api_export_records():
                          rows)
 
 
+@app.get("/api/export/expenses.csv")
+def api_export_expenses(year: int | None = None, month: int | None = None):
+    """花费流水 CSV（可按年/月筛选，缺省全部），金额保留两位小数；文件名带筛选范围。"""
+    err = _check_month(year, month)
+    if err:
+        return JSONResponse(status_code=422, content={"error": err})
+    rows = [[e["id"], e["date"], e["pet_name"] or "家庭共同", e["category_label"],
+             f"{e['amount']:.2f}", e.get("note") or ""] for e in db.list_expenses(year, month)]
+    scope = f"{year}-{month:02d}" if (year and month) else (str(year) if year else "all")
+    return _csv_response(f"expenses-{scope}.csv",
+                         ["ID", "日期", "宠物", "分类", "金额(元)", "备注"], rows)
+
+
 @app.get("/api/export/db")
 def api_export_db():
     """下载数据库文件备份。"""
@@ -448,6 +461,42 @@ def api_add_expense(body: ExpenseIn):
     if result is None:
         return {"error": "宠物不存在"}
     return {"expense": result}
+
+
+# 月度预算：必须注册在 /api/expenses/{exp_id} 之前，否则 PUT budget 会被 int 路径参数抢走并 422
+BUDGET_KEY = "expense_budget"
+
+
+class BudgetIn(BaseModel):
+    budget: float | None = Field(None, description="月度预算（元）；null 或 0 表示清除")
+
+    @field_validator("budget")
+    @classmethod
+    def _vb(cls, v):
+        if v is None:
+            return None
+        if v != v or v in (float("inf"), float("-inf")) or v < 0:
+            raise ValueError("预算必须是不小于 0 的数字")
+        if v > 10_000_000:
+            raise ValueError("预算过大")
+        return round(v, 2)
+
+
+@app.get("/api/expenses/budget")
+def api_get_budget():
+    raw = db.kv_get(BUDGET_KEY)
+    try:
+        budget = round(float(raw), 2) if raw else None
+    except ValueError:
+        budget = None
+    return {"budget": budget or None}
+
+
+@app.put("/api/expenses/budget")
+def api_set_budget(body: BudgetIn):
+    """设置/清除月度预算（存 app_kv，全家庭共用一个数）。"""
+    db.kv_set(BUDGET_KEY, str(body.budget) if body.budget else "")
+    return {"budget": body.budget or None}
 
 
 @app.get("/api/pets/{pet_id}/expenses")
@@ -560,9 +609,11 @@ BRIEF_KEY = "briefing"
 
 
 def _briefing_signature() -> str:
-    """数据签名：宠物/记录/临期数任一变化即视为过期。"""
+    """数据签名：宠物/记录/临期数/本月花费笔数任一变化即视为过期。"""
     st = db.stats()
-    return f"{st['pet_count']}|{st['record_count']}|{st['due_count']}"
+    now = datetime.now()
+    exp_n = db.expense_summary(now.year, now.month)["count"]
+    return f"{st['pet_count']}|{st['record_count']}|{st['due_count']}|{exp_n}"
 
 
 def _start_briefing_generation() -> None:

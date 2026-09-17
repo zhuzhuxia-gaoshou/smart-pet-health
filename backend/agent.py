@@ -502,7 +502,8 @@ BRIEFING_PROMPT = (
     "2) 逐条列出临期/逾期事项并各给一句具体建议；"
     "3) 如有体重明显波动的宠物提一句；"
     "4) 可调用 get_attention_ranking 确定优先级，最后一行单独写「❗ 最需要关注：XX（一句理由）」；"
-    "5) 收尾一句温暖克制的总结。直接输出简报正文，不要大标题。"
+    "5) 调用 query_expenses（宠物名与月份都留空）用一句话提本月花销概览：合计与最大开销类别，没有记账则跳过；"
+    "6) 收尾一句温暖克制的总结。直接输出简报正文，不要大标题。"
 )
 
 
@@ -520,6 +521,14 @@ def briefing_fallback() -> str:
         lines.append("需要关注：" + items + "，建议尽快安排处理。")
     else:
         lines.append("当前没有临期或逾期事项，一切都在计划内。")
+    from datetime import date as _date
+    today = _date.today()
+    exp = db.expense_summary(today.year, today.month)
+    if exp["count"]:
+        cats = sorted(exp["by_category"].items(), key=lambda kv: -kv[1])
+        top = db.EXPENSE_CATEGORIES.get(cats[0][0], cats[0][0]) if cats else ""
+        lines.append(f"本月已记 {exp['count']} 笔花销，合计 ¥{exp['total']:.2f}"
+                     + (f"，{top}占比最高。" if top else "。"))
     lines.append("打开 AI 助手可以继续询问任意宠物的详细情况。")
     return "\n".join(lines)
 

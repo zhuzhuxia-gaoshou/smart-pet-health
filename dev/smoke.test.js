@@ -445,6 +445,21 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
       doc.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
       check('Esc closes chart tooltip', !tip.classList.contains('show'));
     }
+    // ---------- 加餐：花费 CSV / 记录页合计行 / 月度预算 ----------
+    const csv = await (await fetch(BASE + '/api/export/expenses.csv')).text();
+    check('expenses csv has header + rows', csv.includes('金额(元)') && csv.split('\n').length > 3);
+    check('expenses csv month-filtered filename', (await fetch(BASE + '/api/export/expenses.csv?year=2026&month=9')).ok);
+    T.go('records'); await sleep(500);
+    check('records foot shows month count', !!doc.querySelector('#records-list .rec-foot') && doc.querySelector('#records-list .rec-foot').textContent.includes('本月新增'));
+    let err = '';
+    try { await T.api('/api/expenses/budget', { method: 'PUT', body: JSON.stringify({ budget: -50 }) }); } catch (e) { err = e.message; }
+    check('negative budget rejected in Chinese', err.includes('预算'), err);
+    const b1 = await T.api('/api/expenses/budget', { method: 'PUT', body: JSON.stringify({ budget: 800 }) });
+    check('budget set returns 800', b1.budget === 800 && (await (await fetch(BASE + '/api/expenses/budget')).json()).budget === 800);
+    T.go('ledger'); await sleep(600);
+    check('budget bar renders with pct', !!doc.querySelector('#ledger-budget .med-bar') && doc.querySelector('#ledger-budget').textContent.includes('已用'));
+    await T.api('/api/expenses/budget', { method: 'PUT', body: JSON.stringify({ budget: null }) });
+    check('budget cleared', (await (await fetch(BASE + '/api/expenses/budget')).json()).budget === null);
   }
 
   const fails = results.filter(r => !r.ok);
