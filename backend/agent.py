@@ -152,6 +152,102 @@ _ROUTE_HEALTH_WEAK = re.compile(r"怎么样|状况|多大|多重|几岁|情况|�
 _VACCINE_WORDS = re.compile(r"疫苗|驱虫|接种")
 
 
+# ---- LLM 路由兜底分类（仅 default 分支触发；默认 LLM_ROUTE=0 关闭，见 docs/LLM路由兜底方案.md）----
+_LLM_ROUTE_OFF = False        # 评估短路开关（eval --routing-only 置 True）
+_LLM_ROUTE_FAILS = 0          # 连续失败计数
+_LLM_ROUTE_FAIL_MAX = 3       # ≥3 次 → 本进程内停用 LLM 路由
+_ROUTE_LLM_CACHE: dict = {}   # message -> label，FIFO 上限 128（进程内）
+
+ROUTE_CLASSIFY_PROMPT = """你是宠物健康助手的意图分类器。把用户消息归入恰好一类，只输出对应的一个大写字母，禁止输出任何其他文字。
+A：查询或评估事实数据——档案、健康记录（疫苗/体检/驱虫/喂药/就诊）、提醒到期、体重、用药、饮食日志、花费账单、症状观察与健康担忧（如"吐了一次要紧吗"）。
+B：怎么做/怎么养——护理方法、能不能吃、禁忌、注意事项、用品与粮食选购建议。
+C：要一份成文内容——健康报告、年度总结、成长回顾、纪念或介绍文案。
+D：问候、闲聊、天气、与宠物无关的话题，或语义不明。
+例：
+「可乐这几天有点拉稀」→ A
+「小狗疫苗间隔多久打一次？」→ A
+「猫咪挑食怎么办」→ B
+「给仓鼠买什么垫料？」→ B
+「写一首关于我家狗狗的小诗」→ C
+「谢谢啦」→ D
+用户消息：{message}
+字母："""
+
+
+def _llm_route_enabled() -> bool:
+    return (not _LLM_ROUTE_OFF) and _LLM_ROUTE_FAILS < _LLM_ROUTE_FAIL_MAX \
+        and os.environ.get("LLM_ROUTE", "0") == "1"
+
+
+def _classify_llm(prov: str):
+    """分类专用轻量构建：temperature=0、max_tokens=64（给思考块留余量）、超时 3s、不重试。"""
+    if prov == "bailian":
+        from langchain_anthropic import ChatAnthropic
+        return ChatAnthropic(model=os.environ.get("BAILIAN_MODEL", "qwen3.8-flash"),
+                             api_key=bailian_key(),
+                             base_url=os.environ.get("BAILIAN_BASE_URL", "https://dashscope.aliyuncs.com/apps/anthropic"),
+                             temperature=0, max_tokens=512, timeout=6, max_retries=0)
+    if prov == "deepseek":
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(model=os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"),
+                          api_key=deepseek_key(),
+                          base_url=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+                          temperature=0, max_tokens=512, timeout=6, max_retries=0)
+    from langchain_community.chat_models.tongyi import ChatTongyi
+    return ChatTongyi(model=os.environ.get("QWEN_MODEL", "qwen-plus"),
+                      dashscope_api_key=dashscope_key(),
+                      temperature=0, max_tokens=512, request_timeout=6)
+
+
+def _route_cache_put(msg: str, label: str) -> None:
+    _ROUTE_LLM_CACHE.pop(msg, None)
+    _ROUTE_LLM_CACHE[msg] = label
+    while len(_ROUTE_LLM_CACHE) > 128:
+        _ROUTE_LLM_CACHE.pop(next(iter(_ROUTE_LLM_CACHE)))
+
+
+def _llm_classify(message: str) -> str | None:
+    """返回 health_analyst/care_advisor/report_writer/general；任何失败返回 None（回落 general）。"""
+    global _LLM_ROUTE_FAILS
+    msg = message.strip()[:200]
+    if not msg:
+        return None
+    if msg in _ROUTE_LLM_CACHE:
+        return _ROUTE_LLM_CACHE[msg]
+    if current_provider() is None or _agent_failed:
+        return None
+    mapping = {"A": "health_analyst", "B": "care_advisor", "C": "report_writer", "D": "general"}
+    for prov in _llm_candidates():
+        if prov in _dead_providers:
+            continue
+        try:
+            content = ""
+            # qwen3.8-flash 间歇把 token 花在思考块上导致 text 为空：max_tokens 放宽到 512，空输出同供应商重试一次
+            for _attempt in range(2):
+                out = _classify_llm(prov).invoke([("user", ROUTE_CLASSIFY_PROMPT.format(message=msg))])
+                content = out.content
+                if isinstance(content, list):
+                    content = "".join(b.get("text", "") for b in content if isinstance(b, dict))
+                if (content or "").strip():
+                    break
+            m = re.search(r"[ABCD]", (content or "").strip().upper())
+            if not m:
+                raise ValueError(f"非法分类输出: {(content or '')[:20]!r}")
+            label = mapping[m.group(0)]
+            _LLM_ROUTE_FAILS = 0
+            _route_cache_put(msg, label)
+            return label
+        except Exception as e:
+            txt = str(e)
+            if "402" in txt or "Insufficient Balance" in txt or "Arrearage" in txt:
+                _dead_providers.add(prov)
+            continue
+    _LLM_ROUTE_FAILS += 1
+    if _LLM_ROUTE_FAILS >= _LLM_ROUTE_FAIL_MAX:
+        print(f"[agent] LLM 路由分类连续失败 {_LLM_ROUTE_FAILS} 次，本进程内停用")
+    return None
+
+
 def _route(message: str) -> tuple[str, str]:
     """返回 (专家名, 路由来源)。规则优先、确定性；未命中落通用兜底。"""
     msg = (message or "").strip()
@@ -170,6 +266,11 @@ def _route(message: str) -> tuple[str, str]:
         return "care_advisor", "rule:care"
     if _ROUTE_HEALTH.search(msg) or (pet_name and _ROUTE_HEALTH_WEAK.search(msg)):
         return "health_analyst", "rule:health"
+    # 规则未命中 → LLM 分类兜底（默认关闭，LLM_ROUTE=1 启用）；任何失败回落 general，与历史行为一致
+    if _llm_route_enabled():
+        label = _llm_classify(msg)
+        if label:
+            return ("general_agent" if label == "general" else label), f"llm:{label}"
     return "general_agent", "default"
 
 # ---------------------------------------------------------------- LangChain Agent

@@ -44,6 +44,10 @@ def run(cases: list[dict], routing_only: bool) -> list[dict]:
     rows = []
     for c in cases:
         t0 = time.time()
+        if c.get("expect_llm_route") and routing_only:
+            # LLM 兜底用例依赖真实分类调用，--routing-only 下不计（双保险：main() 已置 _LLM_ROUTE_OFF）
+            print(f"{c['id']:<4} skip  （LLM 兜底用例，--routing-only 不计）")
+            continue
         if routing_only:
             expert, src = agent._route(c["message"])
             res = {"expert": expert, "route": src, "mode": "routing-only", "reply": ""}
@@ -55,7 +59,11 @@ def run(cases: list[dict], routing_only: bool) -> list[dict]:
         expert = res.get("expert") if res.get("mode") != "example" else None
         # 路由判定：example 模式下 answer 返回 expert=none，但路由本身仍可用 route 字段回推
         routed = agent._route(c["message"])[0] if res.get("mode") == "example" else expert
-        route_ok = routed == c["expected_expert"]
+        if c.get("expect_llm_route"):
+            # L 系列要求路由来源是 LLM 兜底（llm:*）且专家正确；规则命中视为未生效
+            route_ok = str(res.get("route", "")).startswith("llm:") and routed == c["expected_expert"]
+        else:
+            route_ok = routed == c["expected_expert"]
 
         text = _norm(res.get("reply", ""))
         must_ok = all(_norm(k) in text for k in c.get("must_contain", []))
@@ -78,6 +86,7 @@ def run(cases: list[dict], routing_only: bool) -> list[dict]:
             "id": c["id"], "message": c["message"], "expected": c["expected_expert"],
             "expert": routed, "route": res.get("route"), "mode": res.get("mode"),
             "route_strict": bool(c.get("route_strict", True)),
+            "expect_llm_route": bool(c.get("expect_llm_route")),
             "route_ok": route_ok, "fact_ok": fact_ok, "draft_ok": draft_ok, "degrade_ok": degrade_ok,
             "latency_ms": dt, "reply_head": (res.get("reply") or "")[:80].replace("\n", " "),
         })
@@ -93,9 +102,12 @@ def summarize(rows: list[dict], routing_only: bool, thresholds: dict) -> int:
     print("\n" + "=" * 72)
     print(f"路由准确率（route_strict）：{sum(r['route_ok'] for r in strict)}/{len(strict)} = {route_acc:.0%}"
           f"（阈值 {thresholds.get('route_accuracy', .8):.0%}）")
-    loose = [r for r in rows if not r["route_strict"]]
+    loose = [r for r in rows if not r["route_strict"] and not r.get("expect_llm_route")]
     if loose:
         print(f"闲聊类路由（不计分母）：{sum(r['route_ok'] for r in loose)}/{len(loose)}")
+    llm_routed = [r for r in rows if r.get("expect_llm_route")]
+    if llm_routed:
+        print(f"LLM 兜底路由（不计分母）：{sum(r['route_ok'] for r in llm_routed)}/{len(llm_routed)}")
     failed = route_acc < thresholds.get("route_accuracy", .8)
     if not routing_only:
         facts = [r for r in rows if r["fact_ok"] is not None]
@@ -130,6 +142,10 @@ def main() -> int:
         cases = [c for c in cases if c["id"] in wanted]
 
     db.init_and_seed()
+    if args.routing_only:
+        agent._LLM_ROUTE_OFF = True          # 双保险之一：routing-only 绝不发起 LLM 分类调用
+    else:
+        os.environ.setdefault("LLM_ROUTE", "1")   # 全量模式默认开 LLM 兜底；外部设 0 可强制关
     if not db.list_pets():
         print("数据库无宠物，事实断言无法成立；请先启动一次应用生成种子数据。")
         return 1
