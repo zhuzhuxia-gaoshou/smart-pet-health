@@ -156,8 +156,9 @@ h1 em{font-family:'Fraunces',var(--serif);font-style:italic;font-weight:500;
 .hero-visual{position:relative}
 .chat-card{width:min(430px,100%);margin-left:auto;background:var(--surface);
   border:1px solid var(--border);border-radius:20px;box-shadow:var(--shadow);
-  animation:float 7s ease-in-out infinite}
-@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+  animation:float 5s ease-in-out infinite;will-change:transform}
+@keyframes float{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-14px) rotate(-1.2deg)}}
+.hero-visual:hover .chat-card{animation-play-state:paused;transform:translateY(-8px) scale(1.02);transition:transform .35s ease}
 .chat-head{display:flex;align-items:center;gap:12px;padding:15px 18px;border-bottom:1px solid var(--border)}
 .chat-head .icon-tile{width:34px;height:34px;border-radius:10px}
 .chat-title{font-size:14px;font-weight:600}
@@ -242,8 +243,8 @@ h1 em{font-family:'Fraunces',var(--serif);font-style:italic;font-weight:500;
 .sec-head p{color:var(--text-2);font-size:15px;margin-top:12px}
 .feat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px}
 .feat-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;
-  padding:28px 26px;transition:transform .25s,box-shadow .25s,border-color .25s}
-.feat-card:hover{transform:translateY(-4px);box-shadow:var(--shadow-lift);border-color:var(--ring)}
+  padding:28px 26px;transition:transform .3s cubic-bezier(.2,0,0,1),box-shadow .3s,border-color .3s}
+.feat-card:hover{transform:translateY(-10px) scale(1.02);box-shadow:var(--shadow-lift);border-color:var(--accent)}
 .feat-en{font-size:10.5px;letter-spacing:.2em;color:var(--text-3);font-weight:600;margin:18px 0 6px}
 .feat-card h3{font-family:var(--serif);font-weight:600;font-size:19px}
 .feat-card p{font-size:14.5px;line-height:1.7;color:var(--text-2);margin-top:9px}
@@ -265,7 +266,8 @@ h1 em{font-family:'Fraunces',var(--serif);font-style:italic;font-weight:500;
 .hero-text>*:nth-child(4){animation-delay:.38s}
 .hero-text>*:nth-child(5){animation-delay:.46s}
 .hero-text>*:nth-child(6){animation-delay:.54s}
-.hero-visual{animation:rise .8s ease .4s both}
+/* 鼠标视差：欢迎页 hero 视觉层随手移动 */
+.hero-visual{animation:rise .8s ease .4s both;transition:transform .15s ease-out}
 
 /* ============ 响应式 ============ */
 @media (max-width:980px){
@@ -544,6 +546,20 @@ document.getElementById('startBtn').addEventListener('click', e => {
   gate.addEventListener('click', goApp);
   document.addEventListener('keydown', e => { if (e.key === 'Escape') goApp(); });
 });
+/* 欢迎页 hero 鼠标视差（装饰层，不挡点击） */
+(function () {
+  const hero = document.querySelector('.hero');
+  const vis = document.querySelector('.hero-visual');
+  if (!hero || !vis) return;
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  hero.addEventListener('pointermove', e => {
+    const r = hero.getBoundingClientRect();
+    const dx = (e.clientX - r.left) / r.width - 0.5;
+    const dy = (e.clientY - r.top) / r.height - 0.5;
+    vis.style.transform = `translate(${dx * 18}px, ${dy * 14}px)`;
+  });
+  hero.addEventListener('pointerleave', () => { vis.style.transform = ''; });
+})();
 </script>
 </body>
 </html>

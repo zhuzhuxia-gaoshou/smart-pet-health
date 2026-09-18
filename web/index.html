@@ -789,6 +789,35 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
 #suggest-chips .chip { animation: chip-in 280ms var(--ease) both; animation-delay: calc(var(--i, 0) * 80ms); }
 .fade-enter { animation: fade-enter 320ms var(--ease); }
 @keyframes fade-enter { from { opacity: 0; transform: translateY(16px) scale(.96); } }
+/* ===== 演示炫光包 ===== */
+.pet-card.enter { animation: rise-in 340ms var(--ease) both; animation-delay: calc(var(--i, 0) * 70ms); }
+@keyframes spin-y { to { transform: rotate(360deg); } }
+body.theme-flip .theme-toggle svg { animation: spin-y .55s var(--ease); }
+@keyframes today-halo {
+  0%, 100% { box-shadow: 0 0 0 3px var(--accent-soft); }
+  50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 22%, transparent); }
+}
+.cal-cell.today { animation: today-halo 1.6s ease-in-out infinite; }
+.btn.primary:hover { box-shadow: 0 6px 22px color-mix(in srgb, var(--accent) 40%, transparent); transform: translateY(-1px); }
+@keyframes paw-burst {
+  0% { opacity: 1; transform: translate(0, 0) scale(.6); }
+  100% { opacity: 0; transform: translate(var(--px), var(--py)) scale(1.15); }
+}
+.toast { position: relative; }
+.paw-burst {
+  position: absolute; left: 50%; top: 50%; font-size: 14px; pointer-events: none;
+  animation: paw-burst .65s var(--ease) forwards;
+}
+@keyframes wc-draw { to { stroke-dashoffset: 0; } }
+#weight-chart path.wc-line {
+  stroke-dasharray: 1200; stroke-dashoffset: 1200;
+  animation: wc-draw .9s var(--ease) forwards;
+}
+#weight-chart path.wc-area { animation: fade-enter .7s var(--ease) both; }
+#weight-chart .wc-dot { animation: fade-enter .4s var(--ease) both; animation-delay: .45s; }
+.tab-pane.active { animation: fade-up .3s var(--ease); }
+.detail-tab.active { animation: tab-pop .28s var(--ease); }
+@keyframes tab-pop { 0% { transform: translateY(4px); } 60% { transform: translateY(-2px); } 100% { transform: none; } }
 /* 视图切换：比原先 6px 的 fade-up 更明显 */
 @keyframes fade-up { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
 .view.active { animation: fade-up .32s var(--ease); }
@@ -1301,12 +1330,14 @@ async function renderDashboard() {
     statCard('g', '', st.record_count, '健康记录数', '<path d=\"M9 11l3 3L22 4\"/><path d=\"M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11\"/>', "go('records')", '查看全部'),
     statCard('w', '', st.due_count, '临期/逾期项目', '<path d=\"M10.3 3.6L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0z\"/><path d=\"M12 9v4M12 17h.01\"/>', "go('reminders')", '处理提醒'),
   ].join('');
-  // 每次进入仪表盘都播统计卡入场（略活泼）；数字滚动仍只在会话首次
+  // 每次进入仪表盘都播：统计卡错落入场 + 数字从 0 滚上去
   $('stat-row').querySelectorAll('.stat-card').forEach((el, i) => {
     el.style.setProperty('--i', String(i));
     el.classList.add('enter');
   });
-  if (!_countedOnce) { animateCount($('stat-row')); _countedOnce = true; }
+  const REDUCE_M = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!REDUCE_M) animateCount($('stat-row'));
+  _countedOnce = true;
   const rem = state.reminders;
   // 逾期优先、越近越前；只展示前 4 条，其余给出「还有 N 条」入口
   const sorted = [...rem].sort((a, b) => (b.overdue - a.overdue) || (a.days_left - b.days_left));
@@ -1434,7 +1465,8 @@ function statCard(cls, emoji, num, label, svg, nav, hint) {
 }
 function animateCount(root) {
   root.querySelectorAll('.stat-num').forEach(el => {
-    const target = +el.dataset.num, t0 = performance.now(), dur = 650;
+    const target = +el.dataset.num, t0 = performance.now(), dur = 900;
+    el.textContent = '0';
     (function tick(t) {
       const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
       el.textContent = Math.round(target * e);
@@ -1478,6 +1510,10 @@ function renderLibrary() {
       </div>
     </div>`;
   }).join('');
+  $('pet-grid').querySelectorAll('.pet-card').forEach((el, i) => {
+    el.style.setProperty('--i', String(Math.min(i, 8)));
+    el.classList.add('enter');
+  });
   if (state._flashPetId != null) {
     $('pet-grid').querySelector(`.pet-card[data-pet="${state._flashPetId}"]`)?.classList.add('just-saved');
     state._flashPetId = null;
@@ -2157,8 +2193,8 @@ function drawWeightChart() {  const box = $('weight-chart'); if (!box) return;
         <defs><linearGradient id="warea" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stop-color="var(--accent)" stop-opacity=".22"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/>
         </linearGradient></defs>
-        ${grid}<path d="${area}" fill="url(#warea)"/>
-        <path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        ${grid}<path class="wc-area" d="${area}" fill="url(#warea)"/>
+        <path class="wc-line" d="${line}" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
         <line id="wc-guide" y1="${PT}" y2="${H - PB}" stroke="var(--border)" stroke-width="1" style="opacity:0"/>
         <circle id="wc-hl" r="6.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2" style="opacity:0"/>
         ${dots}${xLabels}
@@ -2172,6 +2208,18 @@ function drawWeightChart() {  const box = $('weight-chart'); if (!box) return;
       <div class="wc-stat"><div class="k">区间平均</div><div class="v">${_fmtW(avg)} kg</div></div>
     </div>
     <div class="wi-box" id="weight-insight-box"></div>`;
+  // 折线「画出来」：只加 class/长度样式，不删 path（冒烟仍要求 path 存在）
+  const path = box.querySelector('path.wc-line');
+  if (path && path.getTotalLength) {
+    try {
+      const len = Math.ceil(path.getTotalLength()) + 2;
+      path.style.strokeDasharray = String(len);
+      path.style.strokeDashoffset = String(len);
+      path.getBoundingClientRect();
+      path.style.transition = 'stroke-dashoffset .9s cubic-bezier(.2,0,0,1)';
+      path.style.strokeDashoffset = '0';
+    } catch (_) { /* jsdom 无几何 API 时跳过绘制动画 */ }
+  }
 }
 function wcHover(e) {
   const wrap = e.currentTarget, box = wrap.closest('#weight-chart');
@@ -3123,6 +3171,10 @@ function toggleTheme() {
   const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
   document.documentElement.dataset.theme = next;
   localStorage.setItem('pet-theme', next);
+  document.body.classList.remove('theme-flip');
+  void document.body.offsetWidth;
+  document.body.classList.add('theme-flip');
+  setTimeout(() => document.body.classList.remove('theme-flip'), 600);
 }
 (function initTheme() {
   const saved = localStorage.getItem('pet-theme');
@@ -3136,6 +3188,19 @@ function toast(text, level) {
   t.className = 'toast' + (lv === 'ok' ? '' : ' ' + lv);
   t.innerHTML = `<span class="t-ico">${{ ok: '✓', warn: '!', err: '✕' }[lv]}</span>${esc(text)}`;
   $('toast-root').appendChild(t);
+  if (lv === 'ok') {
+    for (let i = 0; i < 8; i++) {
+      const s = document.createElement('span');
+      s.className = 'paw-burst';
+      s.textContent = '🐾';
+      s.setAttribute('aria-hidden', 'true');
+      const a = (i / 8) * Math.PI * 2, r = 28 + (i % 3) * 10;
+      s.style.setProperty('--px', Math.cos(a) * r + 'px');
+      s.style.setProperty('--py', Math.sin(a) * r + 'px');
+      t.appendChild(s);
+      setTimeout(() => s.remove(), 700);
+    }
+  }
   setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 250); }, 2300);
 }
 document.body.addEventListener('pointerdown', e => {
