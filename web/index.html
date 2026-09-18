@@ -1120,31 +1120,39 @@ body.theme-flip .theme-toggle svg { animation: spin-y .55s var(--ease); }
 .tab-btn { position: relative; z-index: 1; }
 .spotlight {
   position: fixed; inset: 0; pointer-events: none; z-index: 48;
-  background: radial-gradient(420px circle at var(--sx, 50%) var(--sy, 30%),
-    color-mix(in srgb, var(--accent) 28%, transparent) 0%,
-    color-mix(in srgb, var(--accent) 12%, transparent) 28%,
+  background: radial-gradient(380px circle at var(--sx, 50%) var(--sy, 30%),
+    color-mix(in srgb, var(--accent) 14%, transparent) 0%,
+    color-mix(in srgb, var(--accent) 6%, transparent) 30%,
     transparent 58%);
 }
-.spot-core {
-  position: fixed; left: 0; top: 0; width: 22px; height: 22px; border-radius: 50%;
-  pointer-events: none; z-index: 220; opacity: 0;
-  transform: translate(-50%, -50%);
-  background: radial-gradient(circle, #fff 0%, color-mix(in srgb, var(--accent) 85%, #fff) 35%, transparent 70%);
-  box-shadow:
-    0 0 24px 8px color-mix(in srgb, var(--accent) 55%, transparent),
-    0 0 60px 20px color-mix(in srgb, var(--accent) 30%, transparent);
-  transition: opacity .2s ease;
-  mix-blend-mode: normal;
+/* 柔和拖尾：一组滞后光点，无白心、无强阴影 */
+.spot-trail {
+  position: fixed; left: 0; top: 0; pointer-events: none; z-index: 47;
+  border-radius: 50%;
+  width: calc(16px - var(--i) * 1.4px);
+  height: calc(16px - var(--i) * 1.4px);
+  margin: 0;
+  background: radial-gradient(circle,
+    color-mix(in srgb, var(--accent) 42%, transparent) 0%,
+    color-mix(in srgb, var(--warn) 22%, transparent) 45%,
+    transparent 70%);
+  opacity: calc(0.38 - var(--i) * 0.04);
+  transform: translate(-100px, -100px);
+  will-change: transform;
+  filter: blur(calc(var(--i) * 0.4px));
 }
 html[data-theme="dark"] .spotlight {
-  background: radial-gradient(460px circle at var(--sx, 50%) var(--sy, 30%),
-    color-mix(in srgb, var(--accent) 38%, transparent) 0%,
-    color-mix(in srgb, var(--accent) 16%, transparent) 30%,
+  background: radial-gradient(400px circle at var(--sx, 50%) var(--sy, 30%),
+    color-mix(in srgb, var(--accent) 20%, transparent) 0%,
+    color-mix(in srgb, var(--accent) 8%, transparent) 32%,
     transparent 60%);
 }
-html[data-theme="dark"] .spot-core {
-  background: radial-gradient(circle, #fff 0%, var(--accent) 40%, transparent 72%);
-  box-shadow: 0 0 28px 10px color-mix(in srgb, var(--accent) 70%, transparent), 0 0 70px 24px color-mix(in srgb, var(--accent) 40%, transparent);
+html[data-theme="dark"] .spot-trail {
+  background: radial-gradient(circle,
+    color-mix(in srgb, var(--accent) 50%, transparent) 0%,
+    color-mix(in srgb, var(--accent) 18%, transparent) 50%,
+    transparent 72%);
+  opacity: calc(0.42 - var(--i) * 0.04);
 }
 .btn.primary { will-change: transform; }
 .btn.primary.mag { transition: transform .18s var(--ease), box-shadow .25s var(--ease); }
@@ -1532,25 +1540,47 @@ function bindTilt(root) {
   spot.className = 'spotlight';
   spot.setAttribute('aria-hidden', 'true');
   document.body.appendChild(spot);
-  const core = document.createElement('div');
-  core.className = 'spot-core';
-  core.setAttribute('aria-hidden', 'true');
-  document.body.appendChild(core);
+  const TRAIL_N = 7;
+  const trail = [];
+  for (let i = 0; i < TRAIL_N; i++) {
+    const d = document.createElement('div');
+    d.className = 'spot-trail';
+    d.setAttribute('aria-hidden', 'true');
+    d.style.setProperty('--i', String(i));
+    document.body.appendChild(d);
+    trail.push({ el: d, x: -100, y: -100, ready: false });
+  }
   const root = document.documentElement;
-  let raf = 0;
+  let mx = -100, my = -100, hasPointer = false, raf = 0;
+  function tick() {
+    raf = 0;
+    let tx = mx, ty = my;
+    for (let i = 0; i < trail.length; i++) {
+      const p = trail[i];
+      if (!p.ready) { p.x = tx; p.y = ty; p.ready = true; }
+      const ease = Math.max(0.12, 0.28 - i * 0.022);
+      p.x += (tx - p.x) * ease;
+      p.y += (ty - p.y) * ease;
+      p.el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) translate(-50%, -50%)`;
+      p.el.style.opacity = hasPointer ? String(Math.max(0.06, 0.36 - i * 0.042)) : '0';
+      tx = p.x; ty = p.y;
+    }
+    root.style.setProperty('--sx', mx + 'px');
+    root.style.setProperty('--sy', my + 'px');
+    if (hasPointer) raf = requestAnimationFrame(tick);
+  }
   document.addEventListener('pointermove', e => {
-    const x = e.clientX, y = e.clientY;
-    core.style.left = x + 'px';
-    core.style.top = y + 'px';
-    core.style.opacity = '1';
-    if (raf) return;
-    raf = requestAnimationFrame(() => {
-      raf = 0;
-      root.style.setProperty('--sx', x + 'px');
-      root.style.setProperty('--sy', y + 'px');
-    });
+    mx = e.clientX; my = e.clientY;
+    if (!hasPointer) {
+      hasPointer = true;
+      trail.forEach(p => { p.ready = false; });
+    }
+    if (!raf) raf = requestAnimationFrame(tick);
   }, { passive: true });
-  document.addEventListener('pointerleave', () => { core.style.opacity = '0'; });
+  document.addEventListener('pointerleave', () => {
+    hasPointer = false;
+    if (!raf) raf = requestAnimationFrame(tick);
+  });
 })();
 
 function moveTabInd() {
