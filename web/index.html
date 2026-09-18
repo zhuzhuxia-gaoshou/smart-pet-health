@@ -1119,10 +1119,32 @@ body.theme-flip .theme-toggle svg { animation: spin-y .55s var(--ease); }
 }
 .tab-btn { position: relative; z-index: 1; }
 .spotlight {
-  position: fixed; inset: 0; pointer-events: none; z-index: 40; opacity: .9;
-  mix-blend-mode: soft-light;
-  background: radial-gradient(520px circle at 50% 20%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 55%);
-  transition: background .08s linear;
+  position: fixed; inset: 0; pointer-events: none; z-index: 48;
+  background: radial-gradient(420px circle at var(--sx, 50%) var(--sy, 30%),
+    color-mix(in srgb, var(--accent) 28%, transparent) 0%,
+    color-mix(in srgb, var(--accent) 12%, transparent) 28%,
+    transparent 58%);
+}
+.spot-core {
+  position: fixed; left: 0; top: 0; width: 22px; height: 22px; border-radius: 50%;
+  pointer-events: none; z-index: 220; opacity: 0;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, #fff 0%, color-mix(in srgb, var(--accent) 85%, #fff) 35%, transparent 70%);
+  box-shadow:
+    0 0 24px 8px color-mix(in srgb, var(--accent) 55%, transparent),
+    0 0 60px 20px color-mix(in srgb, var(--accent) 30%, transparent);
+  transition: opacity .2s ease;
+  mix-blend-mode: normal;
+}
+html[data-theme="dark"] .spotlight {
+  background: radial-gradient(460px circle at var(--sx, 50%) var(--sy, 30%),
+    color-mix(in srgb, var(--accent) 38%, transparent) 0%,
+    color-mix(in srgb, var(--accent) 16%, transparent) 30%,
+    transparent 60%);
+}
+html[data-theme="dark"] .spot-core {
+  background: radial-gradient(circle, #fff 0%, var(--accent) 40%, transparent 72%);
+  box-shadow: 0 0 28px 10px color-mix(in srgb, var(--accent) 70%, transparent), 0 0 70px 24px color-mix(in srgb, var(--accent) 40%, transparent);
 }
 .btn.primary { will-change: transform; }
 .btn.primary.mag { transition: transform .18s var(--ease), box-shadow .25s var(--ease); }
@@ -1168,8 +1190,8 @@ html[data-theme="dark"] .msg.user .bubble {
 /* 超链接/幽灵按钮发光 */
 .view-all, .back-link:hover { text-shadow: 0 0 10px color-mix(in srgb, var(--accent) 40%, transparent); }
 @media (prefers-reduced-motion: reduce) {
-  .tab-ind, .spotlight, .detail-avatar, .exp-total, .bubble.typing-reveal { animation: none !important; }
-  .spotlight { display: none; }
+  .tab-ind, .detail-avatar, .exp-total, .bubble.typing-reveal { animation: none !important; }
+  /* 光斑保留：用户明确要求可见，且不产生大幅位移动画 */
 }
 </style>
 </head>
@@ -1510,15 +1532,25 @@ function bindTilt(root) {
   spot.className = 'spotlight';
   spot.setAttribute('aria-hidden', 'true');
   document.body.appendChild(spot);
-  let raf = 0, mx = 50, my = 20;
+  const core = document.createElement('div');
+  core.className = 'spot-core';
+  core.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(core);
+  const root = document.documentElement;
+  let raf = 0;
   document.addEventListener('pointermove', e => {
-    mx = e.clientX; my = e.clientY;
+    const x = e.clientX, y = e.clientY;
+    core.style.left = x + 'px';
+    core.style.top = y + 'px';
+    core.style.opacity = '1';
     if (raf) return;
     raf = requestAnimationFrame(() => {
       raf = 0;
-      spot.style.background = `radial-gradient(520px circle at ${mx}px ${my}px, color-mix(in srgb, var(--accent) 11%, transparent), transparent 55%)`;
+      root.style.setProperty('--sx', x + 'px');
+      root.style.setProperty('--sy', y + 'px');
     });
-  });
+  }, { passive: true });
+  document.addEventListener('pointerleave', () => { core.style.opacity = '0'; });
 })();
 
 function moveTabInd() {
