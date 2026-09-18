@@ -757,31 +757,33 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
 
 /* ---------- 动效补丁 A5（find-animation-opportunities × emil-design-eng × animation-vocabulary）----------
    Press feedback / Direction-aware content-in / Stagger enter / 图表装载 fade
-   只动 transform+opacity；时长 ≤220ms；顶栏与聊天高频层刻意不加 */
-.pet-card:active { transform: scale(.98); }
-.cal-cell:not(.dim):active { transform: scale(.985); }
-@keyframes content-in-next { from { opacity: 0; transform: translateX(6px); } }
-@keyframes content-in-prev { from { opacity: 0; transform: translateX(-6px); } }
-.content-in-next { animation: content-in-next 160ms var(--ease); }
-.content-in-prev { animation: content-in-prev 160ms var(--ease); }
-@keyframes chip-in { from { opacity: 0; transform: translateY(4px) scale(.96); } }
+   口味「略活泼」：位移与时长已加强到肉眼可辨，仍 ≤220ms；顶栏与聊天高频层刻意不加 */
+.pet-card:active { transform: scale(.96); }
+.cal-cell:not(.dim):active { transform: scale(.965); }
+@keyframes content-in-next { from { opacity: 0; transform: translateX(22px); } }
+@keyframes content-in-prev { from { opacity: 0; transform: translateX(-22px); } }
+.content-in-next { animation: content-in-next 220ms var(--ease); }
+.content-in-prev { animation: content-in-prev 220ms var(--ease); }
+@keyframes chip-in { from { opacity: 0; transform: translateY(10px) scale(.92); } }
 #triage-symptoms .chip {
-  animation: chip-in 160ms var(--ease) both;
-  animation-delay: calc(var(--i, 0) * 35ms);
+  animation: chip-in 200ms var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
 }
-@keyframes exp-row-in { from { opacity: 0; } }
+@keyframes exp-row-in { from { opacity: 0; transform: scaleX(.7); } }
 #exp-chart .exp-bar-row {
-  animation: exp-row-in 180ms var(--ease) both;
-  animation-delay: calc(var(--i, 0) * 25ms);
+  animation: exp-row-in 220ms var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+  transform-origin: left center;
+  transform-box: fill-box;
 }
-@keyframes soft-flash { from { background-color: var(--accent-soft); } }
-.just-saved { animation: soft-flash 280ms var(--ease); }
-@keyframes rise-in { from { opacity: 0; transform: translateY(6px); } }
-.stat-card.enter { animation: rise-in 180ms var(--ease) both; animation-delay: calc(var(--i, 0) * 40ms); }
-.day-sec { animation: rise-in 160ms var(--ease) both; animation-delay: calc(var(--i, 0) * 40ms); }
-#suggest-chips .chip { animation: chip-in 160ms var(--ease) both; animation-delay: calc(var(--i, 0) * 30ms); }
-.fade-enter { animation: fade-enter 180ms var(--ease); }
-@keyframes fade-enter { from { opacity: 0; } }
+@keyframes soft-flash { from { background-color: color-mix(in srgb, var(--accent) 28%, var(--surface)); } }
+.just-saved { animation: soft-flash 420ms var(--ease); }
+@keyframes rise-in { from { opacity: 0; transform: translateY(16px); } }
+.stat-card.enter { animation: rise-in 220ms var(--ease) both; animation-delay: calc(var(--i, 0) * 55ms); }
+.day-sec { animation: rise-in 200ms var(--ease) both; animation-delay: calc(var(--i, 0) * 55ms); }
+#suggest-chips .chip { animation: chip-in 200ms var(--ease) both; animation-delay: calc(var(--i, 0) * 50ms); }
+.fade-enter { animation: fade-enter 220ms var(--ease); }
+@keyframes fade-enter { from { opacity: 0; transform: translateY(8px); } }
 
 /* ---------- 无障碍：系统减弱动效 ---------- */
 @media (prefers-reduced-motion: reduce) {
@@ -1270,14 +1272,12 @@ async function renderDashboard() {
     statCard('g', '', st.record_count, '健康记录数', '<path d=\"M9 11l3 3L22 4\"/><path d=\"M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11\"/>', "go('records')", '查看全部'),
     statCard('w', '', st.due_count, '临期/逾期项目', '<path d=\"M10.3 3.6L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0z\"/><path d=\"M12 9v4M12 17h.01\"/>', "go('reminders')", '处理提醒'),
   ].join('');
-  if (!_countedOnce) {
-    animateCount($('stat-row'));
-    $('stat-row').querySelectorAll('.stat-card').forEach((el, i) => {
-      el.style.setProperty('--i', String(i));
-      el.classList.add('enter');
-    });
-    _countedOnce = true;
-  }
+  // 每次进入仪表盘都播统计卡入场（略活泼）；数字滚动仍只在会话首次
+  $('stat-row').querySelectorAll('.stat-card').forEach((el, i) => {
+    el.style.setProperty('--i', String(i));
+    el.classList.add('enter');
+  });
+  if (!_countedOnce) { animateCount($('stat-row')); _countedOnce = true; }
   const rem = state.reminders;
   // 逾期优先、越近越前；只展示前 4 条，其余给出「还有 N 条」入口
   const sorted = [...rem].sort((a, b) => (b.overdue - a.overdue) || (a.days_left - b.days_left));
