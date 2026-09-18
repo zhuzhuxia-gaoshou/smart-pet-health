@@ -1110,14 +1110,78 @@ body.theme-flip .theme-toggle svg { animation: spin-y .55s var(--ease); }
 
 /* ===== 炫酷层第二波：页签光标 / 磁吸 / 光斑 / AI 揭示 / 霓虹 ===== */
 .tabs { position: relative; }
+/* 页签光标：流动渐变边框 */
 .tab-ind {
   position: absolute; top: 2px; bottom: 2px; left: 0; width: 0; border-radius: var(--r-pill);
   pointer-events: none; z-index: 0; opacity: 0;
-  border: 2px solid var(--accent);
-  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 55%, transparent), inset 0 0 12px color-mix(in srgb, var(--accent) 18%, transparent);
   transition: transform .4s var(--ease), width .4s var(--ease), opacity .3s;
+  padding: 2px;
+  background: conic-gradient(from var(--ind-angle, 0deg),
+    var(--accent), var(--warn), #E9D5B8, var(--accent-strong), var(--accent));
+  animation: ind-spin 2.8s linear infinite;
+  box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+@property --ind-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes ind-spin { to { --ind-angle: 360deg; } }
+.tab-ind::after {
+  content: ''; position: absolute; inset: 2px; border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(4px);
 }
 .tab-btn { position: relative; z-index: 1; }
+/* 卡片点击冲击波 */
+.ripple-ring {
+  position: absolute; border-radius: inherit; pointer-events: none; z-index: 5;
+  border: 2px solid color-mix(in srgb, var(--accent) 65%, transparent);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--accent) 40%, transparent);
+  animation: ripple-ring .55s var(--ease) forwards;
+  left: 50%; top: 50%; width: 12px; height: 12px;
+  transform: translate(-50%, -50%);
+}
+@keyframes ripple-ring {
+  0% { opacity: .9; width: 12px; height: 12px; }
+  100% { opacity: 0; width: 140%; height: 140%; }
+}
+.pet-card, .stat-card, .mem-card, .card.lift { position: relative; overflow: hidden; }
+/* 页面切换闪白 */
+.page-flash {
+  position: fixed; inset: 0; z-index: 90; pointer-events: none;
+  background: color-mix(in srgb, var(--accent) 35%, #fff);
+  opacity: 0;
+}
+.page-flash.on { animation: page-flash .28s var(--ease); }
+@keyframes page-flash {
+  0% { opacity: .45; }
+  100% { opacity: 0; }
+}
+html[data-theme="dark"] .page-flash {
+  background: color-mix(in srgb, var(--accent) 45%, #000);
+}
+/* 数字滚轮 */
+.stat-num {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+}
+.stat-num.ticking {
+  animation: num-roll .9s var(--ease);
+  color: var(--accent-strong);
+  text-shadow: 0 0 16px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+@keyframes num-roll {
+  0% { transform: translateY(40%) scale(.7); opacity: 0; filter: blur(4px); }
+  40% { transform: translateY(-8%) scale(1.08); opacity: 1; filter: blur(0); }
+  70% { transform: translateY(4%) scale(.98); }
+  100% { transform: none; }
+}
+/* 暗色粒子画布 */
+.dark-particles {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0; display: none;
+}
+html[data-theme="dark"] .dark-particles { display: block; }
 .spotlight {
   position: fixed; inset: 0; pointer-events: none; z-index: 48;
   background: radial-gradient(380px circle at var(--sx, 50%) var(--sy, 30%),
@@ -1180,7 +1244,8 @@ html[data-theme="dark"] .msg.user .bubble {
 /* 超链接/幽灵按钮发光 */
 .view-all, .back-link:hover { text-shadow: 0 0 10px color-mix(in srgb, var(--accent) 40%, transparent); }
 @media (prefers-reduced-motion: reduce) {
-  .tab-ind, .detail-avatar, .exp-total, .bubble.typing-reveal { animation: none !important; }
+  .tab-ind, .detail-avatar, .exp-total, .bubble.typing-reveal, .stat-num.ticking, .page-flash.on, .ripple-ring { animation: none !important; }
+  .dark-particles { display: none !important; }
   /* 光斑保留：用户明确要求可见，且不产生大幅位移动画 */
 }
 </style>
@@ -1510,8 +1575,89 @@ function bindTilt(root) {
       card.classList.remove('tilt');
       card.style.transform = '';
     });
+    card.addEventListener('pointerdown', e => {
+      if (e.button != null && e.button !== 0) return;
+      bindShockwave(card, e);
+    });
   });
 }
+
+function bindShockwave(card, e) {
+  const r = card.getBoundingClientRect();
+  const ring = document.createElement('span');
+  ring.className = 'ripple-ring';
+  ring.setAttribute('aria-hidden', 'true');
+  ring.style.left = (e.clientX - r.left) + 'px';
+  ring.style.top = (e.clientY - r.top) + 'px';
+  card.appendChild(ring);
+  setTimeout(() => ring.remove(), 600);
+}
+
+function bindAllShockwave() {
+  document.addEventListener('pointerdown', e => {
+    const card = e.target.closest && e.target.closest('.pet-card, .stat-card.clickable, .mem-card, .card.lift, .btn.primary, .cal-cell:not(.dim)');
+    if (!card) return;
+    if (card.classList.contains('btn')) {
+      const r = card.getBoundingClientRect();
+      const ring = document.createElement('span');
+      ring.className = 'ripple-ring';
+      ring.setAttribute('aria-hidden', 'true');
+      ring.style.left = (e.clientX - r.left) + 'px';
+      ring.style.top = (e.clientY - r.top) + 'px';
+      card.appendChild(ring);
+      setTimeout(() => ring.remove(), 600);
+      return;
+    }
+  }, true);
+}
+
+(function darkParticles() {
+  const cv = document.createElement('canvas');
+  cv.className = 'dark-particles';
+  cv.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(cv);
+  const ctx = (typeof cv.getContext === 'function') ? cv.getContext('2d') : null;
+  if (!ctx) { cv.remove(); return; }
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) { cv.remove(); return; }
+  let w = 0, h = 0, dpr = 1, parts = [], raf = 0;
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    w = window.innerWidth; h = window.innerHeight;
+    cv.width = Math.floor(w * dpr); cv.height = Math.floor(h * dpr);
+    cv.style.width = w + 'px'; cv.style.height = h + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const n = Math.min(48, Math.floor(w * h / 28000));
+    parts = Array.from({ length: n }, () => ({
+      x: Math.random() * w, y: Math.random() * h,
+      r: 0.6 + Math.random() * 1.8,
+      vx: (Math.random() - 0.5) * 0.25,
+      vy: -0.12 - Math.random() * 0.28,
+      a: 0.15 + Math.random() * 0.35,
+    }));
+  }
+  resize();
+  window.addEventListener('resize', resize);
+  function frame() {
+    raf = 0;
+    const dark = document.documentElement.dataset.theme === 'dark';
+    ctx.clearRect(0, 0, w, h);
+    if (dark) {
+      for (const p of parts) {
+        p.x += p.vx; p.y += p.vy;
+        if (p.y < -4) { p.y = h + 4; p.x = Math.random() * w; }
+        if (p.x < -4) p.x = w + 4;
+        if (p.x > w + 4) p.x = -4;
+        ctx.beginPath();
+        ctx.fillStyle = `rgba(217, 138, 87, ${p.a})`;
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    raf = requestAnimationFrame(frame);
+  }
+  raf = requestAnimationFrame(frame);
+})();
+
 (function ambientOrbs() {
   const deco = document.createElement('div');
   deco.className = 'ambient';
@@ -1659,6 +1805,12 @@ function go(view, opts) {
   const target = $('view-' + view);
   const dirCls = VIEW_ORDER.indexOf(view) >= VIEW_ORDER.indexOf(prev) ? 'view-next' : 'view-prev';
   if (target) { target.classList.remove('active', 'view-next', 'view-prev'); void target.offsetWidth; target.classList.add('active', dirCls); }
+  const flash = document.querySelector('.page-flash');
+  if (flash && prev !== view) {
+    flash.classList.remove('on');
+    void flash.offsetWidth;
+    flash.classList.add('on');
+  }
   const activeTab = { detail: 'library', records: 'dashboard', reminders: 'dashboard', memwall: 'memories' }[view] || view;
   document.querySelectorAll('#nav-tabs .tab-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.view === activeTab));
@@ -1835,13 +1987,24 @@ function statCard(cls, emoji, num, label, svg, nav, hint) {
     <div class="stat-num" data-num="${num}">${num}</div><div class="stat-label">${label}</div></div>`;
 }
 function animateCount(root) {
+  if (!root) return;
+  const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   root.querySelectorAll('.stat-num').forEach(el => {
-    const target = +el.dataset.num, t0 = performance.now(), dur = 900;
+    const target = +el.dataset.num;
+    if (reduce) { el.textContent = String(target); return; }
+    const t0 = performance.now(), dur = 900;
     el.textContent = '0';
+    el.classList.remove('ticking');
+    void el.offsetWidth;
+    el.classList.add('ticking');
     (function tick(t) {
       const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
       el.textContent = Math.round(target * e);
       if (k < 1) requestAnimationFrame(tick);
+      else {
+        el.textContent = String(target);
+        setTimeout(() => el.classList.remove('ticking'), 200);
+      }
     })(t0);
   });
 }
@@ -3807,9 +3970,14 @@ async function checkNotify() {
     };
   }
 
-  /* 11. 炫酷层：页签光标 + 主按钮磁吸 */
+  /* 11. 炫酷层：页签光标 + 主按钮磁吸 + 冲击波 + 闪白层 */
+  const flashEl = document.createElement('div');
+  flashEl.className = 'page-flash';
+  flashEl.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(flashEl);
   moveTabInd();
   bindMagnetic();
+  bindAllShockwave();
   window.addEventListener('resize', () => moveTabInd());
 })();
 </script>
