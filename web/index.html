@@ -1878,6 +1878,7 @@ async function openDetail(petId, from) {
     <div class="tab-pane" id="pane-care" role="tabpanel">${careHTML(p)}</div>
     <div class="tab-pane" id="pane-props" role="tabpanel">${propsHTML(p)}</div>`;
   document.querySelectorAll('#nav-tabs .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.view === 'library'));
+  if (typeof moveTabInd === 'function') moveTabInd();
   drawWeightChart();
 }
 function switchTab(tab, btn) {
