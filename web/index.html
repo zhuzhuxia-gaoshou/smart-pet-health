@@ -247,8 +247,8 @@ html[data-theme="light"] .icon-sun { display: none; }
 /* ---------- 布局 ---------- */
 .page { max-width: 1120px; margin: 0 auto; padding: 28px 24px 72px; }
 .view { display: none; }
-.view.active { display: block; animation: fade-up .22s ease-out; }
-@keyframes fade-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.view.active { display: block; animation: fade-up .32s var(--ease); }
+@keyframes fade-up { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
 
 .page-head { margin-bottom: 22px; }
 .page-title { font-family: var(--font-title); font-size: 27px; font-weight: 600; letter-spacing: -.4px; }
@@ -395,7 +395,7 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
 
 .pet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(252px, 1fr)); gap: 16px; }
 .pet-card { padding: 20px; cursor: pointer; position: relative; transition: transform var(--dur) ease-out, box-shadow var(--dur) ease-out, border-color var(--dur); }
-.pet-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-deep); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.pet-card:hover { transform: translateY(-6px); box-shadow: var(--shadow-deep); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
 .pet-card-top { display: flex; align-items: center; gap: 13px; margin-bottom: 12px; }
 .pet-avatar {
   width: 52px; height: 52px; border-radius: 16px; flex: none;
@@ -682,23 +682,26 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
 .wc-pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 /* 卡片：统一浮起 -2px + 深阴影 */
 .card { transition: box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease), border-color var(--dur) var(--ease); }
-.stat-card:hover, .pet-card:hover, .mem-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-deep); }
+.stat-card:hover, .pet-card:hover, .mem-card:hover, .card.lift:hover { transform: translateY(-6px); box-shadow: var(--shadow-deep); }
 .pet-card:hover, .mem-card:hover { border-color: color-mix(in srgb, var(--accent) 32%, var(--border)); }
 .card.lift { cursor: pointer; }
 .card.lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-deep); border-color: color-mix(in srgb, var(--accent) 32%, var(--border)); }
-/* 弹窗：入场统一 + 关闭动画（离场 150ms 必须短于入场） */
-.modal-overlay.open { animation: overlay-in var(--dur-slow) var(--ease); }
-.modal { animation: modal-in var(--dur-slow) var(--ease); }
-.modal-overlay.closing { animation: overlay-out 150ms var(--ease) forwards; pointer-events: none; }
-.modal-overlay.closing .modal { animation: modal-out 150ms var(--ease) forwards; }
+/* 弹窗：入场统一 + 关闭动画（离场更短于入场） */
+.modal-overlay.open { animation: overlay-in 280ms var(--ease); }
+.modal { animation: modal-in 300ms var(--ease); }
+.modal-overlay.closing { animation: overlay-out 140ms var(--ease) forwards; pointer-events: none; }
+.modal-overlay.closing .modal { animation: modal-out 140ms var(--ease) forwards; }
+@keyframes overlay-in { from { opacity: 0; } }
 @keyframes overlay-out { to { opacity: 0; } }
-@keyframes modal-out { to { opacity: 0; transform: translateY(6px) scale(.985); } }
+@keyframes modal-in { from { opacity: 0; transform: translateY(36px) scale(.9); } }
+@keyframes modal-out { to { opacity: 0; transform: translateY(10px) scale(.96); } }
 /* 下拉菜单入场 */
 .dropdown { transform-origin: top right; }
-.dropdown.open { animation: drop-in 160ms var(--ease); }
-@keyframes drop-in { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
-/* Toast：曲线统一 + 警告态 */
-.toast { animation: toast-in var(--dur-slow) var(--ease); }
+.dropdown.open { animation: drop-in 240ms var(--ease); }
+@keyframes drop-in { from { opacity: 0; transform: translateY(-12px) scale(.9); } }
+/* Toast */
+.toast { animation: toast-in 300ms var(--ease); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(28px) scale(.92); } }
 .toast.out { opacity: 0; transform: translateY(8px); transition: opacity 200ms var(--ease), transform 200ms var(--ease); }
 .toast.warn .t-ico { color: var(--warn); }
 /* 列表行：底色 + 阅读方向位移 + 焦点 */
@@ -706,7 +709,7 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
   transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
 }
 .reminder-item:hover, .activity-item:hover, .rec-row:hover, .exp-row:hover, .sess-item:hover {
-  background: var(--surface-2); border-color: var(--border); transform: translateX(2px);
+  background: var(--surface-2); border-color: var(--border); transform: translateX(6px);
 }
 .reminder-item:focus-visible, .activity-item:focus-visible, .rec-row:focus-visible, .exp-row:focus-visible, .sess-item:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px;
@@ -755,39 +758,65 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
 .empty-state h3 { font-size: 19px; }
 .empty-state p { font-size: 13.5px; color: var(--text-2); max-width: 340px; margin: 0 auto 18px; }
 
-/* ---------- 动效补丁 A5（find-animation-opportunities × emil-design-eng × animation-vocabulary）----------
-   Press feedback / Direction-aware content-in / Stagger enter / 图表装载 fade
-   口味「略活泼」：位移与时长已加强到肉眼可辨，仍 ≤220ms；顶栏与聊天高频层刻意不加 */
-.pet-card:active { transform: scale(.96); }
-.cal-cell:not(.dim):active { transform: scale(.965); }
-@keyframes content-in-next { from { opacity: 0; transform: translateX(22px); } }
-@keyframes content-in-prev { from { opacity: 0; transform: translateX(-22px); } }
-.content-in-next { animation: content-in-next 220ms var(--ease); }
-.content-in-prev { animation: content-in-prev 220ms var(--ease); }
-@keyframes chip-in { from { opacity: 0; transform: translateY(10px) scale(.92); } }
+/* ---------- 动效补丁 A5（明显可见版 · 用户要求动态要看得见）----------
+   位移/缩放刻意加大；仍用 transform+opacity；减弱动效时保留淡入不致「完全静止」 */
+.pet-card:active { transform: scale(.94); }
+.cal-cell:not(.dim):active { transform: scale(.95); }
+@keyframes content-in-next { from { opacity: 0; transform: translateX(56px); } }
+@keyframes content-in-prev { from { opacity: 0; transform: translateX(-56px); } }
+.content-in-next { animation: content-in-next 320ms var(--ease); }
+.content-in-prev { animation: content-in-prev 320ms var(--ease); }
+@keyframes chip-in { from { opacity: 0; transform: translateY(18px) scale(.72); } }
 #triage-symptoms .chip {
-  animation: chip-in 200ms var(--ease) both;
-  animation-delay: calc(var(--i, 0) * 45ms);
+  animation: chip-in 280ms var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
 }
-@keyframes exp-row-in { from { opacity: 0; transform: scaleX(.7); } }
+@keyframes exp-row-in { from { opacity: 0; transform: scaleX(.25); } }
 #exp-chart .exp-bar-row {
-  animation: exp-row-in 220ms var(--ease) both;
-  animation-delay: calc(var(--i, 0) * 40ms);
+  animation: exp-row-in 320ms var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 60ms);
   transform-origin: left center;
   transform-box: fill-box;
 }
-@keyframes soft-flash { from { background-color: color-mix(in srgb, var(--accent) 28%, var(--surface)); } }
-.just-saved { animation: soft-flash 420ms var(--ease); }
-@keyframes rise-in { from { opacity: 0; transform: translateY(16px); } }
-.stat-card.enter { animation: rise-in 220ms var(--ease) both; animation-delay: calc(var(--i, 0) * 55ms); }
-.day-sec { animation: rise-in 200ms var(--ease) both; animation-delay: calc(var(--i, 0) * 55ms); }
-#suggest-chips .chip { animation: chip-in 200ms var(--ease) both; animation-delay: calc(var(--i, 0) * 50ms); }
-.fade-enter { animation: fade-enter 220ms var(--ease); }
-@keyframes fade-enter { from { opacity: 0; transform: translateY(8px); } }
+@keyframes soft-flash {
+  0% { background-color: color-mix(in srgb, var(--accent) 45%, var(--surface)); transform: scale(1.02); }
+  100% { background-color: transparent; transform: scale(1); }
+}
+.just-saved { animation: soft-flash 500ms var(--ease); }
+@keyframes rise-in { from { opacity: 0; transform: translateY(36px) scale(.88); } }
+.stat-card.enter { animation: rise-in 340ms var(--ease) both; animation-delay: calc(var(--i, 0) * 90ms); }
+.day-sec { animation: rise-in 300ms var(--ease) both; animation-delay: calc(var(--i, 0) * 90ms); }
+#suggest-chips .chip { animation: chip-in 280ms var(--ease) both; animation-delay: calc(var(--i, 0) * 80ms); }
+.fade-enter { animation: fade-enter 320ms var(--ease); }
+@keyframes fade-enter { from { opacity: 0; transform: translateY(16px) scale(.96); } }
+/* 视图切换：比原先 6px 的 fade-up 更明显 */
+@keyframes fade-up { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+.view.active { animation: fade-up .32s var(--ease); }
+.tab-pane { animation: fade-up .28s var(--ease); }
+/* 弹窗：加大入场，关闭仍更快 */
+@keyframes modal-in { from { opacity: 0; transform: translateY(36px) scale(.9); } }
+@keyframes overlay-in { from { opacity: 0; } }
+.modal-overlay.open { animation: overlay-in 280ms var(--ease); }
+.modal { animation: modal-in 300ms var(--ease); }
+@keyframes drop-in { from { opacity: 0; transform: translateY(-12px) scale(.9); } }
+.dropdown.open { animation: drop-in 240ms var(--ease); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(28px) scale(.92); } }
+.toast { animation: toast-in 300ms var(--ease); }
 
-/* ---------- 无障碍：系统减弱动效 ---------- */
+/* ---------- 无障碍：系统减弱动效时保留轻微淡入，避免「完全不动」 ---------- */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; animation-iteration-count: 1 !important; }
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+  /* 用户明确要求动态可见：A5 关键类在 reduce 下仍保留短淡入 */
+  .content-in-next, .content-in-prev, .stat-card.enter, .day-sec,
+  #triage-symptoms .chip, #suggest-chips .chip, .fade-enter,
+  .view.active, .modal, .toast, .just-saved, #exp-chart .exp-bar-row {
+    animation-duration: 280ms !important;
+    animation-delay: 0ms !important;
+  }
 }
 /* ---------- 无障碍补丁（WCAG 2.2 AA） ---------- */
 /* 点击目标 ≥24px（2.5.8）：透明热区外扩，不影响布局 */
