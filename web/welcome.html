@@ -134,11 +134,13 @@ h1 em{font-family:'Fraunces',var(--serif);font-style:italic;font-weight:500;
 .hero-stats{margin-top:18px;font-size:13.5px;color:var(--text-2);font-variant-numeric:tabular-nums}
 .hero-stats b{font-family:var(--font-title);font-size:17px;font-weight:600;color:var(--text)}
 .hero-stats .sep{margin:0 10px;opacity:.5}
-.btn{display:inline-flex;align-items:center;gap:9px;background:var(--accent-strong);color:#faf9f5;
-  font-size:15px;font-weight:500;padding:13px 26px;border-radius:8px;position:relative;
-  overflow:hidden;box-shadow:var(--shadow);transition:transform .2s,background-color .2s,box-shadow .2s}
+.btn{display:inline-flex;align-items:center;gap:9px;background:linear-gradient(135deg,var(--accent-strong),#C2703D,var(--accent-strong));background-size:220% 220%;
+  color:#faf9f5;font-size:15px;font-weight:500;padding:13px 26px;border-radius:8px;position:relative;
+  overflow:hidden;box-shadow:0 8px 28px -8px rgba(194,112,61,.55),var(--shadow);
+  transition:transform .2s,box-shadow .2s;animation:wgrad 3s ease infinite}
+@keyframes wgrad{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
 .btn svg{width:16px;height:16px;transition:transform .25s}
-.btn:hover{background:var(--accent-strong);transform:translateY(-1px)}
+.btn:hover{transform:translateY(-3px) scale(1.04);box-shadow:0 14px 36px -8px rgba(194,112,61,.65)}
 .btn:hover svg{transform:translateX(3px)}
 .btn:active{transform:scale(.97)}
 .btn-ghost{display:inline-flex;align-items:center;gap:9px;background:var(--sand);
