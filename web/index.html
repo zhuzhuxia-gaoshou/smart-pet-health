@@ -755,6 +755,28 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
 .empty-state h3 { font-size: 19px; }
 .empty-state p { font-size: 13.5px; color: var(--text-2); max-width: 340px; margin: 0 auto 18px; }
 
+/* ---------- 动效补丁 A5（find-animation-opportunities × emil-design-eng × animation-vocabulary）----------
+   Press feedback / Direction-aware content-in / Stagger enter / 图表装载 fade
+   只动 transform+opacity；时长 ≤220ms；顶栏与聊天高频层刻意不加 */
+.pet-card:active { transform: scale(.98); }
+.cal-cell:not(.dim):active { transform: scale(.985); }
+@keyframes content-in-next { from { opacity: 0; transform: translateX(6px); } }
+@keyframes content-in-prev { from { opacity: 0; transform: translateX(-6px); } }
+.content-in-next { animation: content-in-next 160ms var(--ease); }
+.content-in-prev { animation: content-in-prev 160ms var(--ease); }
+@keyframes chip-in { from { opacity: 0; transform: translateY(4px) scale(.96); } }
+#triage-symptoms .chip {
+  animation: chip-in 160ms var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 35ms);
+}
+@keyframes exp-row-in { from { opacity: 0; } }
+#exp-chart .exp-bar-row {
+  animation: exp-row-in 180ms var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 25ms);
+}
+@keyframes soft-flash { from { background-color: var(--accent-soft); } }
+.just-saved { animation: soft-flash 280ms var(--ease); }
+
 /* ---------- 无障碍：系统减弱动效 ---------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; animation-iteration-count: 1 !important; }
@@ -1713,9 +1735,16 @@ async function deleteDiet(id, btn) {
    记账（月度花费）：月份切换 → 合计卡 + 分类条形图 + 按宠物分组流水
    ============================================================ */
 const _ymNow = () => todayISO().slice(0, 7);
+function playEnter(el, cls) {
+  if (!el || !cls) return;
+  el.classList.remove('content-in-next', 'content-in-prev', cls);
+  void el.offsetWidth;
+  el.classList.add(cls);
+}
 function ledgerShift(delta) {
   const [y, m] = (state.ledgerYM || _ymNow()).split('-').map(Number);
   state.ledgerYM = localISO(new Date(y, m - 1 + delta, 1)).slice(0, 7);
+  state._ledgerDir = delta;
   renderLedger();
 }
 function ledgerToday() { state.ledgerYM = _ymNow(); renderLedger(); }
@@ -1770,12 +1799,14 @@ async function renderLedger() {
     <div class="exp-total">${fmtMoney(summary.total)}</div>
     <div class="exp-sub">${summary.count} 笔${petCount ? ` · ${petCount} 只宠物` : ''}</div>${budgetLine}`;
   drawExpenseChart(summary);
+  playEnter($('exp-chart'), (state._ledgerDir || 0) < 0 ? 'content-in-prev' : 'content-in-next');
 
   const listEl = $('ledger-list');
   if (!expenses.length) {
     listEl.innerHTML = `<div class="card card-pad"><div class="empty-state"><div class="big" aria-hidden="true">🧾</div>
       <h3>${m} 月还没有记账</h3><p>罐头、疫苗、玩具……记下来才知道花在哪。第一笔记给谁？</p>
       <button class="btn primary sm" onclick="openExpenseModal()">＋ 记第一笔</button></div></div>`;
+    playEnter(listEl, (state._ledgerDir || 0) < 0 ? 'content-in-prev' : 'content-in-next');
     return;
   }
   // 按宠物分组：组间按小计倒序，家庭共同（pet_id 空）固定最后；组内沿用接口的日期倒序
@@ -1795,6 +1826,11 @@ async function renderLedger() {
       <span class="rec-title">${esc(e.note || (e.category_label + '支出'))}</span>
       <span class="exp-amt">${fmtMoney(e.amount)}</span>
     </div>`).join('')}`).join('') + `</div>`;
+  playEnter(listEl, (state._ledgerDir || 0) < 0 ? 'content-in-prev' : 'content-in-next');
+  if (state._flashList) {
+    listEl.querySelector('.exp-row')?.classList.add('just-saved');
+    state._flashList = false;
+  }
 }
 
 function drawExpenseChart(summary) {
@@ -1808,7 +1844,7 @@ function drawExpenseChart(summary) {
     const v = summary.by_category[c] || 0, cy = i * ROW + ROW / 2;
     const w = v > 0 ? Math.max(6, v / max * 400) : 4;       // 空类固定 4px 灰条保持行对齐
     const pct = total ? Math.round(v / total * 100) : 0;
-    return `<g class="exp-bar-row" tabindex="0" role="img" aria-label="${EXP_LABEL[c]} ${fmtMoney(v)}，${counts[c] || 0} 笔，占 ${pct}%" data-i="${i}" data-c="${c}"
+    return `<g class="exp-bar-row" tabindex="0" role="img" aria-label="${EXP_LABEL[c]} ${fmtMoney(v)}，${counts[c] || 0} 笔，占 ${pct}%" data-i="${i}" data-c="${c}" style="--i:${i}"
         onpointerenter="expBarHover(event)" onfocus="expBarHover(event)" onpointerleave="expBarLeave(event)" onblur="expBarLeave(event)">
       <rect class="hit" x="0" y="${i * ROW}" width="${W}" height="${ROW}" fill="transparent"/>
       <text x="0" y="${cy + 4}" font-size="13" fill="var(--text-2)">${EXP_LABEL[c]}</text>
@@ -1878,6 +1914,7 @@ async function submitExpense(ev, id) {
     // 记到别的月份时跟过去，让用户立刻看见这一笔；日期留空（编辑保持原日期）则停在当前月
     const ym = body.date ? body.date.slice(0, 7) : state.ledgerYM, jumped = ym !== state.ledgerYM;
     state.ledgerYM = ym;
+    state._flashList = true;
     setTimeout(() => { closeModal(); renderLedger(); toast((id ? '花销已更新 ✓' : '已记账 ✓') + (jumped ? `（已切到 ${+ym.slice(5)} 月）` : '')); }, 450);
   } catch (err) { toast(err.message, true); }
   return false;
@@ -1920,6 +1957,7 @@ const DOW = ['一', '二', '三', '四', '五', '六', '日'];
 function calShift(delta) {
   const [y, m] = (state.calYM || _ymNow()).split('-').map(Number);
   state.calYM = localISO(new Date(y, m - 1 + delta, 1)).slice(0, 7);
+  state._calDir = delta;
   renderCalendar();
 }
 function calToday() { state.calYM = _ymNow(); renderCalendar(); }
@@ -1988,6 +2026,7 @@ async function renderCalendar() {
     </div>`;
   }).join('');
   $('cal-grid').innerHTML = html;
+  playEnter($('cal-grid'), (state._calDir || 0) < 0 ? 'content-in-prev' : 'content-in-next');
   const s = data.summary;
   $('cal-foot').innerHTML = (s.reminders || s.records || s.med_days)
     ? `<div class="empty-hint" style="margin-top:14px">本月 ${s.reminders} 项提醒 · ${s.records} 条已做记录 · ${s.med_days} 天有用药安排。点日期查看当天详情。</div>`
@@ -2752,7 +2791,7 @@ function triageRenderSymptoms() {
   const sp = state.species && pet && state.species[pet.type];
   if (!sp) { box.innerHTML = '<div class="skel sk-line w60"></div><div class="skel sk-line w40"></div>'; return; }
   const label = $('triage-l2'); if (label) label.textContent = `② 勾选症状（${sp.label} · 可多选）`;
-  box.innerHTML = (sp.diseases || []).map(s => `<button type="button" class="chip${_triage.symptoms.has(s) ? ' on' : ''}" aria-pressed="${_triage.symptoms.has(s)}" data-sym="${esc(s)}" onclick="triageToggle(this)">${esc(s)}</button>`).join('');
+  box.innerHTML = (sp.diseases || []).map((s, i) => `<button type="button" class="chip${_triage.symptoms.has(s) ? ' on' : ''}" aria-pressed="${_triage.symptoms.has(s)}" data-sym="${esc(s)}" style="--i:${Math.min(i, 8)}" onclick="triageToggle(this)">${esc(s)}</button>`).join('');
 }
 function triageToggle(btn) {
   const s = btn.dataset.sym;
