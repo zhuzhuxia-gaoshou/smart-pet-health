@@ -957,6 +957,156 @@ body.theme-flip .theme-toggle svg { animation: spin-y .55s var(--ease); }
 .diet-row:hover { background: var(--surface-2); }
 .diet-row .tl-ops { display: flex; gap: 8px; flex: none; }
 @media (hover: hover) { .diet-row .tl-ops { opacity: 0; transition: opacity var(--dur) var(--ease); } .diet-row:hover .tl-ops, .diet-row:focus-within .tl-ops { opacity: 1; } }
+
+/* ============================================================
+   大胆炫酷层（产品向，非答辩装饰）——光效 / 3D / 转场 / 氛围
+   ============================================================ */
+.page { position: relative; z-index: 1; }
+.topbar {
+  backdrop-filter: blur(18px) saturate(1.25); -webkit-backdrop-filter: blur(18px) saturate(1.25);
+  border-bottom-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  box-shadow: 0 10px 40px -16px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.logo-mark {
+  background: linear-gradient(135deg, var(--accent), var(--warn), var(--accent-strong), var(--accent));
+  background-size: 280% 280%;
+  animation: grad-shift 3.5s ease infinite;
+  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.logo-name { background: linear-gradient(90deg, var(--text), var(--accent-strong)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+@keyframes grad-shift { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+.tab-btn.active {
+  background: linear-gradient(135deg, var(--surface), var(--accent-soft));
+  color: var(--accent-strong); font-weight: 700;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent), 0 4px 14px -4px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.btn.primary {
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent), var(--accent-strong));
+  background-size: 220% 220%;
+  animation: grad-shift 3s ease infinite;
+  border: none;
+  box-shadow: 0 4px 16px -4px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.btn.primary:hover { transform: translateY(-2px) scale(1.03); box-shadow: 0 8px 28px -6px color-mix(in srgb, var(--accent) 65%, transparent); }
+/* 氛围光球 */
+.ambient { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+.orb { position: absolute; border-radius: 50%; filter: blur(70px); opacity: .28; will-change: transform; }
+.orb.o1 { width: 320px; height: 320px; background: var(--accent); top: -8%; left: -6%; animation: orb-a 14s ease-in-out infinite; }
+.orb.o2 { width: 260px; height: 260px; background: var(--medication); bottom: 5%; right: -4%; animation: orb-b 18s ease-in-out infinite; }
+.orb.o3 { width: 200px; height: 200px; background: var(--warn); top: 42%; left: 38%; opacity: .16; animation: orb-c 16s ease-in-out infinite; }
+@keyframes orb-a { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(60px, 40px) scale(1.15); } }
+@keyframes orb-b { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-50px, -30px) scale(1.1); } }
+@keyframes orb-c { 0%,100% { transform: translate(0,0); } 50% { transform: translate(30px, -50px); } }
+/* 页面方向转场 */
+@keyframes view-next { from { opacity: 0; transform: translateX(52px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes view-prev { from { opacity: 0; transform: translateX(-52px) scale(.97); } to { opacity: 1; transform: none; } }
+.view.view-next { animation: view-next .4s var(--ease); }
+.view.view-prev { animation: view-prev .4s var(--ease); }
+/* 统计卡：扫光 + 更立体 */
+.stat-card { overflow: hidden; isolation: isolate; }
+.stat-card::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background: linear-gradient(115deg, transparent 35%, color-mix(in srgb, var(--accent) 22%, transparent) 50%, transparent 65%);
+  transform: translateX(-120%);
+  animation: sheen 3.2s ease-in-out infinite;
+}
+.stat-card > * { position: relative; z-index: 1; }
+@keyframes sheen { 0%, 55% { transform: translateX(-120%); } 100% { transform: translateX(120%); } }
+.stat-card, .pet-card, .mem-card, .card.lift {
+  transition: transform .25s var(--ease), box-shadow .25s var(--ease), border-color .25s var(--ease);
+  transform-style: preserve-3d;
+}
+.pet-card:hover, .mem-card:hover, .stat-card:hover {
+  box-shadow: 0 20px 50px -16px color-mix(in srgb, var(--accent) 35%, rgba(0,0,0,.25));
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+.pet-card.tilt, .mem-card.tilt, .stat-card.tilt {
+  transition: transform .08s linear;
+  box-shadow: 0 24px 60px -18px color-mix(in srgb, var(--accent) 45%, rgba(0,0,0,.3));
+}
+/* 合计数字渐变 */
+.exp-total, .page-title, .detail-name {
+  background: linear-gradient(100deg, var(--text) 20%, var(--accent-strong) 55%, var(--accent) 80%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+/* 聊天气泡弹入 */
+.msg { animation: bubble-in .48s cubic-bezier(.2, .9, .25, 1.25); }
+@keyframes bubble-in {
+  from { opacity: 0; transform: translateY(28px) scale(.82); }
+  60% { opacity: 1; transform: translateY(-6px) scale(1.03); }
+  to { opacity: 1; transform: none; }
+}
+.msg.user .bubble { box-shadow: 0 8px 24px -8px color-mix(in srgb, var(--accent) 50%, transparent); }
+/* 弹窗玻璃拟态 */
+.modal-overlay.open { backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.modal {
+  box-shadow: 0 30px 80px -20px rgba(0,0,0,.35), 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+}
+/* Toast 更立体 */
+.toast {
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 12px 40px -8px rgba(0,0,0,.28), 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+/* 列表 hover 更明显 */
+.reminder-item:hover, .activity-item:hover, .rec-row:hover, .exp-row:hover {
+  transform: translateX(8px) scale(1.01);
+  box-shadow: var(--shadow-sm);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+}
+/* 体重图容器光晕 */
+#weight-chart .weight-chart-wrap, #exp-chart {
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent), 0 8px 28px -12px color-mix(in srgb, var(--accent) 25%, transparent);
+  background: color-mix(in srgb, var(--surface) 70%, var(--accent-soft));
+  padding: 8px;
+}
+/* 日历今日更炸 */
+.cal-cell.today {
+  animation: today-halo 1.4s ease-in-out infinite;
+  background: linear-gradient(160deg, var(--surface), var(--accent-soft));
+  border-color: var(--accent);
+}
+.cal-cell:not(.dim):hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 12px 28px -10px color-mix(in srgb, var(--accent) 40%, transparent);
+  border-color: var(--accent);
+}
+/* 头像 */
+.pet-avatar, .detail-avatar {
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px color-mix(in srgb, var(--accent) 40%, transparent);
+  transition: transform .3s var(--ease), box-shadow .3s var(--ease);
+}
+.pet-card:hover .pet-avatar { transform: scale(1.12) rotate(-6deg); box-shadow: 0 0 0 2px var(--surface), 0 0 0 5px var(--accent), 0 8px 20px -6px color-mix(in srgb, var(--accent) 50%, transparent); }
+/* 聊天 AI 头像呼吸 */
+.msg.bot .msg-avatar { animation: av-pulse 2.4s ease-in-out infinite; }
+@keyframes av-pulse {
+  0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 40%, transparent); }
+  50% { box-shadow: 0 0 0 8px transparent; }
+}
+/* 提醒危险点更醒目 */
+.rem-dot.danger { animation: pulse 1.2s ease-in-out infinite; }
+/* 详情页签选中更炫 */
+.detail-tab.active {
+  color: var(--accent-strong);
+  background: linear-gradient(180deg, transparent 40%, var(--accent-soft));
+  border-bottom-color: var(--accent);
+  box-shadow: 0 2px 0 0 var(--accent);
+}
+/* 徽章微光 */
+.badge.ill, .badge.attention { animation: badge-glow 2s ease-in-out infinite; }
+@keyframes badge-glow {
+  0%,100% { box-shadow: 0 0 0 0 transparent; }
+  50% { box-shadow: 0 0 12px color-mix(in srgb, currentColor 35%, transparent); }
+}
+/* 骨架更明显 */
+.skel::after { animation-duration: 1s; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 12%, var(--surface)), transparent); }
+/* 减弱动效：氛围球与扫光关闭，保留淡入 */
+@media (prefers-reduced-motion: reduce) {
+  .ambient, .stat-card::after, .logo-mark, .btn.primary, .msg.bot .msg-avatar, .badge.ill, .badge.attention, .cal-cell.today { animation: none !important; }
+  .orb { display: none; }
+}
 </style>
 </head>
 <body>
@@ -1267,6 +1417,32 @@ const TYPE_EMOJI = { cat:'🐱', dog:'🐶', bird:'🦜', fish:'🐟', other:'�
 const PET_TYPE_LABEL = { cat:'猫', dog:'狗', bird:'鸟', fish:'鱼', other:'其他' };
 const $ = id => document.getElementById(id);
 
+function bindTilt(root) {
+  if (!root || !(window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches)) return;
+  root.querySelectorAll('.pet-card, .mem-card, .stat-card.clickable').forEach(card => {
+    if (card._tiltBound) return;
+    card._tiltBound = true;
+    card.addEventListener('pointermove', e => {
+      const r = card.getBoundingClientRect();
+      const px = (e.clientX - r.left) / r.width - 0.5;
+      const py = (e.clientY - r.top) / r.height - 0.5;
+      card.classList.add('tilt');
+      card.style.transform = `perspective(900px) rotateY(${(px * 12).toFixed(2)}deg) rotateX(${(-py * 10).toFixed(2)}deg) translateY(-8px) scale(1.03)`;
+    });
+    card.addEventListener('pointerleave', () => {
+      card.classList.remove('tilt');
+      card.style.transform = '';
+    });
+  });
+}
+(function ambientOrbs() {
+  const deco = document.createElement('div');
+  deco.className = 'ambient';
+  deco.setAttribute('aria-hidden', 'true');
+  deco.innerHTML = '<i class="orb o1"></i><i class="orb o2"></i><i class="orb o3"></i>';
+  document.body.prepend(deco);
+})();
+
 async function api(path, opts) {
   const res = await fetch(API + path, Object.assign({ headers: {'Content-Type':'application/json'} }, opts));
   const data = await res.json().catch(() => ({}));
@@ -1284,12 +1460,14 @@ const todayISO = () => localISO(new Date());
    ============================================================ */
 let currentView = 'dashboard';
 let _countedOnce = false;   // 统计数字滚动只在会话内首次进入仪表盘时播放
+const VIEW_ORDER = ['dashboard', 'library', 'ledger', 'calendar', 'memories', 'chat', 'records', 'reminders', 'detail', 'memwall'];
 function go(view, opts) {
   const prev = currentView;
   currentView = view;
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active', 'view-next', 'view-prev'));
   const target = $('view-' + view);
-  if (target) { target.classList.remove('active'); void target.offsetWidth; target.classList.add('active'); }
+  const dirCls = VIEW_ORDER.indexOf(view) >= VIEW_ORDER.indexOf(prev) ? 'view-next' : 'view-prev';
+  if (target) { target.classList.remove('active', 'view-next', 'view-prev'); void target.offsetWidth; target.classList.add('active', dirCls); }
   const activeTab = { detail: 'library', records: 'dashboard', reminders: 'dashboard', memwall: 'memories' }[view] || view;
   document.querySelectorAll('#nav-tabs .tab-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.view === activeTab));
@@ -1335,6 +1513,7 @@ async function renderDashboard() {
     el.style.setProperty('--i', String(i));
     el.classList.add('enter');
   });
+  bindTilt($('stat-row'));
   const REDUCE_M = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (!REDUCE_M) animateCount($('stat-row'));
   _countedOnce = true;
@@ -1514,6 +1693,7 @@ function renderLibrary() {
     el.style.setProperty('--i', String(Math.min(i, 8)));
     el.classList.add('enter');
   });
+  bindTilt($('pet-grid'));
   if (state._flashPetId != null) {
     $('pet-grid').querySelector(`.pet-card[data-pet="${state._flashPetId}"]`)?.classList.add('just-saved');
     state._flashPetId = null;
@@ -2592,6 +2772,8 @@ async function renderMemories() {
       ${esc(p.name)} <span class="mc-count">${cnt} 条</span></button>`;
   }).join('');
   renderMemTimeline();
+  bindTilt($('mem-timeline'));
+  bindTilt($('mem-pet-chips'));
 }
 function renderMemTimeline() {
   const f = $('mem-filter').value;
@@ -3189,16 +3371,17 @@ function toast(text, level) {
   t.innerHTML = `<span class="t-ico">${{ ok: '✓', warn: '!', err: '✕' }[lv]}</span>${esc(text)}`;
   $('toast-root').appendChild(t);
   if (lv === 'ok') {
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 14; i++) {
       const s = document.createElement('span');
       s.className = 'paw-burst';
-      s.textContent = '🐾';
+      s.textContent = i % 2 ? '🐾' : '✨';
       s.setAttribute('aria-hidden', 'true');
-      const a = (i / 8) * Math.PI * 2, r = 28 + (i % 3) * 10;
+      const a = (i / 14) * Math.PI * 2, r = 32 + (i % 4) * 12;
       s.style.setProperty('--px', Math.cos(a) * r + 'px');
       s.style.setProperty('--py', Math.sin(a) * r + 'px');
+      s.style.animationDelay = (i * 12) + 'ms';
       t.appendChild(s);
-      setTimeout(() => s.remove(), 700);
+      setTimeout(() => s.remove(), 800);
     }
   }
   setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 250); }, 2300);
