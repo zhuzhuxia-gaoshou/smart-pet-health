@@ -776,6 +776,12 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
 }
 @keyframes soft-flash { from { background-color: var(--accent-soft); } }
 .just-saved { animation: soft-flash 280ms var(--ease); }
+@keyframes rise-in { from { opacity: 0; transform: translateY(6px); } }
+.stat-card.enter { animation: rise-in 180ms var(--ease) both; animation-delay: calc(var(--i, 0) * 40ms); }
+.day-sec { animation: rise-in 160ms var(--ease) both; animation-delay: calc(var(--i, 0) * 40ms); }
+#suggest-chips .chip { animation: chip-in 160ms var(--ease) both; animation-delay: calc(var(--i, 0) * 30ms); }
+.fade-enter { animation: fade-enter 180ms var(--ease); }
+@keyframes fade-enter { from { opacity: 0; } }
 
 /* ---------- 无障碍：系统减弱动效 ---------- */
 @media (prefers-reduced-motion: reduce) {
@@ -1264,7 +1270,14 @@ async function renderDashboard() {
     statCard('g', '', st.record_count, '健康记录数', '<path d=\"M9 11l3 3L22 4\"/><path d=\"M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11\"/>', "go('records')", '查看全部'),
     statCard('w', '', st.due_count, '临期/逾期项目', '<path d=\"M10.3 3.6L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0z\"/><path d=\"M12 9v4M12 17h.01\"/>', "go('reminders')", '处理提醒'),
   ].join('');
-  if (!_countedOnce) { animateCount($('stat-row')); _countedOnce = true; }
+  if (!_countedOnce) {
+    animateCount($('stat-row'));
+    $('stat-row').querySelectorAll('.stat-card').forEach((el, i) => {
+      el.style.setProperty('--i', String(i));
+      el.classList.add('enter');
+    });
+    _countedOnce = true;
+  }
   const rem = state.reminders;
   // 逾期优先、越近越前；只展示前 4 条，其余给出「还有 N 条」入口
   const sorted = [...rem].sort((a, b) => (b.overdue - a.overdue) || (a.days_left - b.days_left));
@@ -1283,7 +1296,7 @@ async function renderDashboard() {
     : '<div class="empty-hint">暂无记录</div>';
 
   const chips = suggestQuestions().slice(0, 3);
-  $('suggest-chips').innerHTML = chips.map(c => `<button class="chip" onclick="askFromSuggest('${esc(c)}')">${esc(c)}</button>`).join('');
+  $('suggest-chips').innerHTML = chips.map((c, i) => `<button class="chip" style="--i:${i}" onclick="askFromSuggest('${esc(c)}')">${esc(c)}</button>`).join('');
 
 }
 
@@ -1422,7 +1435,7 @@ function renderLibrary() {
     const worst = (p.upcoming || []).reduce((m, r) => Math.min(m, r.days_left), 999);
     const corner = worst < 0 ? `<span class="pet-corner danger">逾期${-worst}天</span>`
       : worst <= 7 ? `<span class="pet-corner warn">${worst}天后到期</span>` : '';
-    return `<div class="card pet-card" role="button" tabindex="0" onclick="go('detail',{petId:${p.id}})">
+    return `<div class="card pet-card" role="button" tabindex="0" data-pet="${p.id}" onclick="go('detail',{petId:${p.id}})">
       ${corner}
       <div class="pet-card-top">
         <div class="pet-avatar">${esc(p.avatar || TYPE_EMOJI[p.type] || '🐾')}</div>
@@ -1436,6 +1449,10 @@ function renderLibrary() {
       </div>
     </div>`;
   }).join('');
+  if (state._flashPetId != null) {
+    $('pet-grid').querySelector(`.pet-card[data-pet="${state._flashPetId}"]`)?.classList.add('just-saved');
+    state._flashPetId = null;
+  }
 }
 
 /* ============================================================
@@ -2042,15 +2059,15 @@ function openDayCard(iso) {
   const petIds = [...new Set([...b.reminders, ...b.records, ...b.meds].map(x => x.pet_id))];
   const sections = [];
   if (b.reminders.length)
-    sections.push(`<div class="med-group">提醒 · ${b.reminders.length}</div>` + b.reminders.map(r => reminderItemHTML(r, true)).join(''));
+    sections.push(`<div class="day-sec" style="--i:${sections.length}"><div class="med-group">提醒 · ${b.reminders.length}</div>` + b.reminders.map(r => reminderItemHTML(r, true)).join('') + `</div>`);
   if (b.meds.length)
-    sections.push(`<div class="med-group">用药进行中 · ${b.meds.length}</div>` + b.meds.map(m => `<div class="med-done-item">
+    sections.push(`<div class="day-sec" style="--i:${sections.length}"><div class="med-group">用药进行中 · ${b.meds.length}</div>` + b.meds.map(m => `<div class="med-done-item">
       <b>${esc(m.name)}</b><span>${esc(m.pet_name)}${m.frequency ? ' · ' + esc(m.frequency) : ''}</span>
-      <div class="ops"><span class="badge plain">${esc((m.start_date || '').slice(5))} → ${m.end_date ? esc(m.end_date.slice(5)) : '长期'}</span></div></div>`).join(''));
+      <div class="ops"><span class="badge plain">${esc((m.start_date || '').slice(5))} → ${m.end_date ? esc(m.end_date.slice(5)) : '长期'}</span></div></div>`).join('') + `</div>`);
   if (b.records.length)
-    sections.push(`<div class="med-group">已做记录 · ${b.records.length}</div>` + b.records.map(r => `<div class="med-done-item">
+    sections.push(`<div class="day-sec" style="--i:${sections.length}"><div class="med-group">已做记录 · ${b.records.length}</div>` + b.records.map(r => `<div class="med-done-item">
       <span class="rec-type" style="background:${TYPE_COLOR[r.type] || 'var(--accent)'}">${esc(r.type_label)}</span><b>${esc(r.title)}</b><span>${esc(r.pet_name)}</span>
-      ${r.note ? `<div class="ops" style="font-size:12px">${esc(r.note)}</div>` : ''}</div>`).join(''));
+      ${r.note ? `<div class="ops" style="font-size:12px">${esc(r.note)}</div>` : ''}</div>`).join('') + `</div>`);
   const petBtns = petIds.map(pid => {
     const p = state.pets.find(x => x.id === pid);
     return p ? `<button class="btn sm" onclick="closeModal(); go('detail',{petId:${pid}})">${esc(p.avatar || TYPE_EMOJI[p.type] || '🐾')} ${esc(p.name)} →</button>` : '';
@@ -2167,8 +2184,11 @@ async function weightInsight(btn) {
   if (box) box.innerHTML = '<span class="typing"><i></i><i></i><i></i> AI 正在解读体重趋势…</span>';
   try {
     const r = await api(`/api/pets/${state.detailPetId}/weight-insight`);
-    if (box) box.innerHTML = `<div class="wi-text">✦ ${mdLite(r.text)}</div>
+    if (box) {
+      box.innerHTML = `<div class="wi-text">✦ ${mdLite(r.text)}</div>
       <div class="care-note">AI 解读${r.cached ? ' · 缓存结果' : ''} · 仅供参考，请以兽医意见为准</div>`;
+      playEnter(box, 'fade-enter');
+    }
   } catch (e) {
     if (box) box.innerHTML = '';
     toast(e.message, true);
@@ -2267,7 +2287,14 @@ async function submitPet(e, id) {
     flashSaved($('pet-save-btn'));
     setTimeout(async () => {
       closeModal(); await refreshData();
-      if (id) openDetail(id); else { go(currentView === 'detail' ? 'library' : currentView); if (currentView === 'library') renderLibrary(); if (currentView === 'dashboard') renderDashboard(); }
+      if (id) openDetail(id);
+      else {
+        const created = state.pets.find(p => p.name === f.name);
+        if (created) state._flashPetId = created.id;
+        go(currentView === 'detail' ? 'library' : currentView);
+        if (currentView === 'library') renderLibrary();
+        if (currentView === 'dashboard') renderDashboard();
+      }
       toast(id ? '修改已保存 ✓' : `已创建宠物「${f.name}」✓`);
     }, 450);
   } catch (err) { toast(err.message, true); }
@@ -2494,6 +2521,10 @@ function renderMemTimeline() {
   const list = state.memories.filter(m =>
     f === '' ? true : f === 'none' ? !m.pet_id : m.pet_id === +f);
   $('mem-timeline').innerHTML = memTimelineHTML(list, true);
+  if (state._flashMem) {
+    $('mem-timeline').querySelector('.mem-card')?.classList.add('just-saved');
+    state._flashMem = false;
+  }
 }
 function memTimelineHTML(list, showPet) {
   if (!list.length) return `
@@ -2544,6 +2575,10 @@ async function renderMemWall(petId) {
       </div>
     </div>
     ${memTimelineHTML(memories, false)}`;
+  if (state._flashMem) {
+    $('view-memwall').querySelector('.mem-card')?.classList.add('just-saved');
+    state._flashMem = false;
+  }
 }
 
 /* ---------- 新增/编辑弹窗（含图片压缩） ---------- */
@@ -2625,6 +2660,7 @@ async function submitMemory(e, id) {
     setTimeout(async () => {
       closeModal();
       toast(id ? '回忆已更新 ✓' : '回忆已写下 ✓');
+      state._flashMem = !id;
       if (currentView === 'memwall') await renderMemWall(state.memWallPetId);
       else await renderMemories();
     }, 450);
