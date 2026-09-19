@@ -110,7 +110,7 @@ input, select, textarea { font-family: inherit; font-size: 14px; color: var(--te
 a { color: var(--accent); }
 
 /* ---------- 顶栏 ---------- */
-/* 顶栏悬浮胶囊：居中圆角毛玻璃悬浮于内容之上（Linear/Arc 式）；下滚整条一体收薄+logo 缩为爪印，上滚弹回 */
+/* 顶栏悬浮胶囊：居中圆角毛玻璃悬浮于内容之上（Linear/Arc 式）；下滚整条自己滑出藏起，上滚飘回来 */
 .topbar {
   position: sticky; top: 12px; z-index: 50;
   display: flex; align-items: center; gap: 14px;
@@ -120,13 +120,9 @@ a { color: var(--accent); }
   backdrop-filter: blur(16px) saturate(1.4); -webkit-backdrop-filter: blur(16px) saturate(1.4);
   border: 1px solid var(--border); border-radius: 19px;
   box-shadow: 0 12px 32px -20px color-mix(in srgb, var(--accent) 30%, rgba(0,0,0,.5));
-  transition: height .24s var(--ease), top .24s var(--ease), box-shadow .24s var(--ease);
+  transition: transform .3s var(--ease);
 }
-.topbar.compact { top: 8px; height: 48px; box-shadow: 0 16px 36px -18px color-mix(in srgb, var(--accent) 40%, rgba(0,0,0,.55)); }
-.topbar.compact .logo-mark { transform: scale(.88); }
-.logo-mark { transition: transform .24s var(--ease); }
-.logo-name { max-width: 150px; overflow: hidden; white-space: nowrap; transition: opacity .18s var(--ease), max-width .24s var(--ease); }
-.topbar.compact .logo-name { opacity: 0; max-width: 0; }
+.topbar.hidden { transform: translateY(-140%); }
 /* 回到顶部：滚动 >400px 浮现，右下角常驻可达 */
 .to-top {
   position: fixed; right: 22px; bottom: 22px; z-index: 45;
@@ -4090,17 +4086,18 @@ async function checkNotify() {
   window.addEventListener('resize', () => moveTabInd());
 })();
 
-/* 滚动感知顶栏：下滚 >120px 收薄、上滚或回到顶部 40px 内弹回（带回滞防抖动） */
+/* 滚动感知顶栏：下滚过 200px 自己藏起、上滚或近顶 60px 内飘回来（±3px 死区防抖动）；Tab 聚焦顶栏自动现身 */
 (function scrollAwareTopbar() {
   const bar = document.querySelector('.topbar');
   if (!bar) return;
   let lastY = window.scrollY || 0;
   window.addEventListener('scroll', () => {
     const y = window.scrollY || 0;
-    if (y > 120 && y > lastY + 2) bar.classList.add('compact');
-    else if (y < 40 || y < lastY - 2) bar.classList.remove('compact');
+    if (y < lastY - 3 || y < 60) bar.classList.remove('hidden');
+    else if (y > lastY + 3 && y > 200) bar.classList.add('hidden');
     lastY = y;
   }, { passive: true });
+  bar.addEventListener('focusin', () => bar.classList.remove('hidden'));
 })();
 
 /* 回到顶部：>400px 浮现；reduced-motion 下直接跳转不做平滑滚动 */
