@@ -128,6 +128,8 @@ a { color: var(--accent); }
 .topbar.island > .logo, .topbar.island > .tabs, .topbar.island > .topbar-right {
   opacity: 0; pointer-events: none; visibility: hidden; transition: opacity .16s var(--ease), visibility 0s .16s; }
 .topbar.island { width: 496px; height: 42px; padding: 0; border-radius: 999px; background: color-mix(in srgb, var(--bg) 92%, transparent); }
+/* island 态禁止页签药丸被 flex 压缩：否则 moveTabInd 在压缩布局里量出错误光标坐标，膨胀后光标错位 */
+.topbar.island > .tabs { flex-shrink: 0; }
 .mini-island { position: absolute; inset: 0; display: flex; gap: 6px; align-items: center; justify-content: center;
   opacity: 0; pointer-events: none; transition: opacity .2s var(--ease); }
 .topbar.island .mini-island { opacity: 1; pointer-events: auto; transition-delay: .14s; }
@@ -4120,6 +4122,10 @@ async function checkNotify() {
     if (e.target instanceof Element && e.target.closest('.mini-island')) return;
     bar.classList.remove('island');
   });
+  // 岛膨胀回大胶囊的宽度过渡结束后校正页签光标（覆盖压缩布局期间的任何残余计算）
+  bar.addEventListener('transitionend', e => {
+    if (e.propertyName === 'width' && !bar.classList.contains('island')) moveTabInd();
+  });
 })();
 
 /* 迷你岛图标页签：lucide 风格内联 SVG（爪印/星光复用 logo 与 fx 按钮的 path），从页签动态生成，双向同步激活态 */
@@ -4139,7 +4145,11 @@ async function checkNotify() {
     `<button class="mi-tab" data-view="${b.dataset.view}" title="${b.textContent.trim()}" aria-label="切换到${b.textContent.trim()}">${MI_ICON[b.dataset.view] || MI_ICON.library}<span>${b.textContent.trim()}</span></button>`).join('');
   island.addEventListener('click', e => {
     const btn = e.target instanceof Element ? e.target.closest('.mi-tab') : null;
-    if (btn && btn.dataset.view) go(btn.dataset.view);
+    if (!btn || !btn.dataset.view) return;
+    go(btn.dataset.view);
+    // 岛膨胀回大胶囊（340ms）+ tab-ind 自身过渡（400ms）结束后再校正一次光标，
+    // 防 width 过渡被视图重排打断（transitioncancel）导致光标停在压缩布局的错位值
+    setTimeout(moveTabInd, 430);
   });
   const sync = () => {
     const active = nav.querySelector('.tab-btn.active')?.dataset.view;
