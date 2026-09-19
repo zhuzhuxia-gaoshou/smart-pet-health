@@ -1248,6 +1248,17 @@ html[data-theme="dark"] .msg.user .bubble {
   .dark-particles { display: none !important; }
   /* 光斑保留：用户明确要求可见，且不产生大幅位移动画 */
 }
+/* ---------- 动效档位：calm=标准（关闭常驻炫光），fx=炫酷（默认）· localStorage pet-fx ---------- */
+html[data-fx="calm"] .ambient, html[data-fx="calm"] .dark-particles,
+html[data-fx="calm"] .spot-trail-canvas, html[data-fx="calm"] .spotlight,
+html[data-fx="calm"] .ripple-ring, html[data-fx="calm"] .stat-card::after { display: none !important; }
+html[data-fx="calm"] .tab-ind::after { animation: none !important; }   /* 光标条保留定位，去 conic 流动 */
+html[data-fx="calm"] .tab-ind, html[data-fx="calm"] .logo-mark, html[data-fx="calm"] .btn.primary,
+html[data-fx="calm"] .msg.bot .msg-avatar, html[data-fx="calm"] .badge.ill, html[data-fx="calm"] .badge.attention,
+html[data-fx="calm"] .cal-cell.today, html[data-fx="calm"] .detail-avatar,
+html[data-fx="calm"] .exp-total, html[data-fx="calm"] .stat-num.ticking { animation: none !important; }
+html[data-fx="calm"] .pet-card.tilt, html[data-fx="calm"] .mem-card.tilt,
+html[data-fx="calm"] .stat-card.tilt { transform: none !important; }
 /* ---------- 报告打印视图：报告气泡克隆进 #print-root，window.print() 另存 PDF ---------- */
 #print-root { display: none; }
 @media print {
@@ -1300,6 +1311,9 @@ html[data-theme="dark"] .msg.user .bubble {
     </div>
     <button class="theme-toggle" id="notify-btn" onclick="toggleNotify()" title="开启到期提醒通知" aria-label="到期提醒通知开关">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    </button>
+    <button class="theme-toggle" id="fx-btn" onclick="toggleFx()" title="切换炫酷/标准动效" aria-label="切换动效档位" aria-pressed="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3l1.5 4.5a2 2 0 0 0 1.3 1.3L17 10.5l-4.2 1.7a2 2 0 0 0-1.3 1.3L10 18l-1.5-4.5a2 2 0 0 0-1.3-1.3L3 10.5l4.2-1.7a2 2 0 0 0 1.3-1.3z"/><path d="M18 15l.8 2.2 2.2.8-2.2.8L18 21l-.8-2.2-2.2-.8 2.2-.8z"/></svg>
     </button>
     <button class="theme-toggle" onclick="toggleTheme()" title="切换亮暗模式" aria-label="切换亮暗模式">
       <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
@@ -1574,12 +1588,19 @@ const TYPE_EMOJI = { cat:'🐱', dog:'🐶', bird:'🦜', fish:'🐟', other:'�
 const PET_TYPE_LABEL = { cat:'猫', dog:'狗', bird:'鸟', fish:'鱼', other:'其他' };
 const $ = id => document.getElementById(id);
 
+/* 动效档位：fx=炫酷（默认）/ calm=标准（关常驻炫光）；须在动效 IIFE 之前就位 */
+document.documentElement.dataset.fx = localStorage.getItem('pet-fx') === 'calm' ? 'calm' : 'fx';
+const _fxCalm = () => document.documentElement.dataset.fx === 'calm';
+const _fxBtnInit = document.getElementById('fx-btn');
+if (_fxBtnInit) _fxBtnInit.setAttribute('aria-pressed', String(document.documentElement.dataset.fx !== 'calm'));
+
 function bindTilt(root) {
   if (!root || !(window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches)) return;
   root.querySelectorAll('.pet-card, .mem-card, .stat-card.clickable').forEach(card => {
     if (card._tiltBound) return;
     card._tiltBound = true;
     card.addEventListener('pointermove', e => {
+      if (_fxCalm()) return;                          // 标准档：不做 3D 倾斜
       const r = card.getBoundingClientRect();
       const px = (e.clientX - r.left) / r.width - 0.5;
       const py = (e.clientY - r.top) / r.height - 0.5;
@@ -1598,6 +1619,7 @@ function bindTilt(root) {
 }
 
 function bindShockwave(card, e) {
+  if (_fxCalm()) return;                              // 标准档：无点击冲击波
   const r = card.getBoundingClientRect();
   const ring = document.createElement('span');
   ring.className = 'ripple-ring';
@@ -1610,6 +1632,7 @@ function bindShockwave(card, e) {
 
 function bindAllShockwave() {
   document.addEventListener('pointerdown', e => {
+    if (_fxCalm()) return;
     const card = e.target.closest && e.target.closest('.pet-card, .stat-card.clickable, .mem-card, .card.lift, .btn.primary, .cal-cell:not(.dim)');
     if (!card) return;
     if (card.classList.contains('btn')) {
@@ -1654,7 +1677,7 @@ function bindAllShockwave() {
   window.addEventListener('resize', resize);
   function frame() {
     raf = 0;
-    const dark = document.documentElement.dataset.theme === 'dark';
+    const dark = document.documentElement.dataset.theme === 'dark' && !_fxCalm();
     ctx.clearRect(0, 0, w, h);
     if (dark) {
       for (const p of parts) {
@@ -1729,6 +1752,7 @@ function bindAllShockwave() {
   }
 
   document.addEventListener('pointermove', e => {
+    if (_fxCalm()) return;                            // 标准档：不记录拖尾轨迹
     const now = performance.now();
     points.push({ x: e.clientX, y: e.clientY, t: now });
     if (points.length > MAX_PTS) points.shift();
@@ -1737,6 +1761,7 @@ function bindAllShockwave() {
   }, { passive: true });
 
   function drawTrail() {
+    if (_fxCalm()) return;
     const now = performance.now();
     while (points.length && now - points[0].t > LIFE) points.shift();
     ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
@@ -3744,6 +3769,15 @@ function toggleTheme() {
   void document.body.offsetWidth;
   document.body.classList.add('theme-flip');
   setTimeout(() => document.body.classList.remove('theme-flip'), 600);
+}
+function toggleFx() {
+  const root = document.documentElement;
+  const next = root.dataset.fx === 'calm' ? 'fx' : 'calm';
+  root.dataset.fx = next;
+  localStorage.setItem('pet-fx', next);
+  const btn = $('fx-btn');
+  if (btn) btn.setAttribute('aria-pressed', String(next !== 'calm'));
+  toast(next === 'calm' ? '已切换到标准动效（常驻炫光已收起）' : '已切换到炫酷动效 🎇');
 }
 (function initTheme() {
   const saved = localStorage.getItem('pet-theme');
