@@ -126,19 +126,19 @@ a { color: var(--accent); }
 /* island 态：大内容淡出让位，胶囊收缩为迷你岛 */
 .topbar > .logo, .topbar > .tabs, .topbar > .topbar-right { transition: opacity .16s var(--ease); }
 .topbar.island > .logo, .topbar.island > .tabs, .topbar.island > .topbar-right { opacity: 0; pointer-events: none; }
-.topbar.island { width: 242px; height: 42px; padding: 0; border-radius: 999px; background: color-mix(in srgb, var(--bg) 92%, transparent); }
+.topbar.island { width: 496px; height: 42px; padding: 0; border-radius: 999px; background: color-mix(in srgb, var(--bg) 92%, transparent); }
 .mini-island { position: absolute; inset: 0; display: flex; gap: 6px; align-items: center; justify-content: center;
   opacity: 0; pointer-events: none; transition: opacity .2s var(--ease); }
 .topbar.island .mini-island { opacity: 1; pointer-events: auto; transition-delay: .14s; }
 /* 微型图标页签：lucide 风格线性图标与顶栏一致；激活项 accent 底 + 图标变橙 + 底部指示点（呼应 tab-ind 光标） */
-.mi-tab { width: 30px; height: 30px; border-radius: 10px; border: none; padding: 0; cursor: pointer;
-  background: transparent; color: var(--text-2); display: grid; place-items: center; position: relative;
+.mi-tab { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border-radius: 999px;
+  border: none; cursor: pointer; background: transparent; color: var(--text-2);
+  font-size: 12.5px; font-weight: 500; font-family: inherit; white-space: nowrap; position: relative;
   transition: background var(--dur) var(--ease), transform var(--dur) var(--ease), color var(--dur) var(--ease); }
 .mi-tab:hover { background: var(--surface-2); color: var(--text); transform: translateY(-1px); }
-.mi-tab:active { transform: scale(.92); }
-.mi-tab.on { background: var(--accent-soft); color: var(--accent-strong); }
-.mi-tab.on::after { content: ''; position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%);
-  width: 4px; height: 4px; border-radius: 50%; background: var(--accent-strong); }
+.mi-tab:active { transform: scale(.95); }
+.mi-tab.on { background: var(--accent-soft); color: var(--accent-strong); font-weight: 600; }
+.mi-tab.on svg { transform: scale(1.08); }
 /* 回到顶部：滚动 >400px 浮现，右下角常驻可达 */
 .to-top {
   position: fixed; right: 22px; bottom: 22px; z-index: 45;
@@ -4131,7 +4131,7 @@ async function checkNotify() {
     chat:      svg('<path d="M10 3l1.5 4.5a2 2 0 0 0 1.3 1.3L17 10.5l-4.2 1.7a2 2 0 0 0-1.3 1.3L10 18l-1.5-4.5a2 2 0 0 0-1.3-1.3L3 10.5l4.2-1.7a2 2 0 0 0 1.3-1.3z"/><path d="M18 15l.8 2.2 2.2.8-2.2.8L18 21l-.8-2.2-2.2-.8 2.2-.8z"/>'),
   };
   island.innerHTML = [...nav.querySelectorAll('.tab-btn')].map(b =>
-    `<button class="mi-tab" data-view="${b.dataset.view}" title="${b.textContent.trim()}" aria-label="切换到${b.textContent.trim()}" onclick="go('${b.dataset.view}')">${MI_ICON[b.dataset.view] || MI_ICON.pets}</button>`).join('');
+    `<button class="mi-tab" data-view="${b.dataset.view}" title="${b.textContent.trim()}" aria-label="切换到${b.textContent.trim()}" onclick="go('${b.dataset.view}')">${MI_ICON[b.dataset.view] || MI_ICON.pets}<span>${b.textContent.trim()}</span></button>`).join('');
   const sync = () => {
     const active = nav.querySelector('.tab-btn.active')?.dataset.view;
     island.querySelectorAll('.mi-tab').forEach(d => d.classList.toggle('on', d.dataset.view === active));
