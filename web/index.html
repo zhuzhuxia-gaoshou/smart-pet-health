@@ -118,6 +118,14 @@ a { color: var(--accent); }
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
 }
+/* 滚动收缩（compact）：下滚收薄让位内容、上滚弹回——页签始终可见，功能性两档通用 */
+.topbar { transition: height .22s var(--ease), box-shadow .22s var(--ease); }
+.topbar.compact {
+  height: 46px;
+  box-shadow: 0 10px 30px -14px color-mix(in srgb, var(--accent) 38%, rgba(0,0,0,.4));
+}
+.topbar.compact .logo-mark { transform: scale(.88); }
+.logo-mark { transition: transform .22s var(--ease); }
 .logo { display: flex; align-items: center; gap: 10px; user-select: none; cursor: pointer; }
 .logo-mark {
   width: 30px; height: 30px; border-radius: 9px; flex: none;
@@ -4065,6 +4073,19 @@ async function checkNotify() {
   bindMagnetic();
   bindAllShockwave();
   window.addEventListener('resize', () => moveTabInd());
+})();
+
+/* 滚动感知顶栏：下滚 >120px 收薄、上滚或回到顶部 40px 内弹回（带回滞防抖动） */
+(function scrollAwareTopbar() {
+  const bar = document.querySelector('.topbar');
+  if (!bar) return;
+  let lastY = window.scrollY || 0;
+  window.addEventListener('scroll', () => {
+    const y = window.scrollY || 0;
+    if (y > 120 && y > lastY + 2) bar.classList.add('compact');
+    else if (y < 40 || y < lastY - 2) bar.classList.remove('compact');
+    lastY = y;
+  }, { passive: true });
 })();
 </script>
 <div id="print-root" aria-hidden="true"></div>
