@@ -130,7 +130,7 @@ a { color: var(--accent); }
 .tab-btn {
   border: 0; background: transparent; color: var(--text-2);
   padding: 6px 18px; border-radius: var(--r-pill); font-size: 14px; font-weight: 500;
-  transition: all var(--dur) ease-out;
+  transition: color var(--dur) ease-out, background var(--dur) ease-out, box-shadow var(--dur) ease-out, transform var(--dur) ease-out;
 }
 .tab-btn:hover { color: var(--text); }
 .tab-btn.active { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: var(--shadow-xs); }
@@ -155,7 +155,7 @@ html[data-theme="dark"] .btn.primary:hover { background: color-mix(in srgb, var(
 
 /* ============ 物种档案：护理要点 / 疾病快捷标签 ============ */
 .dis-chips { display:flex; flex-wrap:wrap; gap:8px; }
-.dis-chip { border:1px solid var(--border); background:var(--surface-2); color:var(--text-2); border-radius:999px; padding:5px 12px; font-size:12.5px; cursor:pointer; transition:all .15s ease-out; font-family:inherit; }
+.dis-chip { border:1px solid var(--border); background:var(--surface-2); color:var(--text-2); border-radius:999px; padding:5px 12px; font-size:12.5px; cursor:pointer; transition:color .15s ease-out, background .15s ease-out, border-color .15s ease-out, transform .15s ease-out; font-family:inherit; }
 button.dis-chip:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
 .dis-chip.static { cursor:default; }
 .sp-note { font-size:12px; color:var(--accent-strong); background:var(--accent-soft); border-radius:8px; padding:6px 10px; grid-column:1/-1; }
@@ -175,12 +175,12 @@ button.dis-chip:hover { border-color:var(--accent); color:var(--accent); backgro
 /* ============ 会话侧边栏（历史会话查看/删除） ============ */
 .chat-layout { display:flex; gap:18px; align-items:stretch; }
 .chat-sessions { width:232px; flex:0 0 232px; display:flex; flex-direction:column; gap:8px; max-height:66vh; overflow-y:auto; padding-right:2px; }
-.sess-item { border:1px solid var(--border); background:var(--surface); border-radius:10px; padding:10px 12px; cursor:pointer; transition:all .15s ease-out; position:relative; }
+.sess-item { border:1px solid var(--border); background:var(--surface); border-radius:10px; padding:10px 12px; cursor:pointer; transition:border-color .15s ease-out, background .15s ease-out, transform .15s ease-out; position:relative; }
 .sess-item:hover { border-color:var(--accent); transform:translateY(-1px); }
 .sess-item.active { border-color:var(--accent); background:var(--accent-soft); }
 .sess-title { font-size:13px; font-weight:600; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-right:22px; }
 .sess-time { font-size:11px; color:var(--text-2); margin-top:3px; }
-.sess-del { position:absolute; top:7px; right:7px; border:none; background:none; color:var(--text-2); cursor:pointer; font-size:13px; line-height:1; padding:3px 5px; border-radius:6px; opacity:0; transition:all .15s ease-out; font-family:inherit; }
+.sess-del { position:absolute; top:7px; right:7px; border:none; background:none; color:var(--text-2); cursor:pointer; font-size:13px; line-height:1; padding:3px 5px; border-radius:6px; opacity:0; transition:opacity .15s ease-out, color .15s ease-out, background .15s ease-out; font-family:inherit; }
 .sess-item:hover .sess-del { opacity:1; }
 .sess-del:hover { color:var(--danger); background:var(--danger-soft); }
 .sess-empty { font-size:12.5px; color:var(--text-2); text-align:center; padding:18px 8px; line-height:1.7; border:1px dashed var(--border); border-radius:10px; }
@@ -237,7 +237,7 @@ button.dis-chip:hover { border-color:var(--accent); color:var(--accent); backgro
 .theme-toggle {
   width: 36px; height: 36px; border-radius: 50%;
   border: 1px solid var(--border); background: var(--surface); color: var(--text-2);
-  display: grid; place-items: center; transition: all var(--dur) ease-out;
+  display: grid; place-items: center; transition: color var(--dur) ease-out, border-color var(--dur) ease-out, transform var(--dur) ease-out;
 }
 .theme-toggle:hover { color: var(--accent); border-color: var(--accent); transform: rotate(18deg); }
 .theme-toggle svg { width: 17px; height: 17px; }
@@ -347,7 +347,7 @@ html[data-theme="light"] .icon-sun { display: none; }
 .chip {
   border: 1px solid var(--border); background: var(--surface); color: var(--text);
   padding: 7px 13px; border-radius: var(--r-pill); font-size: 13px;
-  transition: all var(--dur) ease-out;
+  transition: color var(--dur) ease-out, background var(--dur) ease-out, border-color var(--dur) ease-out, transform var(--dur) ease-out;
 }
 .chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); transform: translateY(-1px); }
 /* 全站通用选中态（症状分诊 chip 等）：实色底用 --accent-strong + --on-accent，暗色自动反转 */
@@ -434,7 +434,7 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
 .back-link svg { width: 14px; height: 14px; }
 
 .detail-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin: 22px 0 18px; }
-.detail-tab { border: none; background: none; padding: 9px 18px; font-size: 14px; font-weight: 500; color: var(--text-2); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all var(--dur); }
+.detail-tab { border: none; background: none; padding: 9px 18px; font-size: 14px; font-weight: 500; color: var(--text-2); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color var(--dur) ease-out, border-color var(--dur) ease-out; }
 .detail-tab:hover { color: var(--text); }
 .detail-tab.active { color: var(--accent-strong); border-bottom-color: var(--accent); font-weight: 600; }
 .tab-pane { display: none; animation: fade-up .2s ease-out; }
@@ -584,7 +584,7 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
   display: flex; gap: 8px; align-items: center; animation: toast-in .22s ease-out;
 }
 @keyframes toast-in { from { opacity: 0; transform: translateY(10px); } }
-.toast.out { opacity: 0; transform: translateY(8px); transition: all .25s ease-out; }
+.toast.out { opacity: 0; transform: translateY(8px); transition: opacity .25s ease-out, transform .25s ease-out; }
 .toast .t-ico { color: var(--success); font-weight: 700; }
 .toast.err .t-ico { color: var(--danger); }
 
@@ -601,7 +601,7 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
   display: flex; align-items: center; gap: 8px; cursor: pointer;
   border: 1px solid var(--border); background: var(--surface); color: var(--text);
   padding: 6px 14px 6px 7px; border-radius: var(--r-pill); font-size: 13.5px; font-weight: 500;
-  transition: all var(--dur) ease-out;
+  transition: color var(--dur) ease-out, background var(--dur) ease-out, border-color var(--dur) ease-out, box-shadow var(--dur) ease-out, transform var(--dur) ease-out;
 }
 .mem-pet-chip .mc-av { width: 26px; height: 26px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--border); display: grid; place-items: center; font-size: 15px; }
 .mem-pet-chip:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); box-shadow: var(--shadow-card); }
