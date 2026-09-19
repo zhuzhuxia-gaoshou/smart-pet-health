@@ -908,6 +908,47 @@ def init_and_seed() -> None:
     seed_feeding()
 
 
+# ---------------------------------------------------------------- 数据库快照备份
+
+BACKUP_KEEP = 14   # 保留最近 14 份快照（启动一次 + 每日一次 ≈ 半个月历史）
+
+
+def _backup_dir() -> str:
+    return os.path.join(os.path.dirname(os.path.abspath(DB_PATH)), "backups")
+
+
+def backup_db(keep: int = BACKUP_KEEP) -> str | None:
+    """VACUUM INTO 生成一致性快照（WAL 下同样安全）到 pets.db 同级 backups/，
+    按文件名清理旧快照只留最近 keep 份。返回快照路径；库文件尚不存在时返回 None。"""
+    if not os.path.exists(DB_PATH):
+        return None
+    backup_dir = _backup_dir()
+    os.makedirs(backup_dir, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    target = os.path.join(backup_dir, f"pets-{stamp}.db")
+    if os.path.exists(target):   # 同秒重复触发 → 追加微秒避免 VACUUM INTO 目标已存在报错
+        target = os.path.join(backup_dir, f"pets-{stamp}{datetime.now().strftime('%f')}.db")
+    conn = get_conn()
+    try:
+        conn.execute("VACUUM INTO ?", (target,))
+    finally:
+        conn.close()
+    snaps = sorted(f for f in os.listdir(backup_dir) if f.startswith("pets-") and f.endswith(".db"))
+    for old in (snaps[:-keep] if keep > 0 else []):
+        try:
+            os.remove(os.path.join(backup_dir, old))
+        except OSError:
+            pass
+    return target
+
+
+def today_backup_done() -> bool:
+    """backups/ 里是否已有今天的快照（按文件名前缀判断，供每日备份循环避免重复）。"""
+    prefix = f"pets-{datetime.now().strftime('%Y%m%d')}"
+    return os.path.isdir(_backup_dir()) and any(
+        f.startswith(prefix) for f in os.listdir(_backup_dir()))
+
+
 # ---------------------------------------------------------------- 用药记录
 
 MED_FIELDS = ("name", "dosage", "frequency", "start_date", "end_date", "status", "note")

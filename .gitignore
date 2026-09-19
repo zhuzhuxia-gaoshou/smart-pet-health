@@ -6,6 +6,9 @@ backend/.env
 backend/pets.db
 *.db
 
+# 数据库快照备份（启动/每日自动生成）
+backend/backups/
+
 # 运行日志（启动后端时生成）
 backend/server-*.log
 

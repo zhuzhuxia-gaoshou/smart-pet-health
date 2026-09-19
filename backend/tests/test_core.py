@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
-"""后端核心单测：roll_date 钳制 / 花费聚合与校验 / 饮食小结 / 日历聚合 / complete 幂等。
+"""后端核心单测：roll_date 钳制 / 花费聚合与校验 / 饮食小结 / 日历聚合 / complete 幂等 / 快照备份。
 运行：backend/.venv/Scripts/python.exe -m pytest backend/tests -q
 """
+import os
+import sqlite3
 from datetime import date, timedelta
 
 import pytest
@@ -169,3 +171,25 @@ def test_complete_record_idempotent_and_roll(tmp_db):
     again = db.complete_record(rec["id"])
     assert again["next"] is None                        # 二次完成不再生成
     assert db.list_records(keke["id"])[0]["repeat_rule"] == "monthly"  # 规则随下一轮继承
+
+
+# ---------------------------------------------------------------- 数据库快照备份
+
+def test_backup_creates_valid_snapshot_and_prunes(tmp_db, tmp_path):
+    t1 = db.backup_db()
+    assert t1 and os.path.exists(t1)
+    snap = sqlite3.connect(t1)                          # 快照是合法 SQLite 且含业务表
+    try:
+        names = {r[0] for r in snap.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    finally:
+        snap.close()
+    assert "pets" in names
+    assert db.today_backup_done() is True               # 文件名含今天日期 → 当天判定已备份
+
+    bdir = tmp_path / "backups"
+    for i in range(16):                                 # 16 份旧快照（假内容，仅测清理）
+        (bdir / f"pets-202001{i:02d}-000000.db").write_bytes(b"x")
+    t3 = db.backup_db()
+    files = sorted(p.name for p in bdir.glob("pets-*.db"))
+    assert len(files) == db.BACKUP_KEEP                 # 只保留最近 14 份
+    assert os.path.basename(t3) in files and files[-1] == os.path.basename(t3)

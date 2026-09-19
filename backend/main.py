@@ -24,9 +24,26 @@ import species
 
 WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "web")
 
+def _daily_backup_loop() -> None:
+    """守护线程：每小时看一眼，当天还没有快照就备一份（跨天自动续备，随进程退出）。"""
+    import time
+    while True:
+        time.sleep(3600)
+        try:
+            if not db.today_backup_done():
+                db.backup_db()
+        except Exception:
+            pass
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     db.init_and_seed()
+    try:
+        db.backup_db()   # 启动即快照一份；失败不阻塞启动
+    except Exception:
+        pass
+    threading.Thread(target=_daily_backup_loop, daemon=True).start()
     yield
 
 
