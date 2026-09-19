@@ -126,14 +126,19 @@ a { color: var(--accent); }
 /* island 态：大内容淡出让位，胶囊收缩为迷你岛 */
 .topbar > .logo, .topbar > .tabs, .topbar > .topbar-right { transition: opacity .16s var(--ease); }
 .topbar.island > .logo, .topbar.island > .tabs, .topbar.island > .topbar-right { opacity: 0; pointer-events: none; }
-.topbar.island { width: 152px; height: 38px; padding: 0; border-radius: 999px; }
-.mini-island { position: absolute; inset: 0; display: flex; gap: 11px; align-items: center; justify-content: center;
+.topbar.island { width: 242px; height: 42px; padding: 0; border-radius: 999px; background: color-mix(in srgb, var(--bg) 92%, transparent); }
+.mini-island { position: absolute; inset: 0; display: flex; gap: 6px; align-items: center; justify-content: center;
   opacity: 0; pointer-events: none; transition: opacity .2s var(--ease); }
 .topbar.island .mini-island { opacity: 1; pointer-events: auto; transition-delay: .14s; }
-.mi-dot { width: 9px; height: 9px; border-radius: 50%; border: none; padding: 0; cursor: pointer; background: var(--border);
-  transition: transform var(--dur) var(--ease), background var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
-.mi-dot:hover { transform: scale(1.45); background: var(--text-3); }
-.mi-dot.on { background: var(--accent-strong); box-shadow: 0 0 0 3px var(--accent-soft); }
+/* 微型图标页签：lucide 风格线性图标与顶栏一致；激活项 accent 底 + 图标变橙 + 底部指示点（呼应 tab-ind 光标） */
+.mi-tab { width: 30px; height: 30px; border-radius: 10px; border: none; padding: 0; cursor: pointer;
+  background: transparent; color: var(--text-2); display: grid; place-items: center; position: relative;
+  transition: background var(--dur) var(--ease), transform var(--dur) var(--ease), color var(--dur) var(--ease); }
+.mi-tab:hover { background: var(--surface-2); color: var(--text); transform: translateY(-1px); }
+.mi-tab:active { transform: scale(.92); }
+.mi-tab.on { background: var(--accent-soft); color: var(--accent-strong); }
+.mi-tab.on::after { content: ''; position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%);
+  width: 4px; height: 4px; border-radius: 50%; background: var(--accent-strong); }
 /* 回到顶部：滚动 >400px 浮现，右下角常驻可达 */
 .to-top {
   position: fixed; right: 22px; bottom: 22px; z-index: 45;
@@ -4112,15 +4117,24 @@ async function checkNotify() {
   bar.addEventListener('focusin', () => bar.classList.remove('island'));
 })();
 
-/* 迷你岛圆点：从页签动态生成（永不硬编码），点击直达；页签激活态变化时同步点亮 */
+/* 迷你岛图标页签：lucide 风格内联 SVG（爪印/星光复用 logo 与 fx 按钮的 path），从页签动态生成，双向同步激活态 */
 (function miniIsland() {
   const island = document.querySelector('.mini-island'), nav = $('nav-tabs');
   if (!island || !nav) return;
+  const svg = p => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15" aria-hidden="true">${p}</svg>`;
+  const MI_ICON = {
+    dashboard: svg('<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>'),
+    pets:      svg('<path d="M12 21c-4.5 0-7.5-2.8-7.5-6.2 0-2.4 1.6-4 3.3-5C9 8.6 10.4 7 10.4 5.3c0-1 .4-1.8 1.1-2.3.4.9 1.3 1.4 2.4 1.4 1.6 0 2.8 1.2 2.8 2.8 0 .4-.1.8-.2 1.1 1.9.9 3.2 2.6 3.2 4.7 0 4.9-4 8-7.7 8z"/><circle cx="7.2" cy="9.8" r=".9" fill="currentColor" stroke="none"/><circle cx="16.8" cy="9.8" r=".9" fill="currentColor" stroke="none"/><circle cx="9.5" cy="6.5" r=".9" fill="currentColor" stroke="none"/><circle cx="14.5" cy="6.5" r=".9" fill="currentColor" stroke="none"/>'),
+    ledger:    svg('<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/>'),
+    calendar:  svg('<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>'),
+    memwall:   svg('<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>'),
+    chat:      svg('<path d="M10 3l1.5 4.5a2 2 0 0 0 1.3 1.3L17 10.5l-4.2 1.7a2 2 0 0 0-1.3 1.3L10 18l-1.5-4.5a2 2 0 0 0-1.3-1.3L3 10.5l4.2-1.7a2 2 0 0 0 1.3-1.3z"/><path d="M18 15l.8 2.2 2.2.8-2.2.8L18 21l-.8-2.2-2.2-.8 2.2-.8z"/>'),
+  };
   island.innerHTML = [...nav.querySelectorAll('.tab-btn')].map(b =>
-    `<button class="mi-dot" data-view="${b.dataset.view}" aria-label="切换到${b.textContent.trim()}" onclick="go('${b.dataset.view}')"></button>`).join('');
+    `<button class="mi-tab" data-view="${b.dataset.view}" title="${b.textContent.trim()}" aria-label="切换到${b.textContent.trim()}" onclick="go('${b.dataset.view}')">${MI_ICON[b.dataset.view] || MI_ICON.pets}</button>`).join('');
   const sync = () => {
     const active = nav.querySelector('.tab-btn.active')?.dataset.view;
-    island.querySelectorAll('.mi-dot').forEach(d => d.classList.toggle('on', d.dataset.view === active));
+    island.querySelectorAll('.mi-tab').forEach(d => d.classList.toggle('on', d.dataset.view === active));
   };
   new MutationObserver(sync).observe(nav, { subtree: true, attributes: true, attributeFilter: ['class'] });
   sync();
