@@ -418,6 +418,11 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
 .pet-corner.danger { background: var(--danger-soft); color: var(--danger); }
 
 .empty-state { text-align: center; padding: 70px 20px; color: var(--text-2); }
+/* 空状态入场（delight 预算：罕见/首次场景才配 longer beat）——容器 fade-up + emoji 轻 pop */
+.empty-state { animation: es-in .28s var(--ease); }
+.empty-state .big { animation: es-pop .26s var(--ease) .05s backwards; }
+@keyframes es-in { from { opacity: 0; transform: translateY(8px); } }
+@keyframes es-pop { from { opacity: 0; transform: scale(.92); } }
 .empty-state .big { font-size: 44px; margin-bottom: 12px; filter: grayscale(.2); }
 .empty-state h3 { font-family: var(--font-title); font-size: 20px; color: var(--text); margin-bottom: 6px; font-weight: 600; }
 
@@ -842,7 +847,8 @@ body.theme-flip .theme-toggle svg { animation: spin-y .55s var(--ease); }
   /* 用户明确要求动态可见：A5 关键类在 reduce 下仍保留短淡入 */
   .content-in-next, .content-in-prev, .stat-card.enter, .day-sec,
   #triage-symptoms .chip, #suggest-chips .chip, .fade-enter,
-  .view.active, .modal, .toast, .just-saved, #exp-chart .exp-bar-row {
+  .view.active, .modal, .toast, .just-saved, #exp-chart .exp-bar-row,
+  .empty-state {
     animation-duration: 280ms !important;
     animation-delay: 0ms !important;
   }
