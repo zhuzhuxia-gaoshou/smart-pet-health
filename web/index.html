@@ -126,6 +126,19 @@ a { color: var(--accent); }
 }
 .topbar.compact .logo-mark { transform: scale(.88); }
 .logo-mark { transition: transform .22s var(--ease); }
+/* 回到顶部：滚动 >400px 浮现，右下角常驻可达 */
+.to-top {
+  position: fixed; right: 22px; bottom: 22px; z-index: 45;
+  width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text-2);
+  display: grid; place-items: center; cursor: pointer;
+  box-shadow: var(--shadow-pop);
+  opacity: 0; transform: translateY(12px) scale(.9); pointer-events: none;
+  transition: opacity .2s var(--ease), transform .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease);
+}
+.to-top.show { opacity: 1; transform: none; pointer-events: auto; }
+.to-top:hover { color: var(--accent); border-color: var(--accent); transform: translateY(-2px); }
+.to-top:active { transform: scale(.94); }
 .logo { display: flex; align-items: center; gap: 10px; user-select: none; cursor: pointer; }
 .logo-mark {
   width: 30px; height: 30px; border-radius: 9px; flex: none;
@@ -4087,7 +4100,23 @@ async function checkNotify() {
     lastY = y;
   }, { passive: true });
 })();
+
+/* 回到顶部：>400px 浮现；reduced-motion 下直接跳转不做平滑滚动 */
+function scrollTopSmooth() {
+  const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+}
+(function backToTop() {
+  const btn = $('to-top');
+  if (!btn) return;
+  const update = () => btn.classList.toggle('show', (window.scrollY || 0) > 400);
+  update();
+  window.addEventListener('scroll', update, { passive: true });
+})();
 </script>
 <div id="print-root" aria-hidden="true"></div>
+<button class="to-top" id="to-top" onclick="scrollTopSmooth()" aria-label="回到顶部" title="回到顶部">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>
+</button>
 </body>
 </html>
