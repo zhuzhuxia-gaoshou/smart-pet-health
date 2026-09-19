@@ -148,6 +148,23 @@ a { color: var(--accent); }
 .logo-mark svg { width: 17px; height: 17px; }
 .logo-name { font-family: var(--font-title); font-weight: 600; font-size: 17px; letter-spacing: -.2px; white-space: nowrap; }
 .tabs { display: flex; gap: 4px; margin: 0 auto; background: var(--surface-2); border: 1px solid var(--border); padding: 3px; border-radius: var(--r-pill); }
+/* 页签浮层：默认收起（visibility 保留布局与可查性），点小钮脱离顶栏弹出——origin-aware 从顶部展开 */
+.tabs { position: fixed; top: 66px; left: 50%; z-index: 65;
+  transform: translateX(-50%) translateY(-6px) scale(.95); transform-origin: top center;
+  opacity: 0; visibility: hidden; pointer-events: none; box-shadow: var(--shadow-pop);
+  transition: opacity .18s var(--ease), transform .22s var(--ease), visibility 0s .22s; }
+.tabs.open { opacity: 1; visibility: visible; pointer-events: auto;
+  transform: translateX(-50%) translateY(0) scale(1);
+  transition: opacity .24s var(--ease), transform .24s var(--ease), visibility 0s 0s; }
+.nav-toggle {
+  margin: 0 auto; width: 38px; height: 38px; border-radius: 50%;
+  border: 1px solid var(--border); background: var(--surface-2); color: var(--text-2);
+  display: grid; place-items: center; cursor: pointer;
+  transition: color var(--dur) ease-out, border-color var(--dur) ease-out, transform var(--dur) ease-out, background var(--dur) ease-out;
+}
+.nav-toggle:hover { color: var(--accent); border-color: var(--accent); }
+.nav-toggle:active { transform: scale(.93); }
+.nav-toggle[aria-expanded="true"] { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: var(--accent-soft); }
 .tab-btn {
   border: 0; background: transparent; color: var(--text-2);
   padding: 6px 18px; border-radius: var(--r-pill); font-size: 14px; font-weight: 500;
@@ -1143,7 +1160,8 @@ body.theme-flip .theme-toggle svg { animation: spin-y .55s var(--ease); }
 }
 
 /* ===== 炫酷层第二波：页签光标 / 磁吸 / 光斑 / AI 揭示 / 霓虹 ===== */
-.tabs { position: relative; }
+/* tab-ind 的定位上下文由浮层态 .tabs(fixed) 自身提供，无需再设 relative */
+.tab-ind { position: absolute; }
 /* 页签光标：流动渐变边框 */
 .tab-ind {
   position: absolute; top: 2px; bottom: 2px; left: 0; width: 0; border-radius: var(--r-pill);
@@ -1321,6 +1339,9 @@ html[data-fx="calm"] .stat-card.tilt { transform: none !important; }
     </span>
     <span class="logo-name">宠物健康管家</span>
   </div>
+  <button class="nav-toggle" id="nav-toggle" aria-label="切换页签导航" aria-expanded="false" aria-controls="nav-tabs" title="页签导航">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="5" r="1.6"/><circle cx="12" cy="5" r="1.6"/><circle cx="19" cy="5" r="1.6"/><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+  </button>
   <nav class="tabs" id="nav-tabs" role="tablist" aria-label="主导航">
     <span class="tab-ind" id="tab-ind" aria-hidden="true"></span>
     <button class="tab-btn active" role="tab" aria-selected="true" data-view="dashboard" onclick="go('dashboard')">仪表盘</button>
@@ -4112,6 +4133,30 @@ function scrollTopSmooth() {
   const update = () => btn.classList.toggle('show', (window.scrollY || 0) > 400);
   update();
   window.addEventListener('scroll', update, { passive: true });
+})();
+
+/* 页签浮层：默认收成小钮，点击脱离顶栏弹出；选完页签/点外部/Esc 收起 */
+(function floatNav() {
+  const nav = $('nav-tabs'), btn = $('nav-toggle');
+  if (!nav || !btn) return;
+  const setOpen = open => {
+    nav.classList.toggle('open', open);
+    btn.setAttribute('aria-expanded', String(open));
+    if (open) requestAnimationFrame(moveTabInd);
+  };
+  btn.addEventListener('click', () => setOpen(!nav.classList.contains('open')));
+  document.addEventListener('click', e => {
+    if (!nav.classList.contains('open')) return;
+    const t = e.target;
+    if (t instanceof Element && (t.closest('#nav-tabs') || t.closest('#nav-toggle'))) return;
+    setOpen(false);
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && nav.classList.contains('open')) setOpen(false);
+  });
+  nav.addEventListener('click', e => {
+    if (e.target instanceof Element && e.target.closest('.tab-btn')) setOpen(false);
+  });
 })();
 </script>
 <div id="print-root" aria-hidden="true"></div>
