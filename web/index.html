@@ -1248,6 +1248,21 @@ html[data-theme="dark"] .msg.user .bubble {
   .dark-particles { display: none !important; }
   /* 光斑保留：用户明确要求可见，且不产生大幅位移动画 */
 }
+/* ---------- 报告打印视图：报告气泡克隆进 #print-root，window.print() 另存 PDF ---------- */
+#print-root { display: none; }
+@media print {
+  body.printing-report > *:not(#print-root) { display: none !important; }
+  body.printing-report #print-root { display: block; }
+  #print-root { color: #1a1a1a; }
+  #print-root .print-head { display: flex; justify-content: space-between; align-items: baseline;
+    font-family: var(--font-title); font-size: 13px; color: #6b5d4f;
+    border-bottom: 2px solid #C2703D; padding-bottom: 8px; margin-bottom: 16px; }
+  #print-root .bubble { background: #fff !important; border: none !important; box-shadow: none !important;
+    padding: 0 !important; margin: 0; max-width: none; backdrop-filter: none !important; }
+  #print-root .bubble h1 { font-size: 22px; }
+  #print-root .bubble h2 { font-size: 18px; }
+  #print-root .bubble, #print-root .bubble * { animation: none !important; transition: none !important; }
+}
 </style>
 </head>
 <body>
@@ -3389,7 +3404,7 @@ function msgHTML(m) {  const av = m.role === 'user' ? '我' : '<svg viewBox="0 0
   const isReport = m.role === 'bot' && /(^#|\n#)\s/.test(m.text || '');
   const actions = m.role === 'bot' ? `<div class="msg-actions">
       <button class="btn ghost sm" onclick="copyAnswer(this)" data-text="${encodeURIComponent(m.text)}">⧉ 复制</button>
-      ${isReport ? `<button class="btn ghost sm" onclick='downloadMd(${JSON.stringify(m.text).replace(/'/g, "&#39;")},"健康报告")'>⤓ 下载 .md</button>` : ''}
+      ${isReport ? `<button class="btn ghost sm" onclick='downloadMd(${JSON.stringify(m.text).replace(/'/g, "&#39;")},"健康报告")'>⤓ 下载 .md</button><button class="btn ghost sm" onclick="printReport(this)">⎙ 打印 / PDF</button>` : ''}
     </div>${m.mode ? `<div class="mode-tag ${m.mode === 'example' ? 'example' : ''}">${m.mode === 'example' ? '示例回答模式' : 'AI · ' + esc(m.expert || '基于真实档案')}</div>` : ''}` : '';
   return `<div class="msg ${m.role}"><div class="msg-avatar">${av}</div>
     <div><div class="bubble">${mdLite(m.text)}</div>${actions}</div></div>`;
@@ -3700,6 +3715,17 @@ function copyAnswer(btn) {
     .then(() => { btn.textContent = '✓ 已复制'; setTimeout(() => btn.textContent = '⧉ 复制', 1400); })
     .catch(() => { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); btn.textContent = '✓ 已复制'; });
 }
+function printReport(btn) {
+  const msg = btn.closest('.msg');
+  const bubble = msg && msg.querySelector('.bubble');
+  const root = $('print-root');
+  if (!bubble || !root) return;
+  root.innerHTML = `<div class="print-head"><span>🐾 智能宠物健康管家 · 健康报告</span><span>${new Date().toLocaleDateString('zh-CN')}</span></div><div class="bubble">${bubble.innerHTML}</div>`;
+  document.body.classList.add('printing-report');
+  const done = () => { document.body.classList.remove('printing-report'); root.innerHTML = ''; window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  window.print();
+}
 function downloadMd(text, name) {
   const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
@@ -3981,5 +4007,6 @@ async function checkNotify() {
   window.addEventListener('resize', () => moveTabInd());
 })();
 </script>
+<div id="print-root" aria-hidden="true"></div>
 </body>
 </html>
