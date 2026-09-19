@@ -118,11 +118,14 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
   check('nav order 宠物→记账→日历→回忆集→AI助手', tabTexts === '仪表盘|宠物|记账|日历|回忆集|AI 助手', tabTexts);
   T.go('memories');
   await sleep(700);
-  const memAll = (await (await fetch(BASE + '/api/memories')).json()).memories.length;
-  check('memories seeded (>=8)', memAll >= 8, 'got ' + memAll);
+  const memList = (await (await fetch(BASE + '/api/memories')).json()).memories;
+  const memAll = memList.length;
+  // 数据量会随真实使用增删，断言只锁「渲染与数据一致」，不锁种子数量
+  check('memories present (>=1)', memAll >= 1, 'got ' + memAll);
   check('mem timeline lists all', n('#mem-timeline .mem-item') === memAll, n('#mem-timeline .mem-item') + ' vs ' + memAll);
-  check('year group headers', n('#mem-timeline .mem-year') >= 2);
-  check('thumbnails present', n('#mem-timeline .mem-thumb') >= 5);
+  check('year group headers', n('#mem-timeline .mem-year') >= 1);
+  check('thumbnails render all imaged', n('#mem-timeline .mem-thumb') === memList.filter(m => m.image).length,
+        n('#mem-timeline .mem-thumb') + ' vs imaged ' + memList.filter(m => m.image).length);
   check('pet chips = pets', n('#mem-pet-chips .mem-pet-chip') === state().pets.length);
   const keke = state().pets.find(p => p.name === '可乐');
   if (keke) {
