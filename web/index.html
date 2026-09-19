@@ -1249,8 +1249,9 @@ html[data-theme="dark"] .msg.user .bubble {
   /* 光斑保留：用户明确要求可见，且不产生大幅位移动画 */
 }
 /* ---------- 动效档位：calm=标准（关闭常驻炫光），fx=炫酷（默认）· localStorage pet-fx ---------- */
+/* 鼠标拖尾是交互反馈而非装饰，任何档位都保留 */
 html[data-fx="calm"] .ambient, html[data-fx="calm"] .dark-particles,
-html[data-fx="calm"] .spot-trail-canvas, html[data-fx="calm"] .spotlight,
+html[data-fx="calm"] .spotlight,
 html[data-fx="calm"] .ripple-ring, html[data-fx="calm"] .stat-card::after { display: none !important; }
 html[data-fx="calm"] .tab-ind::after { animation: none !important; }   /* 光标条保留定位，去 conic 流动 */
 html[data-fx="calm"] .tab-ind, html[data-fx="calm"] .logo-mark, html[data-fx="calm"] .btn.primary,
@@ -1752,7 +1753,6 @@ function bindAllShockwave() {
   }
 
   document.addEventListener('pointermove', e => {
-    if (_fxCalm()) return;                            // 标准档：不记录拖尾轨迹
     const now = performance.now();
     points.push({ x: e.clientX, y: e.clientY, t: now });
     if (points.length > MAX_PTS) points.shift();
@@ -1761,7 +1761,6 @@ function bindAllShockwave() {
   }, { passive: true });
 
   function drawTrail() {
-    if (_fxCalm()) return;
     const now = performance.now();
     while (points.length && now - points[0].t > LIFE) points.shift();
     ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
