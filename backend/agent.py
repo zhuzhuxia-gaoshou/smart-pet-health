@@ -10,6 +10,7 @@
 import json
 import os
 import re
+import time
 
 import tools
 
@@ -218,7 +219,7 @@ def _llm_classify(message: str) -> str | None:
         return None
     mapping = {"A": "health_analyst", "B": "care_advisor", "C": "report_writer", "D": "general"}
     for prov in _llm_candidates():
-        if prov in _dead_providers:
+        if _provider_skippable(prov):
             continue
         try:
             content = ""
@@ -240,7 +241,7 @@ def _llm_classify(message: str) -> str | None:
         except Exception as e:
             txt = str(e)
             if "402" in txt or "Insufficient Balance" in txt or "Arrearage" in txt:
-                _dead_providers.add(prov)
+                _trip_provider(prov)
             continue
     _LLM_ROUTE_FAILS += 1
     if _LLM_ROUTE_FAILS >= _LLM_ROUTE_FAIL_MAX:
@@ -277,7 +278,26 @@ def _route(message: str) -> tuple[str, str]:
 
 _agent_cache: dict = {}          # 按 provider 缓存已构建的 Agent
 _dead_providers: set = set()     # 欠费等持续性错误 → 本进程内熔断该供应商
+_dead_since: dict = {}           # 各供应商熔断发生时刻（time.time()），供半开恢复判断
+_HALF_OPEN_SECS = 300            # 熔断满 5 分钟进入半开：允许再试（如 DeepSeek 充值后免重启）
 _agent_failed = False
+
+
+def _provider_skippable(prov: str) -> bool:
+    """熔断中且未到半开窗口的供应商跳过；满 _HALF_OPEN_SECS 秒允许再试一次。"""
+    return prov in _dead_providers and (time.time() - _dead_since.get(prov, 0.0)) < _HALF_OPEN_SECS
+
+
+def _trip_provider(prov: str) -> None:
+    """熔断供应商并记录时刻（重复熔断重新计时）。"""
+    _dead_providers.add(prov)
+    _dead_since[prov] = time.time()
+
+
+def _revive_provider(prov: str) -> None:
+    """半开尝试成功 → 彻底恢复该供应商。"""
+    _dead_providers.discard(prov)
+    _dead_since.pop(prov, None)
 
 
 def _build_llm(prov: str):
@@ -467,20 +487,21 @@ def _ask_with(profile: str, message: str, history: list[dict] | None = None) -> 
                  "content": f"[系统注：今天是 {_date.today().isoformat()}]\n{message}"})
     last_err = None
     for prov in _llm_candidates():
-        if prov in _dead_providers:
+        if _provider_skippable(prov):
             continue
         try:
             agent = _get_agent(prov, profile)
             result = agent.invoke({"messages": msgs}, config={"recursion_limit": 12})
             text = _extract_ai_text(result)
             if text:
+                _revive_provider(prov)   # 半开重试成功 → 彻底恢复
                 return text
             last_err = RuntimeError("模型未返回内容")
         except Exception as e:
             last_err = e
             text = str(e)
             if "402" in text or "Insufficient Balance" in text or "Arrearage" in text:
-                _dead_providers.add(prov)  # 欠费是持续状态 → 本进程内熔断该供应商
+                _trip_provider(prov)  # 欠费是持续状态 → 熔断，半开窗口后自动重试
     _agent_failed = not _llm_candidates()
     if last_err is not None:
         return f"⚠️ {EXPERTS[profile]['label']}本次调用失败（{type(last_err).__name__}: {last_err}）"
@@ -808,8 +829,8 @@ def answer(message: str, history: list[dict] | None = None) -> dict:
 
 
 def current_provider() -> str | None:
-    """当前实际可用的供应商（已熔断的不算）。"""
-    live = [p for p in _llm_candidates() if p not in _dead_providers]
+    """当前实际可用的供应商（熔断未到半开窗口的不算）。"""
+    live = [p for p in _llm_candidates() if not _provider_skippable(p)]
     return live[0] if live else None
 
 

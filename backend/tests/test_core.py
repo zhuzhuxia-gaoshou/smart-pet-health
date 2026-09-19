@@ -193,3 +193,27 @@ def test_backup_creates_valid_snapshot_and_prunes(tmp_db, tmp_path):
     files = sorted(p.name for p in bdir.glob("pets-*.db"))
     assert len(files) == db.BACKUP_KEEP                 # 只保留最近 14 份
     assert os.path.basename(t3) in files and files[-1] == os.path.basename(t3)
+
+
+# ---------------------------------------------------------------- 供应商熔断半开恢复
+
+def test_provider_half_open_recovery(monkeypatch):
+    """欠费熔断 5 分钟内跳过且 current_provider 不报；满窗口进入半开允许重试；成功后彻底恢复。"""
+    import agent
+    monkeypatch.setenv("BAILIAN_API_KEY", "sk-test")    # 仅 bailian 有 key，链上唯一候选
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "")
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "")
+    monkeypatch.setattr(agent, "_dead_providers", set())
+    monkeypatch.setattr(agent, "_dead_since", {})
+
+    agent._trip_provider("bailian")
+    assert agent._provider_skippable("bailian") is True
+    assert agent.current_provider() is None             # 熔断窗口内视为不可用
+
+    agent._dead_since["bailian"] -= agent._HALF_OPEN_SECS + 1   # 模拟 5 分钟流逝 → 半开
+    assert agent._provider_skippable("bailian") is False
+    assert agent.current_provider() == "bailian"        # 半开供应商重新参与候选
+
+    agent._revive_provider("bailian")                   # 半开尝试成功 → 彻底恢复
+    assert "bailian" not in agent._dead_providers and "bailian" not in agent._dead_since
+    assert agent.current_provider() == "bailian"
