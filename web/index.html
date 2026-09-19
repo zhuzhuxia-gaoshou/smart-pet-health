@@ -123,9 +123,10 @@ a { color: var(--accent); }
   overflow: hidden;
   transition: width .34s var(--ease), height .3s var(--ease), padding .3s var(--ease), border-radius .3s var(--ease);
 }
-/* island 态：大内容淡出让位，胶囊收缩为迷你岛 */
-.topbar > .logo, .topbar > .tabs, .topbar > .topbar-right { transition: opacity .16s var(--ease); }
-.topbar.island > .logo, .topbar.island > .tabs, .topbar.island > .topbar-right { opacity: 0; pointer-events: none; }
+/* island 态：大内容淡出让位（visibility 延迟切换，隐藏后不可 Tab 聚焦），胶囊收缩为迷你岛 */
+.topbar > .logo, .topbar > .tabs, .topbar > .topbar-right { transition: opacity .16s var(--ease), visibility 0s; visibility: visible; }
+.topbar.island > .logo, .topbar.island > .tabs, .topbar.island > .topbar-right {
+  opacity: 0; pointer-events: none; visibility: hidden; transition: opacity .16s var(--ease), visibility 0s .16s; }
 .topbar.island { width: 496px; height: 42px; padding: 0; border-radius: 999px; background: color-mix(in srgb, var(--bg) 92%, transparent); }
 .mini-island { position: absolute; inset: 0; display: flex; gap: 6px; align-items: center; justify-content: center;
   opacity: 0; pointer-events: none; transition: opacity .2s var(--ease); }
@@ -4114,7 +4115,11 @@ async function checkNotify() {
     else if (y > lastY + 3 && y > 200) bar.classList.add('island');
     lastY = y;
   }, { passive: true });
-  bar.addEventListener('focusin', () => bar.classList.remove('island'));
+  // 键盘 Tab 聚焦顶栏时还原大胶囊；但点击迷你岛自身获得焦点不还原（否则岛在手指松开前变形、点击落空）
+  bar.addEventListener('focusin', e => {
+    if (e.target instanceof Element && e.target.closest('.mini-island')) return;
+    bar.classList.remove('island');
+  });
 })();
 
 /* 迷你岛图标页签：lucide 风格内联 SVG（爪印/星光复用 logo 与 fx 按钮的 path），从页签动态生成，双向同步激活态 */
