@@ -6,6 +6,9 @@ backend/.env
 backend/pets.db
 *.db
 
+# 运行日志（启动后端时生成）
+backend/server-*.log
+
 # Python
 backend/.venv/
 .venv/
