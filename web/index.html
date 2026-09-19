@@ -4124,14 +4124,18 @@ async function checkNotify() {
   const svg = p => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15" aria-hidden="true">${p}</svg>`;
   const MI_ICON = {
     dashboard: svg('<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>'),
-    pets:      svg('<path d="M12 21c-4.5 0-7.5-2.8-7.5-6.2 0-2.4 1.6-4 3.3-5C9 8.6 10.4 7 10.4 5.3c0-1 .4-1.8 1.1-2.3.4.9 1.3 1.4 2.4 1.4 1.6 0 2.8 1.2 2.8 2.8 0 .4-.1.8-.2 1.1 1.9.9 3.2 2.6 3.2 4.7 0 4.9-4 8-7.7 8z"/><circle cx="7.2" cy="9.8" r=".9" fill="currentColor" stroke="none"/><circle cx="16.8" cy="9.8" r=".9" fill="currentColor" stroke="none"/><circle cx="9.5" cy="6.5" r=".9" fill="currentColor" stroke="none"/><circle cx="14.5" cy="6.5" r=".9" fill="currentColor" stroke="none"/>'),
+    library:   svg('<circle cx="11" cy="4" r="2"/><circle cx="18" cy="8" r="2"/><circle cx="20" cy="16" r="2"/><path d="M9 10a5 5 0 0 1 5 5v3.5a3.5 3.5 0 0 1-6.84 1.045Q6.52 17.48 4.46 16.84A3.5 3.5 0 0 1 5.5 10Z"/>'),
     ledger:    svg('<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/>'),
     calendar:  svg('<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>'),
-    memwall:   svg('<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>'),
+    memories:  svg('<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>'),
     chat:      svg('<path d="M10 3l1.5 4.5a2 2 0 0 0 1.3 1.3L17 10.5l-4.2 1.7a2 2 0 0 0-1.3 1.3L10 18l-1.5-4.5a2 2 0 0 0-1.3-1.3L3 10.5l4.2-1.7a2 2 0 0 0 1.3-1.3z"/><path d="M18 15l.8 2.2 2.2.8-2.2.8L18 21l-.8-2.2-2.2-.8 2.2-.8z"/>'),
   };
   island.innerHTML = [...nav.querySelectorAll('.tab-btn')].map(b =>
-    `<button class="mi-tab" data-view="${b.dataset.view}" title="${b.textContent.trim()}" aria-label="切换到${b.textContent.trim()}" onclick="go('${b.dataset.view}')">${MI_ICON[b.dataset.view] || MI_ICON.pets}<span>${b.textContent.trim()}</span></button>`).join('');
+    `<button class="mi-tab" data-view="${b.dataset.view}" title="${b.textContent.trim()}" aria-label="切换到${b.textContent.trim()}">${MI_ICON[b.dataset.view] || MI_ICON.library}<span>${b.textContent.trim()}</span></button>`).join('');
+  island.addEventListener('click', e => {
+    const btn = e.target instanceof Element ? e.target.closest('.mi-tab') : null;
+    if (btn && btn.dataset.view) go(btn.dataset.view);
+  });
   const sync = () => {
     const active = nav.querySelector('.tab-btn.active')?.dataset.view;
     island.querySelectorAll('.mi-tab').forEach(d => d.classList.toggle('on', d.dataset.view === active));
