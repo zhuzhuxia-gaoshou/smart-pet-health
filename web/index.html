@@ -423,6 +423,11 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
 .empty-state .big { animation: es-pop .26s var(--ease) .05s backwards; }
 @keyframes es-in { from { opacity: 0; transform: translateY(8px); } }
 @keyframes es-pop { from { opacity: 0; transform: scale(.92); } }
+/* 删除 exit bridge：行渐隐后再重渲染，防瞬移（emil 机会表#2；只动 transform/opacity，reduce 下被全局规则压为瞬时） */
+.removing {
+  opacity: 0 !important; transform: scale(.98) !important; pointer-events: none;
+  transition: opacity .16s ease-out, transform .16s ease-out !important;
+}
 .empty-state .big { font-size: 44px; margin-bottom: 12px; filter: grayscale(.2); }
 .empty-state h3 { font-family: var(--font-title); font-size: 20px; color: var(--text); margin-bottom: 6px; font-weight: 600; }
 
@@ -2484,7 +2489,7 @@ async function renderLedger() {
   const ordered = [...groups.values()].sort((a, b) => (a.pet_id === 0) - (b.pet_id === 0) || b.total - a.total);
   listEl.innerHTML = `<div class="card card-pad">` + ordered.map(g => `
     <div class="exp-group-head">${esc(g.avatar)} ${esc(g.name)} <span class="g-sub">· ${g.items.length} 笔 · ${fmtMoney(g.total)}</span></div>
-    ${g.items.map(e => `<div class="exp-row" role="button" tabindex="0" onclick="openExpenseModal(${e.id})"
+    ${g.items.map(e => `<div class="exp-row" data-id="${e.id}" role="button" tabindex="0" onclick="openExpenseModal(${e.id})"
         aria-label="${esc(e.date)} ${esc(e.category_label)} ${fmtMoney(e.amount)}${e.note ? ' ' + esc(e.note) : ''}，点击编辑">
       <span class="rec-date">${esc((e.date || '').slice(5))}</span>
       <span class="exp-cat-badge" style="background:${EXP_SOFT[e.category] || 'var(--surface-2)'};color:${EXP_COLOR[e.category] || 'var(--text-2)'}">${esc(e.category_label)}</span>
@@ -2586,8 +2591,11 @@ async function submitExpense(ev, id) {
 }
 async function deleteExpense(id, btn) {
   if (btn) btn.classList.add('shake');
-  try { await api(`/api/expenses/${id}`, { method: 'DELETE' }); closeModal(); renderLedger(); toast('花销已删除'); }
-  catch (e) { toast(e.message, true); if (btn) btn.classList.remove('shake'); }
+  const row = _fadeRow(`.exp-row[data-id="${id}"]`);
+  try {
+    await Promise.all([api(`/api/expenses/${id}`, { method: 'DELETE' }), row ? _fadeWait() : null]);
+    closeModal(); renderLedger(); toast('花销已删除');
+  } catch (e) { row?.classList.remove('removing'); toast(e.message, true); if (btn) btn.classList.remove('shake'); }
 }
 function openBudgetModal() {
   openModal(`<h3>月度预算</h3>
@@ -3055,10 +3063,12 @@ async function submitRecord(e) {
 }
 async function deleteRecord(rid, btn) {
   btn.classList.add('shake');
+  const row = btn.closest('.tl-item');
+  if (row) row.classList.add('removing');
   try {
-    await api(`/api/records/${rid}`, { method: 'DELETE' });
+    await Promise.all([api(`/api/records/${rid}`, { method: 'DELETE' }), row ? _fadeWait() : null]);
     openDetail(state.detailPetId); toast('记录已删除');
-  } catch (e) { toast(e.message, true); btn.classList.remove('shake'); }
+  } catch (e) { toast(e.message, true); row?.classList.remove('removing'); btn.classList.remove('shake'); }
 }
 function flashSaved(btn) { btn.classList.add('saved-flash'); btn.innerHTML = '✓ 已保存'; btn.disabled = true; }
 
@@ -3201,7 +3211,7 @@ function memTimelineHTML(list, showPet) {
   for (const m of list) {
     const y = (m.date || '').slice(0, 4);
     if (y && y !== lastYear) { html += `<div class="mem-year">${y}</div>`; lastYear = y; }
-    html += `<div class="mem-item"><div class="card mem-card" role="button" tabindex="0" onclick="openMemoryLightbox(${m.id})">
+    html += `<div class="mem-item" data-id="${m.id}"><div class="card mem-card" role="button" tabindex="0" onclick="openMemoryLightbox(${m.id})">
       ${m.image ? `<img class="mem-thumb" src="${m.image}" alt="" loading="lazy">` : ''}
       <div class="mem-body">
         <div class="mem-date">${esc(m.date)}</div>
@@ -3350,13 +3360,14 @@ function openMemoryLightbox(id) {
 }
 async function deleteMemory(id, btn) {
   btn.classList.add('shake');
+  const row = _fadeRow(`.mem-item[data-id="${id}"]`);
   try {
-    await api(`/api/memories/${id}`, { method: 'DELETE' });
+    await Promise.all([api(`/api/memories/${id}`, { method: 'DELETE' }), row ? _fadeWait() : null]);
     closeModal();
     if (currentView === 'memwall') await renderMemWall(state.memWallPetId);
     else await renderMemories();
     toast('回忆已删除');
-  } catch (e) { toast(e.message, true); btn.classList.remove('shake'); }
+  } catch (e) { row?.classList.remove('removing'); toast(e.message, true); btn.classList.remove('shake'); }
 }
 
 /* ============================================================
@@ -3581,7 +3592,7 @@ let _chatBooted = false;
 function openSessionsModal() {
   const list = state.chatSessions || [];
   const items = list.length ? list.map(s => `
-    <div class="sess-item ${s.id === state.chatSessionId ? 'active' : ''}" role="button" tabindex="0" onclick="closeModal(); openChatSession(${s.id})">
+    <div class="sess-item ${s.id === state.chatSessionId ? 'active' : ''}" data-id="${s.id}" role="button" tabindex="0" onclick="closeModal(); openChatSession(${s.id})">
       <div class="sess-title">${esc(s.title || '未命名会话')}</div>
       <div class="sess-time">${esc((s.updated_at || '').slice(5, 16))} · ${s.message_count} 条消息</div>
       <button class="sess-del" style="opacity:1" title="重命名" onclick="event.stopPropagation(); openRenameSession(${s.id}, this)">✎</button>
@@ -3601,7 +3612,7 @@ async function loadChatSessions() {
     return;
   }
   box.innerHTML = state.chatSessions.map(s => `
-    <div class="sess-item ${s.id === state.chatSessionId ? 'active' : ''}" role="button" tabindex="0" onclick="openChatSession(${s.id})">
+    <div class="sess-item ${s.id === state.chatSessionId ? 'active' : ''}" data-id="${s.id}" role="button" tabindex="0" onclick="openChatSession(${s.id})">
       <div class="sess-title">${esc(s.title || '未命名会话')}</div>
       <div class="sess-time">${esc((s.updated_at || '').slice(5, 16))} · ${s.message_count} 条消息</div>
       <button class="sess-del" title="重命名" onclick="event.stopPropagation();openRenameSession(${s.id}, this)">✎</button>
@@ -3675,8 +3686,9 @@ async function confirmResetDemo() {
   } catch (e) { toast(e.message, true); btn.disabled = false; btn.textContent = '确认重置'; }
 }
 async function confirmDeleteSession(id) {
+  const row = _fadeRow(`.sess-item[data-id="${id}"]`);
   try {
-    await api(`/api/chat/sessions/${id}`, { method: 'DELETE' });
+    await Promise.all([api(`/api/chat/sessions/${id}`, { method: 'DELETE' }), row ? _fadeWait() : null]);
     closeModal();
     if (state.chatSessionId === id) {
       state.chatSessionId = null; state.chat = [];
@@ -3686,7 +3698,7 @@ async function confirmDeleteSession(id) {
       await loadChatSessions();
     }
     toast('会话已删除');
-  } catch (e) { toast(e.message, true); }
+  } catch (e) { row?.classList.remove('removing'); toast(e.message, true); }
 }
 
 /* ---------- 仪表盘 AI 今日简报 ---------- */
@@ -3758,6 +3770,13 @@ function printReport(btn) {
   window.addEventListener('afterprint', done);
   window.print();
 }
+/* 删除 exit bridge：给目标行加 .removing 渐隐，动画与请求并行，API 成功后再重渲染（失败恢复显形） */
+function _fadeRow(sel) {
+  const row = sel && document.querySelector(sel);
+  if (row) row.classList.add('removing');
+  return row;
+}
+function _fadeWait(ms = 175) { return new Promise(r => setTimeout(r, ms)); }
 function downloadMd(text, name) {
   const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
