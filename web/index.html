@@ -110,7 +110,7 @@ input, select, textarea { font-family: inherit; font-size: 14px; color: var(--te
 a { color: var(--accent); }
 
 /* ---------- 顶栏 ---------- */
-/* 顶栏悬浮胶囊：居中圆角毛玻璃悬浮于内容之上（Linear/Arc 式）；下滚整条自己滑出藏起，上滚飘回来 */
+/* 顶栏悬浮胶囊（灵动岛式变形）：下滚整条收成顶部中央迷你岛（6 页签圆点），上滚膨胀回大胶囊——同一物体连续 morph */
 .topbar {
   position: sticky; top: 12px; z-index: 50;
   display: flex; align-items: center; gap: 14px;
@@ -120,9 +120,20 @@ a { color: var(--accent); }
   backdrop-filter: blur(16px) saturate(1.4); -webkit-backdrop-filter: blur(16px) saturate(1.4);
   border: 1px solid var(--border); border-radius: 19px;
   box-shadow: 0 12px 32px -20px color-mix(in srgb, var(--accent) 30%, rgba(0,0,0,.5));
-  transition: transform .3s var(--ease);
+  overflow: hidden;
+  transition: width .34s var(--ease), height .3s var(--ease), padding .3s var(--ease), border-radius .3s var(--ease);
 }
-.topbar.hidden { transform: translateY(-140%); }
+/* island 态：大内容淡出让位，胶囊收缩为迷你岛 */
+.topbar > .logo, .topbar > .tabs, .topbar > .topbar-right { transition: opacity .16s var(--ease); }
+.topbar.island > .logo, .topbar.island > .tabs, .topbar.island > .topbar-right { opacity: 0; pointer-events: none; }
+.topbar.island { width: 152px; height: 38px; padding: 0; border-radius: 999px; }
+.mini-island { position: absolute; inset: 0; display: flex; gap: 11px; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity .2s var(--ease); }
+.topbar.island .mini-island { opacity: 1; pointer-events: auto; transition-delay: .14s; }
+.mi-dot { width: 9px; height: 9px; border-radius: 50%; border: none; padding: 0; cursor: pointer; background: var(--border);
+  transition: transform var(--dur) var(--ease), background var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
+.mi-dot:hover { transform: scale(1.45); background: var(--text-3); }
+.mi-dot.on { background: var(--accent-strong); box-shadow: 0 0 0 3px var(--accent-soft); }
 /* 回到顶部：滚动 >400px 浮现，右下角常驻可达 */
 .to-top {
   position: fixed; right: 22px; bottom: 22px; z-index: 45;
@@ -1357,6 +1368,7 @@ html[data-fx="calm"] .stat-card.tilt { transform: none !important; }
       <span class="btn-label">新增宠物</span>
     </button>
   </div>
+  <div class="mini-island" role="navigation" aria-label="迷你页签导航"></div>
 </header>
 
 <!-- ======================= 主视图 ======================= -->
@@ -4086,18 +4098,32 @@ async function checkNotify() {
   window.addEventListener('resize', () => moveTabInd());
 })();
 
-/* 滚动感知顶栏：下滚过 200px 自己藏起、上滚或近顶 60px 内飘回来（±3px 死区防抖动）；Tab 聚焦顶栏自动现身 */
+/* 滚动感知顶栏（灵动岛变形）：下滚过 200px 收成迷你岛、上滚或近顶 60px 内膨胀回大胶囊（±3px 死区）；Tab 聚焦顶栏自动还原 */
 (function scrollAwareTopbar() {
   const bar = document.querySelector('.topbar');
   if (!bar) return;
   let lastY = window.scrollY || 0;
   window.addEventListener('scroll', () => {
     const y = window.scrollY || 0;
-    if (y < lastY - 3 || y < 60) bar.classList.remove('hidden');
-    else if (y > lastY + 3 && y > 200) bar.classList.add('hidden');
+    if (y < lastY - 3 || y < 60) bar.classList.remove('island');
+    else if (y > lastY + 3 && y > 200) bar.classList.add('island');
     lastY = y;
   }, { passive: true });
-  bar.addEventListener('focusin', () => bar.classList.remove('hidden'));
+  bar.addEventListener('focusin', () => bar.classList.remove('island'));
+})();
+
+/* 迷你岛圆点：从页签动态生成（永不硬编码），点击直达；页签激活态变化时同步点亮 */
+(function miniIsland() {
+  const island = document.querySelector('.mini-island'), nav = $('nav-tabs');
+  if (!island || !nav) return;
+  island.innerHTML = [...nav.querySelectorAll('.tab-btn')].map(b =>
+    `<button class="mi-dot" data-view="${b.dataset.view}" aria-label="切换到${b.textContent.trim()}" onclick="go('${b.dataset.view}')"></button>`).join('');
+  const sync = () => {
+    const active = nav.querySelector('.tab-btn.active')?.dataset.view;
+    island.querySelectorAll('.mi-dot').forEach(d => d.classList.toggle('on', d.dataset.view === active));
+  };
+  new MutationObserver(sync).observe(nav, { subtree: true, attributes: true, attributeFilter: ['class'] });
+  sync();
 })();
 
 /* 回到顶部：>400px 浮现；reduced-motion 下直接跳转不做平滑滚动 */
