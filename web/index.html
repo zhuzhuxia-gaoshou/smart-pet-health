@@ -1290,6 +1290,12 @@ html[data-theme="dark"] .msg.user .bubble {
 }
 /* 聊天发送中按钮脉冲 */
 .btn.primary.loading::after { border-top-color: var(--on-accent); }
+/* 快照列表（备份与恢复模态框） */
+.bk-list { max-height: 320px; overflow-y: auto; margin-bottom: 4px; }
+.bk-row { display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 10px 2px; border-bottom: 1px solid var(--border); font-size: 13.5px; }
+.bk-row:last-child { border-bottom: none; }
+.bk-sub { color: var(--text-3); font-size: 11.5px; margin-top: 2px; }
 /* 回忆大图 */
 .modal .lb-img { animation: img-pop .45s var(--ease); border-radius: 12px; }
 @keyframes img-pop { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: scale(1); } }
@@ -1359,6 +1365,7 @@ html[data-fx="calm"] .stat-card.tilt { transform: none !important; }
         <a role="button" tabindex="0" onclick="downloadFile('/api/export/expenses.csv')">导出花费 CSV</a>
         <a role="button" tabindex="0" onclick="exportSessionMd()">导出当前会话 .md</a>
         <a role="button" tabindex="0" onclick="downloadFile('/api/export/db')">下载数据库备份</a>
+        <a role="button" tabindex="0" onclick="openBackupsModal()">备份与恢复…</a>
         <a role="button" tabindex="0" style="color:var(--danger)" onclick="askResetDemo()">清空全部数据并重建示例…</a>
       </div>
     </div>
@@ -3707,6 +3714,37 @@ async function submitRenameSession(e, id) {
   } catch (err) { toast(err.message, true); }
   return false;
 }
+/* ---------- 快照备份与恢复 ---------- */
+async function openBackupsModal() {
+  $('more-menu')?.classList.remove('open');
+  try {
+    const d = await api('/api/backups');
+    const bs = d.backups || [];
+    openModal(`<h3>🗂️ 备份与恢复</h3>
+      <p style="color:var(--text-2);font-size:13px;margin-bottom:10px">系统在每次启动与每天自动保存一份数据库快照，最多保留 14 份。恢复会用所选快照覆盖当前数据——恢复前当前数据也会先自动存一份新快照，可再次恢复回来。</p>
+      ${bs.length ? `<div class="bk-list" role="list">${bs.map((b, i) => `
+        <div class="bk-row" role="listitem"><div><b>${esc(b.stamp)}</b>${i === 0 ? ' <span class="badge plain">最新</span>' : ''}
+          <div class="bk-sub">${b.size_kb} KB · ${esc(b.name)}</div></div>
+          <button class="btn ghost sm" style="color:var(--danger)" onclick="confirmRestoreBackup('${esc(b.name)}','${esc(b.stamp)}')">恢复</button></div>`).join('')}</div>`
+        : '<div class="empty-hint">还没有快照，下次启动服务时会自动生成第一份。</div>'}
+      <div class="modal-actions"><button class="btn" onclick="closeModal()">关闭</button></div>`);
+  } catch (e) { toast(e.message, true); }
+}
+function confirmRestoreBackup(name, stamp) {
+  openModal(`<h3>恢复到快照「${esc(stamp)}」？</h3>
+    <p style="color:var(--text-2);font-size:14px">当前的宠物、记录、花费与回忆将被该快照<b style="color:var(--danger)">覆盖</b>。恢复前会先把当前数据自动存为新快照（本列表中随时可反悔）。</p>
+    <div class="modal-actions"><button class="btn" onclick="openBackupsModal()">返回列表</button>
+      <button class="btn solid-danger" onclick="doRestoreBackup('${esc(name)}')">确认恢复</button></div>`);
+}
+async function doRestoreBackup(name) {
+  closeModal();
+  try {
+    await api('/api/backups/restore', { method: 'POST', body: JSON.stringify({ name }) });
+    toast('已恢复，页面即将重载');
+    setTimeout(() => location.reload(), 800);
+  } catch (e) { toast(e.message, true); }
+}
+
 async function askResetDemo() {
   $('more-menu')?.classList.remove('open');
   openModal(`<h3>清空全部数据？</h3>

@@ -8,6 +8,8 @@
 import calendar
 import json
 import os
+import pathlib
+import re
 import sqlite3
 from datetime import date, datetime, timedelta
 
@@ -1059,6 +1061,56 @@ def today_backup_done() -> bool:
     prefix = f"pets-{datetime.now().strftime('%Y%m%d')}"
     return os.path.isdir(_backup_dir()) and any(
         f.startswith(prefix) for f in os.listdir(_backup_dir()))
+
+
+# 快照文件名白名单：pets-YYYYMMDD-HHMMSS(.微秒).db——恢复端点只认这个形态，杜绝路径穿越
+VALID_BACKUP_RE = re.compile(r"^pets-\d{8}-\d{6}(?:\d{6})?\.db$")
+
+
+def list_backups() -> list[dict]:
+    """快照列表（新→旧）：name / 可读时间 / 大小 KB。"""
+    d = _backup_dir()
+    if not os.path.isdir(d):
+        return []
+    out = []
+    for f in sorted(os.listdir(d), reverse=True):
+        if not VALID_BACKUP_RE.match(f):
+            continue
+        try:
+            st = os.stat(os.path.join(d, f))
+        except OSError:
+            continue
+        stamp = f[5:-3]   # 去掉 pets- 与 .db
+        human = f"{stamp[0:4]}-{stamp[4:6]}-{stamp[6:8]} {stamp[9:11]}:{stamp[11:13]}:{stamp[13:15]}"
+        out.append({"name": f, "stamp": human, "size_kb": round(st.st_size / 1024, 1)})
+    return out
+
+
+def restore_backup(name: str) -> dict:
+    """用快照覆盖当前库。安全链：名称白名单 → 快照可读且含 pets 表 → 先把当前库快照一份
+    （pre_restore 标记防混淆，仍走 pets-* 命名）→ backup API 逐页写回活库（WAL 下安全，无需重启）。"""
+    if not VALID_BACKUP_RE.match(name or ""):
+        return {"error": "快照名称不合法"}
+    src_path = os.path.join(_backup_dir(), name)
+    if not os.path.isfile(src_path):
+        return {"error": "快照不存在"}
+    src = sqlite3.connect(pathlib.Path(src_path).as_uri() + "?mode=ro", uri=True)
+    try:
+        tables = {r[0] for r in src.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if "pets" not in tables:
+            return {"error": "快照文件不是有效的宠物库"}
+        safety = backup_db()   # 恢复前先保住当前数据
+        dst = get_conn()
+        try:
+            src.backup(dst)
+            dst.commit()
+        finally:
+            dst.close()
+    except Exception as e:
+        return {"error": f"恢复失败：{type(e).__name__}"}
+    finally:
+        src.close()
+    return {"ok": True, "safety": os.path.basename(safety) if safety else None}
 
 
 # ---------------------------------------------------------------- 用药记录

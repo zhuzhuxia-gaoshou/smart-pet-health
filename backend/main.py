@@ -399,6 +399,28 @@ def api_export_db():
                         headers={"Cache-Control": "no-cache"})
 
 
+# ---------------------------------------------------------------- 快照备份与恢复
+
+
+class RestoreIn(BaseModel):
+    name: str = Field(..., min_length=1, max_length=40, description="快照文件名（pets-YYYYMMDD-HHMMSS.db）")
+
+
+@app.get("/api/backups")
+def api_backups():
+    """自动快照列表（新→旧）。"""
+    return {"backups": db.list_backups()}
+
+
+@app.post("/api/backups/restore")
+def api_restore_backup(body: RestoreIn):
+    """用快照覆盖当前库；恢复前自动把当前数据也快照一份。"""
+    result = db.restore_backup(body.name)
+    if result.get("error"):
+        return JSONResponse(status_code=400, content=result)
+    return result
+
+
 @app.post("/api/admin/reset-demo")
 def api_reset_demo():
     """清空全部数据并重建演示示例（危险操作，前端已有二次确认）。"""

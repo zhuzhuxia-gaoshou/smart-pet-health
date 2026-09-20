@@ -253,3 +253,23 @@ def test_trash_pet_cascade_and_relink(tmp_db):
     assert db.get_record(rec["id"]) is not None                      # 子行按原 id 回插
     assert db.get_expense(exp["id"])["pet_id"] == keke["id"]         # relink 认回原主
     assert db.get_memory(mem["id"])["pet_id"] == keke["id"]
+
+
+# ---------------------------------------------------------------- 快照恢复
+
+def test_list_and_restore_backup_roundtrip(tmp_db):
+    keke = db.fetch_pet_by_name("测测")
+    snap1 = db.backup_db()                                           # 快照 A：只有测测两两
+    db.add_record(keke["id"], {"type": "vaccine", "title": "after-snap"})
+    listings = db.list_backups()
+    assert listings and listings[0]["name"].endswith(".db")          # 新→旧排序
+    r = db.restore_backup(listings[0]["name"])
+    assert r.get("ok") is True and r.get("safety")                   # 恢复前自动做了当前安全快照
+    names = {p["name"] for p in db.list_backups()}
+    assert snap1.split(os.sep)[-1] in names                          # 原快照还在
+    assert db.list_all_records() == []                               # 快照之后写入的数据被回滚掉
+
+def test_restore_backup_rejects_bad_names(tmp_db):
+    assert db.restore_backup("../pets.db")["error"]                  # 路径穿越
+    assert db.restore_backup("pets-999.db")["error"]                 # 格式不符
+    assert db.restore_backup("pets-20200101-000000.db")["error"]     # 名称合法但不存在
