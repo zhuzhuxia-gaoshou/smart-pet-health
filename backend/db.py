@@ -6,6 +6,7 @@
 - 日期统一存 'YYYY-MM-DD' 字符串。
 """
 import calendar
+import json
 import os
 import sqlite3
 from datetime import date, datetime, timedelta
@@ -126,6 +127,12 @@ CREATE INDEX IF NOT EXISTS idx_chat_session ON chat_history(session_id);
 CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);
 CREATE INDEX IF NOT EXISTS idx_expenses_pet ON expenses(pet_id, date);
 CREATE INDEX IF NOT EXISTS idx_feeding_pet ON feeding_logs(pet_id, date);
+CREATE TABLE IF NOT EXISTS trash(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL,
+  rows_json TEXT NOT NULL,
+  deleted_at TEXT DEFAULT (datetime('now','localtime'))
+);
 """
 
 
@@ -906,6 +913,111 @@ def init_and_seed() -> None:
     seed_medications()
     seed_expenses()
     seed_feeding()
+
+
+# ---------------------------------------------------------------- 撤销删除（回收站）
+# 删除前把整行序列化成 JSON 存进 trash 表；撤销时按原 id 回插（含子表级联），失败静默不影响删除本身。
+# 表名只来自本模块硬编码常量，绝不接受外部输入，字符串拼接 SQL 在此是安全的。
+
+TRASHABLE = {
+    "record":    {"table": "health_records"},
+    "memory":    {"table": "memories"},
+    "medication": {"table": "medications"},
+    "expense":   {"table": "expenses"},
+    "diet":      {"table": "feeding_logs"},
+    "session":   {"table": "chat_sessions", "children": [("chat_history", "session_id")]},
+    # pets 级联删 CASCADE 子表；memories/expenses 是 SET NULL 不消失——撤销时 relink 回宠物而不是回插
+    "pet":       {"table": "pets", "children": [
+        ("health_records", "pet_id"), ("weight_logs", "pet_id"), ("medications", "pet_id"),
+        ("feeding_logs", "pet_id")],
+        "relink": [("expenses", "pet_id"), ("memories", "pet_id")]},
+}
+
+
+def snapshot_for_trash(kind: str, row_id: int) -> str | None:
+    """序列化实体（含子表行）为回收站 payload；实体不存在返回 None。"""
+    spec = TRASHABLE.get(kind)
+    if not spec:
+        return None
+    conn = get_conn()
+    try:
+        row = conn.execute(f"SELECT * FROM {spec['table']} WHERE id=?", (row_id,)).fetchone()
+        if row is None:
+            return None
+        payload = {"kind": kind, "rows": [{"table": spec["table"], "data": dict(row)}]}
+        for child_table, fk in spec.get("children", []):
+            kids = [dict(r) for r in conn.execute(
+                f"SELECT * FROM {child_table} WHERE {fk}=?", (row_id,)).fetchall()]
+            if kids:
+                payload["rows"].append({"table": child_table, "data": kids})
+        relinks = []
+        for rel_table, rel_fk in spec.get("relink", []):
+            ids = [r["id"] for r in conn.execute(
+                f"SELECT id FROM {rel_table} WHERE {rel_fk}=?", (row_id,)).fetchall()]
+            if ids:
+                relinks.append({"table": rel_table, "fk": rel_fk, "owner": row_id, "ids": ids})
+        if relinks:
+            payload["relink"] = relinks
+        return json.dumps(payload, ensure_ascii=False)
+    finally:
+        conn.close()
+
+
+def trash_put(kind: str, row_id: int) -> int | None:
+    """删除前调用：存快照返回 trash_id。快照失败返回 None（不阻断删除）。"""
+    payload = snapshot_for_trash(kind, row_id)
+    if payload is None:
+        return None
+    conn = get_conn()
+    try:
+        cur = conn.execute("INSERT INTO trash(kind, rows_json) VALUES(?, ?)", (kind, payload))
+        conn.commit()
+        return cur.lastrowid
+    finally:
+        conn.close()
+
+
+def restore_from_trash(trash_id: int) -> bool:
+    """撤销：按原 id 回插全部行（父表在前子表在后，FK 满足），成功删除快照。"""
+    conn = get_conn()
+    try:
+        snap = conn.execute("SELECT rows_json FROM trash WHERE id=?", (trash_id,)).fetchone()
+        if snap is None:
+            return False
+        payload = json.loads(snap["rows_json"])
+        for part in payload["rows"]:
+            table, data = part["table"], part["data"]
+            items = data if isinstance(data, list) else [data]
+            for item in items:
+                # 必须按原 id 回插：子表行引用父表旧 id，撞号时整笔回滚失败而非留下孤行
+                cols = list(item.keys())
+                conn.execute(
+                    f"INSERT INTO {table}({','.join(cols)}) VALUES({','.join('?' * len(cols))})",
+                    [item[c] for c in cols])
+        # relink：宠物删除时被 SET NULL 的 expenses 等，把外键指回（只认领仍为 NULL 的）
+        for rl in payload.get("relink", []):
+            marks = ",".join("?" * len(rl["ids"]))
+            conn.execute(
+                f"UPDATE {rl['table']} SET {rl['fk']}=? WHERE id IN ({marks}) AND {rl['fk']} IS NULL",
+                [rl["owner"], *rl["ids"]])
+        conn.execute("DELETE FROM trash WHERE id=?", (trash_id,))
+        conn.commit()
+        return True
+    except Exception:
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+
+def trash_prune(keep: int = 50) -> None:
+    """只保留最近 keep 条快照，防回收站无限膨胀。"""
+    conn = get_conn()
+    try:
+        conn.execute("DELETE FROM trash WHERE id NOT IN (SELECT id FROM trash ORDER BY id DESC LIMIT ?)", (keep,))
+        conn.commit()
+    finally:
+        conn.close()
 
 
 # ---------------------------------------------------------------- 数据库快照备份

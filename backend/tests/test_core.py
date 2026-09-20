@@ -217,3 +217,39 @@ def test_provider_half_open_recovery(monkeypatch):
     agent._revive_provider("bailian")                   # 半开尝试成功 → 彻底恢复
     assert "bailian" not in agent._dead_providers and "bailian" not in agent._dead_since
     assert agent.current_provider() == "bailian"
+
+
+# ---------------------------------------------------------------- 回收站（撤销删除）
+
+def test_trash_roundtrip_expense(tmp_db):
+    keke = db.fetch_pet_by_name("测测")
+    e = db.add_expense({"pet_id": keke["id"], "category": "food", "amount": 66.6, "date": "2026-09-10"})
+    tid = db.trash_put("expense", e["id"])
+    assert tid is not None
+    assert db.delete_expense(e["id"]) is True
+    assert db.get_expense(e["id"]) is None
+    assert db.restore_from_trash(tid) is True
+    back = db.get_expense(e["id"])
+    assert back and back["amount"] == 66.6 and back["pet_id"] == keke["id"]   # 原 id 原值回插
+    assert db.restore_from_trash(tid) is False          # 快照已消费，二次恢复失败
+
+def test_trash_missing_entity(tmp_db):
+    assert db.trash_put("expense", 999999) is None
+
+def test_trash_pet_cascade_and_relink(tmp_db):
+    """删宠物：CASCADE 子表进快照回插；SET NULL 的 expenses/memories 靠 relink 认回原主。"""
+    keke = db.fetch_pet_by_name("测测")
+    rec = db.add_record(keke["id"], {"type": "checkup", "title": "t-cascade"})
+    db.add_feeding_log(keke["id"], {"food_type": "kibble", "amount": "50g"})
+    exp = db.add_expense({"pet_id": keke["id"], "category": "medical", "amount": 9, "date": "2026-09-09"})
+    mem = db.add_memory({"pet_id": keke["id"], "date": "2026-09-01", "title": "m-relink"})
+    tid = db.trash_put("pet", keke["id"])
+    db.delete_pet(keke["id"])
+    assert db.get_pet(keke["id"]) is None
+    assert db.get_record(rec["id"]) is None                          # CASCADE 已消失
+    assert db.get_expense(exp["id"])["pet_id"] is None               # SET NULL 存活但失去归属
+    assert db.restore_from_trash(tid) is True
+    assert db.get_pet(keke["id"]) is not None
+    assert db.get_record(rec["id"]) is not None                      # 子行按原 id 回插
+    assert db.get_expense(exp["id"])["pet_id"] == keke["id"]         # relink 认回原主
+    assert db.get_memory(mem["id"])["pet_id"] == keke["id"]

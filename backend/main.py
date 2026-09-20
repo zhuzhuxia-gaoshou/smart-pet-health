@@ -43,6 +43,10 @@ async def lifespan(_app: FastAPI):
         db.backup_db()   # 启动即快照一份；失败不阻塞启动
     except Exception:
         pass
+    try:
+        db.trash_prune()   # 回收站只留最近 50 条
+    except Exception:
+        pass
     threading.Thread(target=_daily_backup_loop, daemon=True).start()
     yield
 
@@ -249,8 +253,9 @@ def api_update_pet(pet_id: int, pet: PetIn):
 def api_delete_pet(pet_id: int):
     if db.get_pet(pet_id) is None:
         return {"error": "宠物不存在"}
+    tid = db.trash_put("pet", pet_id)   # 快照含级联子行；失败不阻断删除
     db.delete_pet(pet_id)
-    return {"ok": True}
+    return {"ok": True, "trash_id": tid}
 
 
 @app.get("/api/pets/{pet_id}")
@@ -309,9 +314,10 @@ def api_complete_record(record_id: int):
 
 @app.delete("/api/records/{record_id}")
 def api_delete_record(record_id: int):
-    if not db.delete_record(record_id):
+    tid = db.trash_put("record", record_id)
+    if tid is None or not db.delete_record(record_id):
         return {"error": "记录不存在"}
-    return {"ok": True}
+    return {"ok": True, "trash_id": tid}
 
 
 # ---------------------------------------------------------------- 体重 / 提醒 / 统计
@@ -446,9 +452,10 @@ def api_update_medication(med_id: int, med: MedicationIn):
 
 @app.delete("/api/medications/{med_id}")
 def api_delete_medication(med_id: int):
-    if not db.delete_medication(med_id):
+    tid = db.trash_put("medication", med_id)
+    if tid is None or not db.delete_medication(med_id):
         return {"error": "用药记录不存在"}
-    return {"ok": True}
+    return {"ok": True, "trash_id": tid}
 
 
 # ---------------------------------------------------------------- 花费记账
@@ -551,9 +558,10 @@ def api_update_expense(exp_id: int, body: ExpenseIn):
 
 @app.delete("/api/expenses/{exp_id}")
 def api_delete_expense(exp_id: int):
-    if not db.delete_expense(exp_id):
+    tid = db.trash_put("expense", exp_id)
+    if tid is None or not db.delete_expense(exp_id):
         return {"error": "花费记录不存在"}
-    return {"ok": True}
+    return {"ok": True, "trash_id": tid}
 
 
 # ---------------------------------------------------------------- 饮食日志
@@ -583,9 +591,10 @@ def api_update_diet(log_id: int, body: FeedingIn):
 
 @app.delete("/api/diet-logs/{log_id}")
 def api_delete_diet(log_id: int):
-    if not db.delete_feeding_log(log_id):
+    tid = db.trash_put("diet", log_id)
+    if tid is None or not db.delete_feeding_log(log_id):
         return {"error": "饮食记录不存在"}
-    return {"ok": True}
+    return {"ok": True, "trash_id": tid}
 
 
 # ---------------------------------------------------------------- 健康日历
@@ -701,9 +710,18 @@ def api_update_memory(mem_id: int, mem: MemoryIn):
 
 @app.delete("/api/memories/{mem_id}")
 def api_delete_memory(mem_id: int):
-    if not db.delete_memory(mem_id):
+    tid = db.trash_put("memory", mem_id)
+    if tid is None or not db.delete_memory(mem_id):
         return {"error": "回忆不存在"}
-    return {"ok": True}
+    return {"ok": True, "trash_id": tid}
+
+
+@app.post("/api/trash/{trash_id}/restore")
+def api_restore_trash(trash_id: int):
+    """撤销删除：按快照回插实体（宠物含级联子行）。"""
+    if db.restore_from_trash(trash_id):
+        return {"ok": True}
+    return {"error": "快照不存在或恢复失败（数据可能已被后续操作覆盖）"}
 
 
 # ---------------------------------------------------------------- AI 对话（P2 接入 Agent）
@@ -772,9 +790,10 @@ def api_chat_history(session_id: int):
 @app.delete("/api/chat/sessions/{session_id}")
 def api_delete_session(session_id: int):
     """删除一个历史会话及其全部消息。"""
-    if not db.delete_session(session_id):
+    tid = db.trash_put("session", session_id)
+    if tid is None or not db.delete_session(session_id):
         return {"error": "会话不存在"}
-    return {"ok": True}
+    return {"ok": True, "trash_id": tid}
 
 
 @app.put("/api/chat/sessions/{session_id}")

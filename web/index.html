@@ -750,6 +750,7 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
 .toast { animation: toast-in 300ms var(--ease); }
 @keyframes toast-in { from { opacity: 0; transform: translateY(28px) scale(.92); } }
 .toast.out { opacity: 0; transform: translateY(8px); transition: opacity 200ms var(--ease), transform 200ms var(--ease); }
+.toast .t-undo { margin-left: 6px; flex: none; }
 .toast.warn .t-ico { color: var(--warn); }
 /* 列表行：底色 + 阅读方向位移 + 焦点 */
 .reminder-item, .activity-item, .rec-row, .exp-row, .sess-item {
@@ -2362,7 +2363,7 @@ async function finishMed(id) {
 }
 async function deleteMed(id, btn) {
   if (btn) btn.classList.add('shake');
-  try { await api(`/api/medications/${id}`, { method: 'DELETE' }); await reloadMeds(); toast('用药记录已删除'); }
+  try { const r = await api(`/api/medications/${id}`, { method: 'DELETE' }); await reloadMeds(); toastUndo(r.trash_id, '用药记录已删除', reloadMeds); }
   catch (e) { toast(e.message, true); if (btn) btn.classList.remove('shake'); }
 }
 
@@ -2436,7 +2437,7 @@ async function submitDiet(e, id) {
 }
 async function deleteDiet(id, btn) {
   if (btn) btn.classList.add('shake');
-  try { await api(`/api/diet-logs/${id}`, { method: 'DELETE' }); closeModal(); await reloadDiet(); toast('饮食记录已删除'); }
+  try { const r = await api(`/api/diet-logs/${id}`, { method: 'DELETE' }); closeModal(); await reloadDiet(); toastUndo(r.trash_id, '饮食记录已删除', reloadDiet); }
   catch (e) { toast(e.message, true); if (btn) btn.classList.remove('shake'); }
 }
 
@@ -2632,8 +2633,8 @@ async function deleteExpense(id, btn) {
   if (btn) btn.classList.add('shake');
   const row = _fadeRow(`.exp-row[data-id="${id}"]`);
   try {
-    await Promise.all([api(`/api/expenses/${id}`, { method: 'DELETE' }), row ? _fadeWait() : null]);
-    closeModal(); renderLedger(); toast('花销已删除');
+    const [r] = await Promise.all([api(`/api/expenses/${id}`, { method: 'DELETE' }), row ? _fadeWait() : null]);
+    closeModal(); renderLedger(); toastUndo(r.trash_id, '花销已删除', () => renderLedger());
   } catch (e) { row?.classList.remove('removing'); toast(e.message, true); if (btn) btn.classList.remove('shake'); }
 }
 function openBudgetModal() {
@@ -3019,10 +3020,10 @@ function askDeletePet(id, btn) {
 async function confirmDeletePet(id, btn) {
   btn.classList.add('shake');
   try {
-    await api(`/api/pets/${id}`, { method: 'DELETE' });
+    const r = await api(`/api/pets/${id}`, { method: 'DELETE' });
     closeModal(); await refreshData();
     go(state.detailFrom === 'detail' || !state.detailFrom ? 'library' : state.detailFrom);
-    toast('宠物已删除');
+    toastUndo(r.trash_id, '宠物已删除', async () => { await refreshData(); go('library'); });
   } catch (e) { toast(e.message, true); }
 }
 
@@ -3105,8 +3106,8 @@ async function deleteRecord(rid, btn) {
   const row = btn.closest('.tl-item');
   if (row) row.classList.add('removing');
   try {
-    await Promise.all([api(`/api/records/${rid}`, { method: 'DELETE' }), row ? _fadeWait() : null]);
-    openDetail(state.detailPetId); toast('记录已删除');
+    const [r] = await Promise.all([api(`/api/records/${rid}`, { method: 'DELETE' }), row ? _fadeWait() : null]);
+    openDetail(state.detailPetId); toastUndo(r.trash_id, '记录已删除', () => openDetail(state.detailPetId));
   } catch (e) { toast(e.message, true); row?.classList.remove('removing'); btn.classList.remove('shake'); }
 }
 function flashSaved(btn) { btn.classList.add('saved-flash'); btn.innerHTML = '✓ 已保存'; btn.disabled = true; }
@@ -3401,11 +3402,14 @@ async function deleteMemory(id, btn) {
   btn.classList.add('shake');
   const row = _fadeRow(`.mem-item[data-id="${id}"]`);
   try {
-    await Promise.all([api(`/api/memories/${id}`, { method: 'DELETE' }), row ? _fadeWait() : null]);
+    const [r] = await Promise.all([api(`/api/memories/${id}`, { method: 'DELETE' }), row ? _fadeWait() : null]);
     closeModal();
-    if (currentView === 'memwall') await renderMemWall(state.memWallPetId);
-    else await renderMemories();
-    toast('回忆已删除');
+    const _memReload = async () => {
+      if (currentView === 'memwall') await renderMemWall(state.memWallPetId);
+      else await renderMemories();
+    };
+    await _memReload();
+    toastUndo(r.trash_id, '回忆已删除', _memReload);
   } catch (e) { row?.classList.remove('removing'); toast(e.message, true); btn.classList.remove('shake'); }
 }
 
@@ -3727,7 +3731,7 @@ async function confirmResetDemo() {
 async function confirmDeleteSession(id) {
   const row = _fadeRow(`.sess-item[data-id="${id}"]`);
   try {
-    await Promise.all([api(`/api/chat/sessions/${id}`, { method: 'DELETE' }), row ? _fadeWait() : null]);
+    const [r] = await Promise.all([api(`/api/chat/sessions/${id}`, { method: 'DELETE' }), row ? _fadeWait() : null]);
     closeModal();
     if (state.chatSessionId === id) {
       state.chatSessionId = null; state.chat = [];
@@ -3736,7 +3740,7 @@ async function confirmDeleteSession(id) {
     } else {
       await loadChatSessions();
     }
-    toast('会话已删除');
+    toastUndo(r.trash_id, '会话已删除', () => loadChatSessions());
   } catch (e) { row?.classList.remove('removing'); toast(e.message, true); }
 }
 
@@ -3849,14 +3853,23 @@ function toggleFx() {
   const sys = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   document.documentElement.dataset.theme = saved || sys;
 })();
-function toast(text, level) {
+function toast(text, level, action) {
   // level: 'ok' | 'warn' | 'err'；兼容旧调用 toast(text, true) = 错误；非法值回落 ok
+  // action: { label, fn } 时在 toast 内渲染操作按钮（如撤销），驻留更久且不播爪印迸发
   const lv = level === true ? 'err' : ({ ok: 1, warn: 1, err: 1 }[level] ? level : 'ok');
   const t = document.createElement('div');
   t.className = 'toast' + (lv === 'ok' ? '' : ' ' + lv);
   t.innerHTML = `<span class="t-ico">${{ ok: '✓', warn: '!', err: '✕' }[lv]}</span>${esc(text)}`;
+  if (action && typeof action.fn === 'function') {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn ghost sm t-undo';
+    b.textContent = action.label || '撤销';
+    b.onclick = () => { t.remove(); action.fn(); };
+    t.appendChild(b);
+  }
   $('toast-root').appendChild(t);
-  if (lv === 'ok') {
+  if (lv === 'ok' && !action) {
     for (let i = 0; i < 14; i++) {
       const s = document.createElement('span');
       s.className = 'paw-burst';
@@ -3870,7 +3883,18 @@ function toast(text, level) {
       setTimeout(() => s.remove(), 800);
     }
   }
-  setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 250); }, 2300);
+  setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 250); }, action ? 6000 : 2300);
+}
+/* 删除撤销：带 trash_id 的删除成功后展示 6s「撤销」toast，点击回插并重载相关列表 */
+function toastUndo(trashId, msg, reload) {
+  if (!trashId) { toast(msg); return; }
+  toast(msg, 'ok', { label: '撤销', fn: async () => {
+    try {
+      await api(`/api/trash/${trashId}/restore`, { method: 'POST' });
+      await Promise.resolve(reload && reload());
+      toast('已撤销 ✓');
+    } catch (e) { toast(e.message || '恢复失败', true); }
+  } });
 }
 document.body.addEventListener('pointerdown', e => {
   const btn = e.target.closest('.btn'); if (!btn) return;
