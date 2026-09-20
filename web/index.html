@@ -129,7 +129,7 @@ a { color: var(--accent); }
 .topbar > .logo, .topbar > .tabs, .topbar > .topbar-right { transition: opacity .16s var(--ease), visibility 0s; visibility: visible; }
 .topbar.island > .logo, .topbar.island > .tabs, .topbar.island > .topbar-right {
   opacity: 0; pointer-events: none; visibility: hidden; transition: opacity .16s var(--ease), visibility 0s .16s; }
-.topbar.island { width: 496px; height: 42px; padding: 0; border-radius: 999px; background: color-mix(in srgb, var(--bg) 92%, transparent); }
+.topbar.island { width: 640px; height: 42px; padding: 0; border-radius: 999px; background: color-mix(in srgb, var(--bg) 92%, transparent); max-width: calc(100% - 28px); }
 /* island 态禁止页签药丸被 flex 压缩：否则 moveTabInd 在压缩布局里量出错误光标坐标，膨胀后光标错位 */
 .topbar.island > .tabs { flex-shrink: 0; }
 .mini-island { position: absolute; inset: 0; display: flex; gap: 6px; align-items: center; justify-content: center;
@@ -765,10 +765,10 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
 .reminder-item, .activity-item, .rec-row, .exp-row, .sess-item {
   transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
 }
-.reminder-item:hover, .activity-item:hover, .rec-row:hover, .exp-row:hover, .sess-item:hover {
+.reminder-item:hover, .activity-item:hover, .rec-row:hover, .exp-row:hover, .sess-item:hover, .box-row:hover {
   background: var(--surface-2); border-color: var(--border); transform: translateX(6px);
 }
-.reminder-item:focus-visible, .activity-item:focus-visible, .rec-row:focus-visible, .exp-row:focus-visible, .sess-item:focus-visible {
+.reminder-item:focus-visible, .activity-item:focus-visible, .rec-row:focus-visible, .exp-row:focus-visible, .sess-item:focus-visible, .box-row:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px;
 }
 .sess-item:focus-within .sess-del { opacity: 1; }
@@ -1305,6 +1305,125 @@ html[data-theme="dark"] .msg.user .bubble {
   padding: 10px 2px; border-bottom: 1px solid var(--border); font-size: 13.5px; }
 .bk-row:last-child { border-bottom: none; }
 .bk-sub { color: var(--text-3); font-size: 11.5px; margin-top: 2px; }
+/* ---------- 药箱 ---------- */
+.med-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+.stat-ico.d { background: var(--danger-soft); color: var(--danger); }
+.stat-card.f-on { box-shadow: inset 0 0 0 2px var(--accent-strong); }
+.stat-card.f-on .stat-num { color: var(--accent-strong); }
+.med-stats.filtering .stat-card:not(.f-on) { opacity: .5; }
+.stat-card.disabled { cursor: default; }
+.box-row { display: block; padding: 12px 4px; border-bottom: 1px solid var(--border); cursor: pointer; min-width: 0; }
+.box-row:last-child { border-bottom: none; }
+.box-line1 { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.box-line2 { display: flex; align-items: center; gap: 10px; margin-top: 9px; min-width: 0; flex-wrap: wrap; }
+.box-name { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.box-row.expired .box-name { color: var(--text-3); }
+.box-row.expired { opacity: .82; }
+.box-stock { margin-left: auto; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; flex: none; }
+.exp-bar { flex: 1 1 80px; min-width: 80px; margin: 0; }
+.exp-bar i { transition: width 400ms var(--ease), background-color var(--dur) var(--ease); }
+.eb-ok { background: var(--success); } .eb-warn { background: var(--warn); } .eb-bad { background: var(--danger); }
+.box-meta { font-size: 12px; color: var(--text-3); flex: none; }
+.box-pet { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px 2px 6px; border-radius: var(--r-pill);
+  font-size: 11.5px; background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border); }
+.ocr-item { display: flex; gap: 10px; align-items: baseline; padding: 10px 2px; border-bottom: 1px dashed var(--border); font-size: 13.5px; }
+.ocr-item:last-of-type { border-bottom: none; }
+.ocr-meta { color: var(--text-3); font-size: 12px; }
+/* ---------- AI 巡检 ---------- */
+.scout-hero { position: relative; overflow: hidden; padding: 24px 26px; border-radius: var(--r-card); border: 1px solid;
+  margin-bottom: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px;
+  transition: background-color var(--dur-slow) var(--ease), border-color var(--dur-slow) var(--ease); }
+.scout-hero.calm { background: var(--success-soft); border-color: color-mix(in srgb, var(--success) 30%, var(--border)); }
+.scout-hero.watch { background: var(--warn-soft); border-color: color-mix(in srgb, var(--warn) 35%, var(--border)); }
+.scout-hero.high { background: var(--danger-soft); border-color: color-mix(in srgb, var(--danger) 40%, var(--border)); }
+.scout-hero .brief-title { width: 100%; }
+.scout-hero.calm .brief-title { color: var(--success); }
+.scout-hero.watch .brief-title { color: var(--warn); }
+.scout-hero.high .brief-title { color: var(--danger); }
+.scout-main { display: flex; align-items: baseline; gap: 10px; }
+.scout-glyph { font-size: 18px; font-weight: 700; }
+.scout-hero.calm .scout-glyph { color: var(--success); } .scout-hero.watch .scout-glyph { color: var(--warn); } .scout-hero.high .scout-glyph { color: var(--danger); }
+.scout-calm-t { font-family: var(--font-title); font-size: 32px; font-weight: 600; color: var(--text); }
+.scout-num { font-family: var(--font-title); font-size: 40px; font-weight: 700; letter-spacing: -1px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.scout-unit { font-size: 16px; color: var(--text-2); }
+.scout-hero .brief-meta { width: 100%; }
+.scout-acts { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.scout-paw { position: absolute; right: -10px; bottom: -18px; font-size: 110px; opacity: .10; transform: rotate(-12deg); pointer-events: none; }
+.find-card { border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 12px;
+  background: var(--surface); padding: 14px 16px; }
+.find-card + .find-card { margin-top: 10px; }
+.find-card.level-high { border-left-color: var(--danger); }
+.find-card.level-warn { border-left-color: var(--warn); }
+.find-card.level-high .exp-cat-badge { background: var(--danger-soft); color: var(--danger); }
+.find-card.level-warn .exp-cat-badge { background: var(--warn-soft); color: var(--warn); }
+.find-card.level-info:not(.insight) .exp-cat-badge { background: var(--accent-soft); color: var(--accent-strong); }
+.find-card.insight { border-left-color: var(--medication); }
+.find-head { display: flex; align-items: center; gap: 10px; }
+.find-title { font-size: 14.5px; font-weight: 600; min-width: 0; }
+.find-metrics { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+#patrol-findings .find-card.rise-in { animation: rise-in .34s var(--ease) both; animation-delay: calc(var(--i) * 80ms); }
+.daily-row summary { list-style: none; cursor: pointer; }
+.daily-row summary::-webkit-details-marker { display: none; }
+.daily-row .bk-row { border-bottom: none; }
+.daily-row[open] .daily-body { padding: 2px 2px 12px; }
+.daily-body { animation: fade-enter .32s var(--ease); }
+/* ---------- 药箱 / 巡检 焦点避让悬浮胶囊 ---------- */
+#view-medbox [tabindex], #view-patrol [tabindex], #view-medbox button, #view-patrol button, #view-medbox input, #view-medbox select, #view-medbox textarea { scroll-margin-top: 96px; }
+/* ---------- 宠物收藏卡（CSS 3D 全息；膜色相只用暖色子集） ---------- */
+.modal.holo-host { background: transparent; border: none; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none;
+  padding: 0; max-width: none; overflow: visible; max-height: none; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.holo-stage { perspective: 1100px; }
+@property --holo-deg { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+@keyframes holo-spin { to { --holo-deg: 360deg; } }
+.holo-card { width: min(330px, 78vw, calc((100vh - 200px) * 2 / 3)); aspect-ratio: 2 / 3; border-radius: 20px; position: relative;
+  transform-style: preserve-3d; --rx: 0deg; --ry: 0deg; --cx: 50%; --cy: 30%;
+  transform: rotateX(var(--rx)) rotateY(var(--ry)); transition: transform .08s linear;
+  box-shadow: 0 30px 60px -25px rgba(20,16,12,.55); background: var(--surface-2); }
+.holo-card.enter { animation: img-pop .45s var(--ease); }
+.hc-layer { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; }
+.hc-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.hc-photo.emoji { background: linear-gradient(145deg, var(--accent-soft), var(--surface-2)); display: grid; place-items: center; }
+.hc-photo.emoji span { font-size: 110px; }
+.hc-scrim { background: linear-gradient(180deg, rgba(23,22,20,.08) 0%, transparent 32%, rgba(23,22,20,.55) 70%, rgba(23,22,20,.84) 100%); }
+.hc-film { pointer-events: none; mix-blend-mode: color-dodge; opacity: var(--film, .32);
+  background: conic-gradient(from var(--holo-deg, 0deg), transparent 0%, color-mix(in srgb, var(--accent) 60%, transparent) 12%,
+    var(--accent-2) 24%, color-mix(in srgb, var(--warn) 55%, transparent) 38%, transparent 52%,
+    color-mix(in srgb, var(--medication) 55%, transparent) 68%, var(--accent-2) 80%, transparent 100%);
+  animation: holo-spin 6.5s linear infinite; }
+.hc-spec { pointer-events: none; mix-blend-mode: overlay;
+  background: radial-gradient(220px circle at var(--cx) var(--cy), rgba(255,255,255,.38), transparent 65%); }
+.hc-content { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: 18px; gap: 10px; border-radius: inherit; }
+.hc-code { position: absolute; top: 14px; left: 16px; font-size: 10.5px; letter-spacing: 1.2px; color: var(--accent-2); }
+.hc-name { font-family: var(--font-title); font-size: 26px; font-weight: 700; color: #FBFAF7; letter-spacing: -.3px; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.hc-rar { margin-left: auto; font-size: 11px; font-weight: 700; letter-spacing: 1px; padding: 3px 9px; border-radius: var(--r-pill);
+  color: #FBFAF7; background: rgba(251,250,247,.16); border: 1px solid rgba(251,250,247,.35); flex: none; }
+.hc-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.hc-stat { background: rgba(23,22,20,.35); backdrop-filter: blur(4px); border: 1px solid rgba(251,250,247,.14); border-radius: 10px; padding: 8px 10px; min-width: 0; }
+.hc-stat .k { font-size: 10.5px; color: rgba(251,250,247,.7); display: block; }
+.hc-stat .v { font-size: 15px; font-weight: 600; color: #FBFAF7; font-variant-numeric: tabular-nums; }
+.hc-days { display: flex; align-items: baseline; gap: 8px; color: #FBFAF7; }
+.hc-days b { font-family: var(--font-title); font-size: 30px; font-weight: 700; line-height: 1; }
+.hc-days .t { font-size: 12.5px; color: rgba(251,250,247,.75); }
+.hc-motto { font-size: 12px; color: rgba(251,250,247,.85); font-style: italic; }
+/* 稀有度四档：环 + 膜浓度（形状差异色盲可分：1px灰/1px橙/2px紫+光/conic流动环） */
+.holo-card.r-R { --film: .18; } .holo-card.r-R::before { border: 1px solid var(--border); }
+.holo-card.r-SR { --film: .32; } .holo-card.r-SR::before { border: 1px solid color-mix(in srgb, var(--accent) 60%, var(--border)); }
+.holo-card.r-SSR { --film: .44; } .holo-card.r-SSR::before { border: 2px solid var(--medication); }
+.holo-card.r-SSR { box-shadow: 0 0 32px -6px color-mix(in srgb, var(--medication) 50%, transparent), 0 30px 60px -25px rgba(20,16,12,.55); }
+.holo-card.r-UR { --film: .55; }
+.holo-card.r-UR::before { border: 2px solid transparent; background: conic-gradient(from var(--holo-deg, 0deg), var(--accent), var(--accent-2), var(--warn), var(--medication), var(--accent)) border-box;
+  -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0); mask-composite: exclude;
+  animation: holo-spin 4.5s linear infinite; }
+.holo-card::before { content: ''; position: absolute; inset: -2px; border-radius: 22px; pointer-events: none; }
+html[data-theme="dark"] .hc-film { opacity: calc(var(--film, .32) + .1); mix-blend-mode: screen; }
+.holo-acts { display: flex; gap: 10px; }
+/* calm 档停"常驻自转"（膜/UR环），跟手倾斜为交互反馈保留；reduced-motion 倾斜由 JS 不绑定，这里 CSS 兜底归正 */
+html[data-fx="calm"] .hc-film, html[data-fx="calm"] .holo-card.r-UR::before { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .hc-film, .holo-card.r-UR::before { animation: none !important; }
+  .hc-film { --holo-deg: 135deg; }
+  .holo-card { transform: none !important; }
+}
 /* 回忆大图 */
 .modal .lb-img { animation: img-pop .45s var(--ease); border-radius: 12px; }
 @keyframes img-pop { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: scale(1); } }
@@ -1358,6 +1477,8 @@ html[data-fx="calm"] .stat-card.tilt { transform: none !important; }
     <span class="tab-ind" id="tab-ind" aria-hidden="true"></span>
     <button class="tab-btn active" role="tab" aria-selected="true" data-view="dashboard" onclick="go('dashboard')">仪表盘</button>
     <button class="tab-btn" role="tab" aria-selected="false" data-view="library" onclick="go('library')">宠物</button>
+    <button class="tab-btn" role="tab" aria-selected="false" data-view="medbox" onclick="go('medbox')">药箱</button>
+    <button class="tab-btn" role="tab" aria-selected="false" data-view="patrol" onclick="go('patrol')">巡检</button>
     <button class="tab-btn" role="tab" aria-selected="false" data-view="ledger" onclick="go('ledger')">记账</button>
     <button class="tab-btn" role="tab" aria-selected="false" data-view="calendar" onclick="go('calendar')">日历</button>
     <button class="tab-btn" role="tab" aria-selected="false" data-view="memories" onclick="go('memories')">回忆集</button>
@@ -1540,6 +1661,33 @@ html[data-fx="calm"] .stat-card.tilt { transform: none !important; }
     <div id="ledger-list"></div>
   </section>
 
+  <!-- 药箱 -->
+  <section class="view" id="view-medbox">
+    <div class="page-head">
+      <div class="page-title">药箱</div>
+      <div class="page-sub">家庭常备药一目了然——有效期、开封状态、共享宠物</div>
+    </div>
+    <div class="med-stats" id="medbox-stats"></div>
+    <div class="exp-toolbar">
+      <span class="page-sub" id="medbox-filter-hint" style="font-size:12.5px"></span>
+      <button class="btn ghost sm" onclick="openMedboxOcrModal()">📷 拍照入库</button>
+      <button class="btn primary" onclick="openMedboxModal()">＋ 添加药品</button>
+    </div>
+    <div class="card card-pad briefing-card" id="medbox-brief" style="margin-bottom:14px;display:none"></div>
+    <div id="medbox-list"></div>
+  </section>
+
+  <!-- AI 巡检 -->
+  <section class="view" id="view-patrol">
+    <div class="page-head">
+      <div class="page-title">巡检</div>
+      <div class="page-sub">管家每天替你把所有数据过一遍——有事才说话，没事就是一切平稳</div>
+    </div>
+    <div class="scout-hero calm" id="patrol-hero" role="status" aria-live="polite"></div>
+    <div id="patrol-findings"></div>
+    <div class="card card-pad" id="patrol-history" style="margin-top:14px;display:none"></div>
+  </section>
+
   <!-- 健康日历 -->
   <section class="view" id="view-calendar">
     <div class="page-head">
@@ -1641,6 +1789,7 @@ const state = {
   species: null,
   chatSessions: [], chatSessionId: null,
   ledgerYM: '', ledgerCache: [], ledgerBudget: null,
+  medboxItems: [], medFilter: '',
   calYM: '', calCache: null, dayCardISO: null,
 };
 const TYPE_LABEL = { vaccine:'疫苗', checkup:'体检', deworm:'驱虫', medication:'喂药', clinic:'就诊' };
@@ -1905,7 +2054,7 @@ const todayISO = () => localISO(new Date());
    ============================================================ */
 let currentView = 'dashboard';
 let _countedOnce = false;   // 统计数字滚动只在会话内首次进入仪表盘时播放
-const VIEW_ORDER = ['dashboard', 'library', 'ledger', 'calendar', 'memories', 'chat', 'records', 'reminders', 'detail', 'memwall'];
+const VIEW_ORDER = ['dashboard', 'library', 'medbox', 'patrol', 'ledger', 'calendar', 'memories', 'chat', 'records', 'reminders', 'detail', 'memwall'];
 function go(view, opts) {
   const prev = currentView;
   currentView = view;
@@ -1936,6 +2085,8 @@ function go(view, opts) {
   if (view === 'chat') renderChat();
   if (view === 'ledger') renderLedger();
   if (view === 'calendar') renderCalendar();
+  if (view === 'medbox') renderMedbox();
+  if (view === 'patrol') renderPatrol();
   window.scrollTo({ top: 0 });
 }
 
@@ -2214,6 +2365,7 @@ async function openDetail(petId, from) {
       <div class="detail-actions">
         <button class="btn primary sm" onclick="openRecordModal()">＋ 新增记录</button>
         <button class="btn sm" onclick="openCarePlanModal(${p.id})">✦ 护理计划</button>
+        <button class="btn sm" onclick="openHoloCard(${p.id})">✦ 收藏卡</button>
         <button class="btn sm" onclick="openWeightModal(${p.id})">＋ 记体重</button>
         <button class="btn sm" onclick="openPetModal(${p.id})">编辑</button>
         <button class="btn sm danger" onclick="askDeletePet(${p.id}, this)">删除</button>
@@ -2690,6 +2842,473 @@ async function submitBudget(e) {
 }
 
 /* ============================================================
+   药箱：家庭常备药（状态机由后端 medbox_status 计算，前端只渲染）
+   ============================================================ */
+const MF_LABEL = { tablet:'药片', capsule:'胶囊', liquid:'口服液', drops:'滴剂', ointment:'外用', spray:'喷剂', injection:'针剂', other:'其他' };
+const MF_COLOR = { tablet:'var(--accent-strong)', capsule:'var(--success)', liquid:'var(--diet-wet)', drops:'var(--medication)', ointment:'var(--warn)', spray:'var(--text-2)', injection:'var(--danger)', other:'var(--text-2)' };
+const MF_SOFT  = { tablet:'var(--accent-soft)', capsule:'var(--success-soft)', liquid:'var(--diet-wet-soft)',
+  drops:'color-mix(in srgb, var(--medication) 12%, transparent)', ointment:'var(--warn-soft)', spray:'var(--surface-2)', injection:'var(--danger-soft)', other:'var(--surface-2)' };
+let _ocrDraft = [];
+
+function medCnt(s) { return state.medboxItems.filter(i => i.status === s).length; }
+const fmtQty = m => m.qty == null ? '' : (m.qty % 1 === 0 ? m.qty : m.qty.toFixed(1).replace(/\.0$/, '')) + ' ' + esc(m.unit || '');
+const medRemText = m => m.remain_days == null ? '不限期' : (m.remain_days < 0 ? `已过期 ${-m.remain_days} 天` : `剩 ${m.remain_days} 天`);
+
+async function renderMedbox() {
+  const list = $('medbox-list');
+  try {
+    state.medboxItems = (await api('/api/medbox')).items || [];
+  } catch (e) {
+    list.innerHTML = `<div class="empty-hint">药品清单加载失败，<button type="button" class="chip" onclick="renderMedbox()">重试</button></div>`;
+    return;
+  }
+  renderMedboxStats();
+  renderMedboxList();
+  loadMedboxBrief();
+}
+function renderMedboxStats() {
+  const nOk = medCnt('ok'), nSoon = medCnt('soon'), nExp = medCnt('expired');
+  const ico = {
+    ok:  '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
+    soon:'<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+    exp: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/>',
+  };
+  const card = (key, icoCls, n, label, sv) => {
+    const clickable = n > 0;
+    const on = state.medFilter === key;
+    return `<div class="card stat-card ${clickable ? 'clickable' : 'disabled'} ${on ? 'f-on' : ''}"
+      role="${clickable ? 'button' : 'presentation'}" ${clickable ? `tabindex="0" aria-pressed="${on}" onclick="medFilterTo('${key}')"` : ''}>
+      <span class="stat-ico ${icoCls}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${sv}</svg></span>
+      <div class="stat-num" data-num="${n}">${n}</div><div class="stat-label">${label}</div></div>`;
+  };
+  const box = $('medbox-stats');
+  box.className = 'med-stats' + (state.medFilter ? ' filtering' : '');
+  box.innerHTML = card('ok', 'g', nOk, '可用', ico.ok) + card('soon', 'w', nSoon, '临期', ico.soon) + card('expired', 'd', nExp, '已过期', ico.exp);
+  animateCount(box);
+}
+function medFilterTo(f) {
+  state.medFilter = state.medFilter === f ? '' : f;
+  const name = { ok: '可用', soon: '临期', expired: '已过期', '': '全部' }[state.medFilter];
+  $('medbox-filter-hint').textContent = state.medFilter ? `已筛选：${name} ${medCnt(state.medFilter)} 项（再点取消）` : '';
+  renderMedboxStats();
+  renderMedboxList();
+  toast(`筛选：${name} ${state.medFilter ? medCnt(state.medFilter) : state.medboxItems.length} 项`);
+}
+function renderMedboxList() {
+  const f = state.medFilter;
+  const items = f ? state.medboxItems.filter(i => i.status === f) : state.medboxItems;
+  const list = $('medbox-list');
+  if (!items.length) {
+    list.innerHTML = state.medboxItems.length
+      ? `<div class="empty-state"><div class="big" aria-hidden="true">🔍</div><h3>这个筛选下没有药品</h3><p><button type="button" class="btn ghost sm" onclick="medFilterTo('${f}')">清除筛选</button></p></div>`
+      : `<div class="empty-state"><div class="big" aria-hidden="true">💊</div><h3>药箱还是空的</h3><p>疫苗本、处方药、常备外用药都可以登记进来，过期前管家会提醒你。</p><button class="btn primary sm" onclick="openMedboxModal()">＋ 添加第一盒药</button></div>`;
+    return;
+  }
+  list.innerHTML = `<div class="card card-pad">` + items.map(medboxRowHTML).join('') + `</div>`;
+}
+function medboxRowHTML(m) {
+  const barCls = m.status === 'expired' ? 'eb-bad' : m.status === 'soon' ? 'eb-warn' : 'eb-ok';
+  const pct = m.remain_pct == null ? 100 : m.remain_pct;
+  const rem = medRemText(m);
+  const warn = m.status === 'expired' ? '<span class="badge ill">⛔ 已过期</span>' : m.status === 'soon' ? '<span class="badge attention">⚠ 临期</span>' : '';
+  const pets = (m.pets || []);
+  return `<div class="box-row ${m.status === 'expired' ? 'expired' : ''}" data-id="${m.id}" role="button" tabindex="0"
+    aria-label="${esc(m.name)}，${rem}，点击编辑" onclick="openMedboxModal(${m.id})">
+    <div class="box-line1">
+      <span class="box-name">${esc(m.name)}</span>
+      <span class="exp-cat-badge" style="background:${MF_SOFT[m.form] || MF_SOFT.other};color:${MF_COLOR[m.form] || MF_COLOR.other}">${esc(m.form_label || MF_LABEL[m.form] || '其他')}</span>
+      ${warn}
+      <span class="box-stock">${fmtQty(m)}</span>
+      <span class="rem-days ${m.status === 'expired' ? 'danger' : m.status === 'soon' ? 'warn' : ''}">${m.status === 'ok' && m.remain_days == null ? '' : rem}</span>
+    </div>
+    <div class="box-line2">
+      <div class="med-bar exp-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-valuetext="${esc(rem + (m.effective_deadline ? '，有效期至 ' + m.effective_deadline : '，未设有效期'))}"><i class="${barCls}" style="width:${pct}%"></i></div>
+      <span class="box-meta">效期 ${esc(m.effective_deadline || '—')}${m.opened ? ' · 已开封' : ''}${m.spec ? ' · ' + esc(m.spec) : ''}</span>
+      ${pets.slice(0, 3).map(p => `<span class="box-pet">${esc(p.avatar || '🐾')} ${esc(p.name)}</span>`).join('')}
+      ${pets.length > 3 ? `<span class="box-pet">+${pets.length - 3}</span>` : ''}
+    </div>
+  </div>`;
+}
+async function loadMedboxBrief() {
+  const box = $('medbox-brief');
+  if (!box) return;
+  try {
+    const d = await api('/api/medbox/briefing');
+    const b = d.briefing;
+    if (!b || !b.text) { box.style.display = 'none'; return; }
+    box.style.display = '';
+    box.innerHTML = `<div class="brief-title">✦ 药箱管家</div><div class="wi-text">${esc(b.text)}</div>
+      <div class="brief-meta">${b.mode === 'agent' ? 'AI 撰写' : '规则生成'}${b.generated_at ? ' · ' + esc(b.generated_at) : ''}</div>`;
+  } catch (e) { box.style.display = 'none'; }
+}
+function medboxPetChips(selected) {
+  const sel = selected || [];
+  return `<div class="chip-group" role="group" aria-label="选择共享该药品的宠物">${state.pets.map(p =>
+    `<button type="button" class="chip ${sel.includes(p.id) ? 'on' : ''}" data-pet="${p.id}" aria-pressed="${sel.includes(p.id)}"
+      onclick="this.classList.toggle('on');this.setAttribute('aria-pressed',this.classList.contains('on'))">${esc(p.avatar || '🐾')} ${esc(p.name)}</button>`).join('')}</div>`;
+}
+function openMedboxModal(id) {
+  const m = id ? state.medboxItems.find(x => x.id === id) : null;
+  if (id && !m) return;
+  openModal(`
+  <h3>${id ? '编辑药品' : '添加药品'}</h3>
+  <form id="medbox-form" onsubmit="return submitMedbox(event, ${id || 0})">
+    <div class="form-grid">
+      <div class="form-field full"><label>药名 <span class="req">*</span></label><input name="name" required maxlength="60" value="${esc(m?.name || '')}" placeholder="如：大宠爱驱虫滴剂"></div>
+      <div class="form-field"><label>剂型</label><select name="form">${Object.entries(MF_LABEL).map(([v, t]) => `<option value="${v}" ${(m?.form || 'other') === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+      <div class="form-field"><label>规格 · 用量</label><input name="spec" maxlength="200" value="${esc(m?.spec || '')}" placeholder="如：0.67ml×3支/盒"></div>
+      <div class="form-field"><label>余量</label><input name="qty" type="number" step="0.01" min="0" value="${m?.qty ?? ''}" placeholder="不填=未知"></div>
+      <div class="form-field"><label>单位</label><input name="unit" maxlength="20" value="${esc(m?.unit || '')}" placeholder="支 / 片 / 次"></div>
+      <div class="form-field"><label>有效期至</label><input name="expiry_date" type="date" value="${esc(m?.expiry_date || '')}"></div>
+      <div class="form-field"><label>开封日期（未开封留空）</label><input name="opened_date" type="date" value="${esc(m?.opened_date || '')}"></div>
+      <div class="form-field"><label>开封后保质期（天）</label><input name="open_period_days" type="number" min="1" max="3650" value="${m?.open_period_days ?? 90}"></div>
+      <div class="form-field"><label>存放位置</label><input name="location" maxlength="100" value="${esc(m?.location || '')}" placeholder="药箱上层"></div>
+      <div class="form-field full"><label>共享宠物</label>${medboxPetChips((m?.pets || []).map(p => p.id))}</div>
+      <div class="form-field full"><label>用途备注</label><textarea name="purpose" rows="2" maxlength="200" placeholder="治什么的、医生怎么叮嘱的…">${esc(m?.purpose || '')}</textarea></div>
+    </div>
+    <div class="modal-actions">
+      ${id ? `<button type="button" class="btn danger" style="margin-right:auto" onclick="deleteMedbox(${id}, this)">删除</button>` : ''}
+      <button type="button" class="btn" onclick="closeModal()">取消</button>
+      <button type="submit" class="btn primary" id="medbox-save-btn">${id ? '保存修改' : '入库'}</button>
+    </div>
+  </form>`);
+}
+async function submitMedbox(e, id) {
+  e.preventDefault();
+  const f = Object.fromEntries(new FormData(e.target).entries());
+  const pet_ids = [...e.target.querySelectorAll('.chip-group .chip.on')].map(c => +c.dataset.pet);
+  const body = {
+    name: (f.name || '').trim(), form: f.form || 'other', spec: (f.spec || '').trim(),
+    qty: f.qty === '' ? null : +f.qty, unit: (f.unit || '').trim(),
+    expiry_date: f.expiry_date || null, opened_date: f.opened_date || null,
+    location: (f.location || '').trim(), purpose: (f.purpose || '').trim(), pet_ids,
+  };
+  if (f.open_period_days !== '') body.open_period_days = +f.open_period_days;   // 空=不改动（编辑时清框不该静默变 90）
+  try {
+    if (id) await api(`/api/medbox/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+    else await api('/api/medbox', { method: 'POST', body: JSON.stringify(body) });
+    flashSaved($('medbox-save-btn'));
+    setTimeout(async () => { closeModal(); await renderMedbox(); toast(id ? '药品已更新 ✓' : '已入库 ✓'); }, 450);
+  } catch (err) { toast(err.message, true); }
+  return false;
+}
+async function deleteMedbox(id, btn) {
+  if (btn) btn.classList.add('shake');
+  const row = _fadeRow(`.box-row[data-id="${id}"]`);
+  try {
+    const [r] = await Promise.all([api(`/api/medbox/${id}`, { method: 'DELETE' }), row ? _fadeWait() : null]);
+    closeModal(); await renderMedbox(); toastUndo(r.trash_id, '药品已删除', () => renderMedbox());
+  } catch (e) { if (row) row.classList.remove('removing'); toast(e.message, true); if (btn) btn.classList.remove('shake'); }
+}
+/* 拍照入库：视觉识别 → 草稿核对 → 确认才入库（HITL 与记录草稿同一纪律） */
+function openMedboxOcrModal() {
+  _ocrDraft = [];
+  openModal(`<h3>📷 拍照入库</h3>
+    <p style="color:var(--text-2);font-size:13px;margin-bottom:10px">拍药盒、处方单或疫苗本，AI 识别生成草稿——核对确认后才会入药箱。</p>
+    <input aria-label="选择药盒或处方照片" type="file" accept="image/*" onchange="runMedboxOcr(this)">
+    <div id="medocr-out"><div class="empty-hint">选择图片开始识别</div></div>
+    <div class="modal-actions"><button class="btn" onclick="closeModal()">关闭</button>
+      <button class="btn primary" id="medocr-ok" style="display:none" onclick="commitOcrDraft()">全部入库</button></div>`);
+}
+async function runMedboxOcr(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const out = $('medocr-out');
+  out.innerHTML = '<div class="empty-hint">识别中，约需十几秒…</div>';
+  try {
+    const img = await compressImage(file);
+    const r = await api('/api/medbox/ocr', { method: 'POST', body: JSON.stringify({ image: img }) });
+    _ocrDraft = r.items || [];
+    if (!_ocrDraft.length) { out.innerHTML = '<div class="empty-hint">没识别出药品，换一张更清晰的图，或<button type="button" class="chip" onclick="closeModal();openMedboxModal()">手动添加</button></div>'; return; }
+    out.innerHTML = _ocrDraft.map(it => `<div class="ocr-item"><b>${esc(it.name)}</b>
+      <span class="ocr-meta">${esc(MF_LABEL[it.form] || '')} ${esc(it.spec || '')} ${it.expiry_date ? '· 效期 ' + esc(it.expiry_date) : ''} ${esc(it.purpose || '')}</span></div>`).join('');
+    $('medocr-ok').style.display = '';
+  } catch (e) {
+    out.innerHTML = `<div class="empty-hint">${esc(e.message)}，可改用<button type="button" class="chip" onclick="closeModal();openMedboxModal()">手动添加</button></div>`;
+  }
+}
+async function commitOcrDraft() {
+  const failed = [];
+  let n = 0;
+  for (const it of _ocrDraft) {
+    try {
+      await api('/api/medbox', { method: 'POST', body: JSON.stringify({ name: it.name, form: it.form || 'other', spec: it.spec || '', qty: it.qty ?? null, unit: it.unit || '', expiry_date: it.expiry_date || null, opened_date: null, open_period_days: 90, location: '', purpose: it.purpose || '', pet_ids: [] }) });
+      n++;
+    } catch (e) { failed.push({ name: it.name, err: e.message }); }
+  }
+  if (!failed.length) { closeModal(); await renderMedbox(); toast(`已入库 ${n} 种药品 ✓`); return; }
+  // 部分失败不关窗不吞声：失败项列出来给手动补录入口
+  _ocrDraft = _ocrDraft.filter(it => !failed.some(f => f.name === it.name));
+  if (!_ocrDraft.length) $('medocr-ok').style.display = 'none';
+  $('medocr-out').insertAdjacentHTML('beforeend', failed.map(f =>
+    `<div class="ocr-item"><b style="color:var(--danger)">✕ ${esc(f.name)}</b><span class="ocr-meta">${esc(f.err)}</span>
+     <button type="button" class="chip" style="margin-left:auto" onclick="closeModal();openMedboxModal()">手动补录</button></div>`).join(''));
+  toast(`成功 ${n} 种，${failed.length} 种失败（见列表）`, 'warn');
+}
+
+/* ============================================================
+   AI 巡检：规则引擎出事实与通知资格，LLM 只做表达（后端 /api/patrol）
+   契约：GET  /api/patrol → { level:'calm'|'watch'|'high', findings:[{id,level,title,ai_text,facts:[{k,v}],link:{view,opts}}],
+          insights:[{id,ai_text}], mode:'agent'|'rules', generated_at, fresh, scanned }
+          POST /api/patrol/refresh → { ok, capped }
+   ============================================================ */
+const PATROL_LEVEL = {
+  calm: { label: '一切平稳', icon: '✓', ico: 'g', hint: '6 项健康信号已核对，没有异常' },
+  watch:{ label: '需关注',   icon: '▲', ico: 'w', hint: '有信号值得看一眼' },
+  high: { label: '高危',     icon: '✕', ico: 'd', hint: '建议尽快处理红色项' },
+};
+let _patrolData = null;
+
+async function renderPatrol() {
+  const hero = $('patrol-hero'), list = $('patrol-findings');
+  if (!hero) return;
+  list.innerHTML = '<div class="card card-pad"><div class="skel sk-line w40" style="height:18px"></div><div class="skel sk-line w88"></div><div class="skel sk-line w60" style="margin-bottom:0"></div></div>';
+  try {
+    const d = await api('/api/patrol');
+    _patrolData = d;
+    renderPatrolHero(d);
+    renderPatrolFindings(d);
+    renderPatrolHistory(d);
+    patrolNotifyCheck(d);
+  } catch (e) {
+    hero.className = 'scout-hero calm';
+    hero.innerHTML = '<div class="wi-text">巡检数据没拿到，<button type="button" class="chip" onclick="renderPatrol()">重试</button></div>';
+    list.innerHTML = '';
+  }
+}
+function renderPatrolHero(d) {
+  const lv = PATROL_LEVEL[d.level] ? d.level : 'calm';
+  const L = PATROL_LEVEL[lv];
+  const nonInfo = (d.findings || []).filter(f => f.level !== 'info').length;
+  const n = nonInfo || (d.findings || []).length;   // 仅 info 时发现数回退总数，不显示「0 项」
+  const hero = $('patrol-hero');
+  hero.className = 'scout-hero ' + lv;
+  hero.innerHTML = `
+    <div class="brief-title">✦ AI 巡检 · 今日</div>
+    <div class="scout-main"><span class="scout-glyph" aria-hidden="true">${L.icon}</span>${lv === 'calm'
+      ? `<span class="scout-calm-t">${L.label}</span>`
+      : `<span class="scout-num" data-num="${n}">${n}</span><span class="scout-unit">项${L.label}</span>`}</div>
+    <div class="brief-meta">${esc(L.hint)} · 已核对 ${d.scanned || 6} 项信号${d.generated_at ? ' · ' + esc(d.generated_at) : ''} · ${d.mode === 'agent' ? 'AI 撰写' : '规则模式'}</div>
+    <div class="scout-acts">
+      ${lv === 'high' ? '<button class="btn sm" onclick="patrolGotoFirst()">去处理 →</button>' : ''}
+      <button class="btn sm ${lv === 'calm' ? '' : 'primary'}" id="patrol-refresh" onclick="patrolRefresh()">↻ 重新巡检</button>
+    </div>
+    ${lv === 'calm' ? '<span class="scout-paw" aria-hidden="true">🐾</span>' : ''}`;
+  animateCount(hero);
+}
+function patrolGotoFirst() {
+  const first = (_patrolData && _patrolData.findings || []).find(f => f.level === 'high');
+  if (first && first.link) go(first.link.view, first.link.opts || undefined);
+}
+async function patrolRefresh() {
+  const btn = $('patrol-refresh');
+  if (btn) { btn.classList.add('loading'); btn.disabled = true; }
+  try {
+    const r = await api('/api/patrol/refresh', { method: 'POST' });
+    if (r.capped) { toast('今日 AI 润色额度已用完，明天自动恢复；当前展示的是最新规则结果'); return; }
+    toast('正在重新巡检…');
+    setTimeout(renderPatrol, 1200);
+  } catch (e) { toast(e.message, true); if (btn) { btn.classList.remove('loading'); btn.disabled = false; } }
+}
+function renderPatrolFindings(d) {
+  const box = $('patrol-findings');
+  const f = (d.findings || []).concat((d.insights || []).map(i => Object.assign({ insight: true }, i)));
+  if (!f.length) {
+    box.innerHTML = '<div class="empty-state"><div class="big" aria-hidden="true">🛡️</div><h3>今天没有发现异常</h3><p>食欲、体重、花费、提醒、药箱、体重波动 6 项信号都在正常范围。</p></div>';
+    return;
+  }
+  box.innerHTML = f.map(x => patrolFindCard(x)).join('');
+  box.querySelectorAll('.find-card').forEach((c, i) => { c.style.setProperty('--i', i); c.classList.add('rise-in'); });
+}
+function patrolFindCard(x) {
+  const lv = x.insight ? 'info' : (x.level || 'info');
+  const badge = x.insight ? 'AI 综合观察' : { high: '高危', warn: '关注', info: '提示' }[lv];
+  const bStyle = x.insight ? 'background:color-mix(in srgb, var(--medication) 12%, transparent);color:var(--medication)' : '';
+  const facts = (x.facts || []).slice(0, 4).map(p => `<span class="wc-stat"><span class="k">${esc(p.k)}</span><span class="v">${esc(String(p.v))}</span></span>`).join('');
+  const acts = x.insight ? '' : `
+    <div class="draft-ops">
+      ${x.link ? `<button class="btn sm ${lv === 'high' ? 'primary' : ''}" onclick="patrolGo(${JSON.stringify(x.link).replace(/"/g, '&quot;')})">去处理</button>` : ''}
+      <button class="btn sm ghost" data-title="${esc(x.title)}" onclick="patrolAsk(this.dataset.title)">问问 AI</button>
+    </div>`;
+  return `<div class="find-card level-${lv}" role="listitem">
+    <div class="find-head"><span class="exp-cat-badge" style="${bStyle}">${badge}</span><span class="find-title">${esc(x.title)}</span></div>
+    ${facts ? `<div class="find-metrics">${facts}</div>` : ''}
+    <div class="tl-note">${esc(x.ai_text || '')}</div>${acts}</div>`;
+}
+function patrolGo(link) { if (link && link.view) go(link.view, link.opts || undefined); }
+function patrolAsk(title) { go('chat'); setTimeout(() => { const i = $('chat-input'); if (i) { i.value = '关于「' + title + '」，我该怎么做？'; i.focus(); } }, 260); }
+function renderPatrolHistory(d) {
+  const box = $('patrol-history');
+  const his = (d.history || []).filter(h => h.date);
+  if (!his.length) { box.style.display = 'none'; return; }
+  box.style.display = '';
+  box.innerHTML = '<div class="card-title">历史日报</div>' + his.map(h => `
+    <details class="daily-row"><summary class="bk-row"><span>${esc(h.date)} · ${esc((PATROL_LEVEL[h.level] || PATROL_LEVEL.calm).label)}${h.counts && h.counts.high ? '（高危' + h.counts.high + '）' : ''}</span></summary>
+      <div class="daily-body wi-text">${esc(h.text || '')}</div></details>`).join('');
+}
+/* 巡检通知：基线持久化到 localStorage（刷新不重放不丢基线；id 自带日期，只保留今昨两日） */
+let _patrolSeen = null;
+function _patrolSeenLoad() {
+  if (_patrolSeen) return _patrolSeen;
+  try {
+    const raw = JSON.parse(localStorage.getItem('pet-patrol-seen') || '[]');
+    _patrolSeen = new Set(Array.isArray(raw) ? raw : []);
+  } catch (e) { _patrolSeen = new Set(); }
+  return _patrolSeen;
+}
+function patrolNotifyCheck(d) {
+  if (!notifyEnabled || !('Notification' in window) || Notification.permission !== 'granted') return;
+  const seen = _patrolSeenLoad();
+  const highs = (d.findings || []).filter(f => f.level === 'high').map(f => f.id);
+  const fresh = highs.filter(id => !seen.has(id));
+  if (!seen.size && !localStorage.getItem('pet-patrol-seen')) { highs.forEach(id => seen.add(id)); _patrolSeenSave(seen); return; }  // 首次建基线不弹
+  for (const id of fresh) {
+    seen.add(id);
+    const f = (d.findings || []).find(x => x.id === id);
+    try {
+      const n = new Notification(`🐾 巡检发现高危：${f ? f.title : '数据异常'}`, { tag: 'patrol-' + id, body: f && f.ai_text ? f.ai_text.slice(0, 80) : '打开巡检查看详情' });
+      n.onclick = () => { window.focus(); go('patrol'); };
+    } catch (e) {}
+  }
+  _patrolSeenSave(seen);
+}
+function _patrolSeenSave(seen) {
+  try {
+    const y = new Date(); y.setDate(y.getDate() - 1);
+    const keep = new Date().toISOString().slice(0, 10), yester = y.toISOString().slice(0, 10);
+    const arr = [...seen].filter(id => id.includes(keep) || id.includes(yester));   // 只留今昨，键随日期自然过期
+    localStorage.setItem('pet-patrol-seen', JSON.stringify(arr));
+  } catch (e) {}
+}
+
+/* ---------- 宠物收藏卡（稀有度按陪伴天数 R/SR/SSR/UR；文案先模板，AI 定制见 card-text 端点） ---------- */
+const HOLO_RAR = [
+  { min: 0,    key: 'R',   motto: '初登场的新锐守护者' },
+  { min: 90,   key: 'SR',  motto: '稳定输出的忠实伙伴' },
+  { min: 365,  key: 'SSR', motto: '久经陪伴的老牌家人' },
+  { min: 1095, key: 'UR',  motto: '传奇级传家宝限定' },
+];
+const HOLO_WHO = { cat: '九命深思者', dog: '阳光守护者', bird: '羽翼歌唱家', fish: '静默禅者', other: '独一无二的伙伴' };
+let _holoCache = {};
+
+async function openHoloCard(petId) {
+  const p = state.pets.find(x => x.id === petId);
+  if (!p) return;
+  let photo = '';
+  try {
+    const ms = (await api(`/api/memories?pet_id=${petId}`)).memories || [];
+    photo = (ms.find(m => m.image) || {}).image || '';
+    if (!photo) {
+      const rs = (await api(`/api/pets/${petId}/records`)).records || [];
+      photo = (rs.find(r => r.image) || {}).image || '';
+    }
+  } catch (e) {}
+  const anchor = p.birthday || p.created_at;
+  // 按本地零点评析（new Date('YYYY-MM-DD') 是 UTC 午夜，东八区早晨会差一天，与后端 date.fromisoformat 错位）
+  const days = anchor ? Math.max(0, Math.floor((Date.now() - new Date(String(anchor).slice(0, 10) + 'T00:00:00').getTime()) / 864e5)) : null;
+  const rar = HOLO_RAR.slice().reverse().find(r => days != null && days >= r.min) || HOLO_RAR[0];
+  const motto = `${HOLO_WHO[p.type] || HOLO_WHO.other} · ${rar.motto}`;
+  _holoCache = { id: p.id, name: p.name, type: p.type, avatar: p.avatar || TYPE_EMOJI[p.type] || '🐾', days, rar, motto, photo };
+  const stats = [
+    ['体重', p.latest_weight ? p.latest_weight + ' kg' : '—'],
+    ['年龄', esc(p.age || '—')],
+    ['健康记录', (p.record_count || 0) + ' 条'],
+    ['状态', STATUS_LABEL[p.status] || '健康'],
+  ];
+  openModal(`
+    <div class="holo-stage">
+      <div class="holo-card r-${rar.key} enter" id="holo-card" role="img"
+        aria-label="${esc(p.name)}的收藏卡，稀有度 ${rar.label || rar.key}，陪伴 ${days != null ? days : '未知'} 天">
+        <div class="hc-layer hc-photo ${photo ? '' : 'emoji'}">${photo ? `<img src="${photo}" alt="">` : `<span aria-hidden="true">${esc(_holoCache.avatar)}</span>`}</div>
+        <div class="hc-layer hc-scrim"></div><div class="hc-layer hc-film"></div><div class="hc-layer hc-spec"></div>
+        <div class="hc-content">
+          <span class="hc-code">No. ${String(p.id).padStart(3, '0')} · ${rar.key}</span>
+          <div class="hc-name">${esc(p.name)}<span class="hc-rar">${rar.key}</span></div>
+          <div class="hc-stats">${stats.map(s => `<span class="hc-stat"><span class="k">${s[0]}</span><span class="v">${s[1]}</span></span>`).join('')}</div>
+          <div class="hc-days"><span class="t">🐾 陪伴第</span><b>${days != null ? days : '—'}</b><span class="t">天</span></div>
+          <div class="hc-motto">${esc(motto)}</div>
+        </div>
+      </div>
+    </div>
+    <div class="holo-acts">
+      <button class="btn" onclick="exportHoloPng()">⤓ 存为 PNG</button>
+      <button class="btn ghost sm" id="holo-regen" onclick="holoRegenText()" style="display:none">🎲 换一句</button>
+      <button class="btn primary" onclick="closeModal()">关闭</button>
+    </div>`, true);
+  const box = $('modal-box');
+  if (box) box.classList.add('holo-host');
+  bindHoloTilt();
+  loadHoloText(petId, false);
+}
+/* AI 称号赠言：卡先出模板秒开，文案到达后原位替换；失败静默保留模板 */
+async function loadHoloText(petId, force) {
+  const rar = _holoCache.rar && _holoCache.rar.key;
+  try {
+    const d = await api(`/api/pets/${petId}/card-text${force ? '?force=1' : ''}`);
+    if (!d.text || _holoCache.id !== petId) return;
+    _holoCache.motto = `${d.text.title} · ${d.text.motto}`;
+    _holoCache.aiText = true;
+    const m = document.querySelector('#holo-card .hc-motto');
+    if (m) { m.textContent = _holoCache.motto; m.style.animation = 'none'; void m.offsetWidth; m.style.animation = 'fade-enter .32s var(--ease)'; }
+    const rb = $('holo-regen'); if (rb) rb.style.display = '';
+  } catch (e) { /* 静默 */ }
+}
+function holoRegenText() { if (_holoCache.id) loadHoloText(_holoCache.id, true); }
+function bindHoloTilt() {
+  const card = $('holo-card');
+  if (!card) return;
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;   // 减弱动效：完全不绑定倾斜
+  card.addEventListener('pointermove', e => {
+    const r = card.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width - .5, py = (e.clientY - r.top) / r.height - .5;
+    card.style.setProperty('--ry', (px * 14).toFixed(2) + 'deg');
+    card.style.setProperty('--rx', (-py * 10).toFixed(2) + 'deg');
+    card.style.setProperty('--cx', ((px + .5) * 100).toFixed(1) + '%');
+    card.style.setProperty('--cy', ((py + .5) * 100).toFixed(1) + '%');
+  });
+  card.addEventListener('pointerleave', () => {
+    card.style.transition = 'transform .4s var(--ease)';
+    card.style.setProperty('--rx', '0deg');
+    card.style.setProperty('--ry', '0deg');
+    setTimeout(() => { card.style.transition = ''; }, 420);
+  });
+}
+function exportHoloPng() {
+  const h = _holoCache;
+  if (!h.name) return;
+  try {
+    const W = 660, H = 990, c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const x = c.getContext('2d');
+    const g = x.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0, '#C2703D'); g.addColorStop(.55, '#A85A2E'); g.addColorStop(1, '#3E2C1E');
+    x.fillStyle = g; x.fillRect(0, 0, W, H);
+    const img = document.querySelector('#holo-card .hc-photo img');
+    const done = () => {
+      const sh = x.createLinearGradient(0, H * .35, 0, H);
+      sh.addColorStop(0, 'rgba(23,22,20,0)'); sh.addColorStop(1, 'rgba(23,22,20,.92)');
+      x.fillStyle = sh; x.fillRect(0, 0, W, H);
+      x.textAlign = 'left'; x.fillStyle = '#FBFAF7';
+      x.font = '600 30px Georgia, serif'; x.fillText(`No. ${String(h.id || 0).padStart(3, '0')} · ${h.rar.key}`, 46, 70);
+      x.font = '700 72px Georgia, serif'; x.fillText(h.name, 46, H - 250);
+      x.font = '600 30px sans-serif'; x.fillStyle = 'rgba(251,250,247,.85)';
+      x.fillText(`陪伴第 ${h.days != null ? h.days : '—'} 天`, 46, H - 190);
+      x.font = 'italic 26px sans-serif'; x.fillStyle = 'rgba(251,250,247,.75)';
+      x.fillText(h.motto, 46, H - 90);
+      const a = document.createElement('a');
+      a.download = `${h.name}_收藏卡.png`; a.href = c.toDataURL('image/png'); a.click();
+      toast('PNG 已导出 ✓');
+    };
+    if (img && img.complete && img.naturalWidth) {
+      try { x.drawImage(img, 0, 0, W, H); done(); }
+      catch (e) { x.font = '220px sans-serif'; x.textAlign = 'center'; x.fillText(h.avatar, W / 2, H * .45); x.textAlign = 'left'; done(); }
+    } else {
+      x.font = '220px sans-serif'; x.textAlign = 'center'; x.fillText(h.avatar, W / 2, H * .45); x.textAlign = 'left'; done();
+    }
+  } catch (e) { toast('导出失败：' + e.message, true); }
+}
+
+/* ============================================================
    健康日历：月历栅格（周一起始）+ 圆点分级 + 当日事项卡
    ============================================================ */
 const CAL_DOT = { overdue:'var(--danger)', soon:'var(--warn)', todo:'var(--text-3)', med:'var(--medication)' };
@@ -2734,7 +3353,7 @@ async function renderCalendar() {
 
   const html = DOW.map(d => `<div class="cal-dow">${d}</div>`).join('') + cells.map((c, idx) => {
     if (c.dim) return `<div class="cal-cell dim" aria-hidden="true"><span class="cal-num">${c.d}</span></div>`;
-    const b = data.days[c.iso] || { reminders: [], records: [], meds: [] };
+    const b = data.days[c.iso] || { reminders: [], records: [], meds: [], expiry: [] };
     // 该做的（提醒）与这天要用的药全部直读；已做属历史回顾，压缩为一行；上限 6 行防数据异常撑爆格子
     const evtRows = [];
     b.reminders.forEach(r => {
@@ -2743,6 +3362,13 @@ async function renderCalendar() {
       evtRows.push(`<span class="cal-evt ${r.level}" title="${esc(r.title)}·${esc(r.pet_name)}${tag ? `（${tag}）` : ''}">
         <i class="cal-dot" style="background:${CAL_DOT[r.level]}"></i>
         <span class="evt-txt">${esc(r.title)}·${esc(r.pet_name)}</span>${tag ? `<span class="evt-tag">${tag}</span>` : ''}</span>`);
+    });
+    (b.expiry || []).forEach(e => {
+      const cls = e.level === 'overdue' ? 'overdue' : e.level === 'today' ? 'soon' : 'med';
+      const tag = e.level === 'overdue' ? '已过期' : e.level === 'today' ? '今天到期' : '将过期';
+      evtRows.push(`<span class="cal-evt ${cls}" title="药箱：${esc(e.name)} ${tag}">
+        <i class="cal-dot" style="background:${e.level === 'soon' ? CAL_DOT.todo : CAL_DOT[e.level === 'today' ? 'soon' : 'overdue']}"></i>
+        <span class="evt-txt">💊 ${esc(e.name)}</span><span class="evt-tag">${tag}</span></span>`);
     });
     b.meds.forEach(m0 => {
       evtRows.push(`<span class="cal-evt med" title="这天用药：${esc(m0.name)}·${esc(m0.pet_name)}${m0.frequency ? `（${esc(m0.frequency)}）` : ''}">
@@ -2758,6 +3384,7 @@ async function renderCalendar() {
       + (evtRows.length > 6 ? `<span class="cal-more">还有 ${evtRows.length - 6} 项</span>` : '');
     const parts = b.reminders.map(r => `${r.title}(${r.pet_name}${r.level === 'overdue' ? '·已逾期' : r.level === 'soon' ? `·还剩${r.days_left}天` : '·待办'})`)
       .concat(b.meds.length ? [`用药中：${b.meds.map(m => m.name).join('、')}`] : [])
+      .concat((b.expiry || []).length ? [`药箱到期：${b.expiry.map(e => e.name).join('、')}`] : [])
       .concat(b.records.map(r => `这天已做：${r.title}(${r.pet_name})`));
     const label = `${m}月${c.d}日 周${DOW[idx % 7]}${c.iso === today ? '（今天）' : ''}，${parts.length ? parts.join('；') : '无事项'}`;
     return `<div class="cal-cell${c.iso === today ? ' today' : ''}" role="button" tabindex="0" aria-label="${esc(label)}" onclick="openDayCard('${c.iso}')">
@@ -2768,8 +3395,8 @@ async function renderCalendar() {
   $('cal-grid').innerHTML = html;
   playEnter($('cal-grid'), (state._calDir || 0) < 0 ? 'content-in-prev' : 'content-in-next');
   const s = data.summary;
-  $('cal-foot').innerHTML = (s.reminders || s.records || s.med_days)
-    ? `<div class="empty-hint" style="margin-top:14px">本月 ${s.reminders} 项提醒 · ${s.records} 条已做记录 · ${s.med_days} 天有用药安排。点日期查看当天详情。</div>`
+  $('cal-foot').innerHTML = (s.reminders || s.records || s.med_days || s.medbox)
+    ? `<div class="empty-hint" style="margin-top:14px">本月 ${s.reminders} 项提醒 · ${s.records} 条已做记录 · ${s.med_days} 天有用药安排${s.medbox ? ` · ${s.medbox} 天药箱到期` : ''}。点日期查看当天详情。</div>`
     : `<div class="empty-hint" style="margin-top:14px">本月还没有健康事项——有提醒的日期会出现彩色圆点。${state.stats && !state.stats.record_count ? ' <button class="btn sm" onclick="openRecordModal()">去记第一笔</button>' : ''}</div>`;
 }
 
@@ -2787,6 +3414,11 @@ function openDayCard(iso) {
     sections.push(`<div class="day-sec" style="--i:${sections.length}"><div class="med-group">用药进行中 · ${b.meds.length}</div>` + b.meds.map(m => `<div class="med-done-item">
       <b>${esc(m.name)}</b><span>${esc(m.pet_name)}${m.frequency ? ' · ' + esc(m.frequency) : ''}</span>
       <div class="ops"><span class="badge plain">${esc((m.start_date || '').slice(5))} → ${m.end_date ? esc(m.end_date.slice(5)) : '长期'}</span></div></div>`).join('') + `</div>`);
+  const exps = b.expiry || [];
+  if (exps.length)
+    sections.push(`<div class="day-sec" style="--i:${sections.length}"><div class="med-group">药箱到期 · ${exps.length}</div>` + exps.map(e => `<div class="med-done-item">
+      <b>💊 ${esc(e.name)}</b><span class="badge ${e.level === 'overdue' ? 'ill' : e.level === 'today' ? 'attention' : 'plain'}">${e.level === 'overdue' ? '已过期' : e.level === 'today' ? '今天到期' : '将过期'}</span>
+      <div class="ops"><button class="btn sm" onclick="closeModal(); go('medbox')">去药箱查看 →</button></div></div>`).join('') + `</div>`);
   if (b.records.length)
     sections.push(`<div class="day-sec" style="--i:${sections.length}"><div class="med-group">已做记录 · ${b.records.length}</div>` + b.records.map(r => `<div class="med-done-item">
       <span class="rec-type" style="background:${TYPE_COLOR[r.type] || 'var(--accent)'}">${esc(r.type_label)}</span><b>${esc(r.title)}</b><span>${esc(r.pet_name)}</span>
@@ -3099,7 +3731,7 @@ function openRecordModal(petId) {
       ${chips}
       <div class="form-field full"><label>说明</label><textarea name="note" rows="2" maxlength="300" placeholder="医生嘱托、剂量、反应观察…"></textarea></div>
       <div class="form-field full"><label>照片（选填：疫苗本内页、处方、恢复对比，自动压缩）</label>
-        <input type="file" accept="image/*" onchange="handleRecImage(this)">
+        <input aria-label="选择记录照片" type="file" accept="image/*" onchange="handleRecImage(this)">
         <div class="img-preview-wrap" id="rec-img-wrap">
           <img class="img-preview" id="rec-img-prev" src="">
           <button type="button" class="img-remove" onclick="clearRecImage()" title="移除图片">✕</button>
@@ -3162,7 +3794,7 @@ function openRecordEditModal(rid) {
       <div class="form-field full"><label>标题 <span class="req">*</span></label><input name="title" required maxlength="60" value="${esc(r.title || '')}"></div>
       <div class="form-field full"><label>说明</label><textarea name="note" rows="2" maxlength="300">${esc(r.note || '')}</textarea></div>
       <div class="form-field full"><label>照片（自动压缩；✕ 移除后保存即清除）</label>
-        <input type="file" accept="image/*" onchange="handleRecImage(this)">
+        <input aria-label="更换或新增记录照片" type="file" accept="image/*" onchange="handleRecImage(this)">
         <div class="img-preview-wrap${r.image ? ' show' : ''}" id="rec-img-wrap">
           <img class="img-preview" id="rec-img-prev" src="${r.image || ''}">
           <button type="button" class="img-remove" onclick="clearRecImage()" title="移除图片">✕</button>
@@ -3386,7 +4018,7 @@ async function openMemoryModal(id, defaultPetId) {
       <div class="form-field full"><label>标题 <span class="req">*</span></label><input name="title" required maxlength="60" placeholder="如：第一次看海" value="${esc(m?.title || '')}"></div>
       <div class="form-field full"><label>文字（可选）</label><textarea name="text" rows="3" maxlength="2000" placeholder="那一刻的细节、心情、想对TA说的话…">${esc(m?.text || '')}</textarea></div>
       <div class="form-field full"><label>图片（可选，自动压缩后保存）</label>
-        <input type="file" accept="image/*" onchange="handleMemImage(this)">
+        <input aria-label="选择回忆照片" type="file" accept="image/*" onchange="handleMemImage(this)">
         <div class="img-preview-wrap ${state.memImg ? 'show' : ''}" id="mem-img-wrap">
           <img class="img-preview" id="mem-img-prev" src="${state.memImg}">
           <button type="button" class="img-remove" onclick="clearMemImage()" title="移除图片">✕</button>
@@ -3850,8 +4482,23 @@ async function renderBriefing() {
     box.innerHTML = `<div class="brief-title">✦ AI 今日健康简报</div>
       <div class="brief-text">${mdLite(r.briefing.text)}</div>
       <div class="brief-meta">生成于 ${r.briefing.generated_at} · ${tag}
-        <button class="btn ghost sm" onclick="refreshBriefing(this)">↻ 重新生成</button></div>`;
+        <button class="btn ghost sm" onclick="refreshBriefing(this)">↻ 重新生成</button></div>
+      <div class="brief-meta patrol-entry" id="patrol-entry"></div>`;
+    renderPatrolEntry();
   } catch (e) { box.innerHTML = ''; box.style.display = 'none'; }
+}
+async function renderPatrolEntry() {
+  const el = $('patrol-entry');
+  if (!el) return;
+  try {
+    const d = await api('/api/patrol');
+    patrolNotifyCheck(d);   // 仪表盘是最富触点：不打开巡检页也能收到高危通知
+    const n = (d.findings || []).length;
+    const hi = (d.findings || []).filter(f => f.level === 'high').length;
+    el.innerHTML = d.level === 'calm'
+      ? '<span style="color:var(--success)">✓ 今日巡检：一切平稳</span> <a class="view-all" tabindex="0" role="button" onclick="go(\'patrol\')">查看 →</a>'
+      : `<span style="color:${hi ? 'var(--danger)' : 'var(--warn)'}">${hi ? '✕' : '▲'} 今日巡检：${hi ? '高危 ' + hi + ' 项' : ''}${n ? (hi ? ' · ' : '') + '需关注 ' + n + ' 项' : ''}</span> <a class="view-all" tabindex="0" role="button" onclick="go(\'patrol\')">去处理 →</a>`;
+  } catch (e) { /* 巡检后端未就绪：静默不显示 */ }
 }
 async function refreshBriefing(btn) {
   btn.disabled = true; btn.textContent = '生成中…';
@@ -4093,7 +4740,7 @@ async function checkNotify() {
   const REDUCE = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
 
   /* 1. 可点卡片类元素：Enter / Space 统一触发（行内真按钮/链接/输入不拦截） */
-  const CARD = '.logo,.stat-card.clickable,.reminder-item,.activity-item,.rec-row,.exp-row,.cal-cell:not(.dim),.sess-item,.pet-card,.mem-card,.dropdown a';
+  const CARD = '.logo,.stat-card.clickable,.reminder-item,.activity-item,.rec-row,.exp-row,.box-row,.cal-cell:not(.dim),.sess-item,.pet-card,.mem-card,.dropdown a';
   document.addEventListener('keydown', e => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
     const el = e.target.closest && e.target.closest(CARD);
@@ -4193,7 +4840,7 @@ async function checkNotify() {
 
   /* 10. 列表重渲染后焦点恢复（WCAG 2.4.3）：记账/日历保存或完成后 innerHTML 重建，
         closeModal 回焦的旧节点已脱离文档；按 aria-label 找回同一行/格，找不到则落到容器首个可聚焦项 */
-  for (const fn of ['renderLedger', 'renderCalendar']) {
+  for (const fn of ['renderLedger', 'renderCalendar', 'renderMedbox', 'renderPatrol']) {
     const orig = window[fn];
     if (typeof orig !== 'function') continue;
     window[fn] = async function () {
@@ -4250,6 +4897,8 @@ async function checkNotify() {
   const MI_ICON = {
     dashboard: svg('<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>'),
     library:   svg('<circle cx="11" cy="4" r="2"/><circle cx="18" cy="8" r="2"/><circle cx="20" cy="16" r="2"/><path d="M9 10a5 5 0 0 1 5 5v3.5a3.5 3.5 0 0 1-6.84 1.045Q6.52 17.48 4.46 16.84A3.5 3.5 0 0 1 5.5 10Z"/>'),
+    medbox:    svg('<path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/>'),
+    patrol:    svg('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/><path d="M4.5 4 3 2.5M19.5 4 21 2.5M4.5 20 3 21.5M19.5 20 21 21.5"/>'),
     ledger:    svg('<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/>'),
     calendar:  svg('<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>'),
     memories:  svg('<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>'),

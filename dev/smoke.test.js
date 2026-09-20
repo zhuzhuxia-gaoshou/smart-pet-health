@@ -115,7 +115,7 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
 
   // ---------- 回忆集 ----------
   const tabTexts = [...doc.querySelectorAll('#nav-tabs .tab-btn')].map(b => b.textContent.trim()).join('|');
-  check('nav order 宠物→记账→日历→回忆集→AI助手', tabTexts === '仪表盘|宠物|记账|日历|回忆集|AI 助手', tabTexts);
+  check('nav order 宠物→药箱→巡检→记账→日历→回忆集→AI助手', tabTexts === '仪表盘|宠物|药箱|巡检|记账|日历|回忆集|AI 助手', tabTexts);
   T.go('memories');
   await sleep(700);
   const memList = (await (await fetch(BASE + '/api/memories')).json()).memories;
@@ -246,7 +246,7 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
   // 无障碍补丁：skip link / aria-live / tab 语义 / 弹窗 dialog+label 关联 / 可点行键盘可达
   check('skip link injected', !!doc.querySelector('.skip-link'));
   check('toast root aria-live', doc.getElementById('toast-root').getAttribute('aria-live') === 'polite');
-  check('nav tabs have tab role', n('#nav-tabs [role=tab]') === 6);
+  check('nav tabs have tab role', n('#nav-tabs [role=tab]') === 8);
   window.openModal('<h3>t</h3><div class="form-field"><label>名字</label><input name="x"></div>');
   await sleep(80);
   check('modal has dialog role', doc.getElementById('modal-box').getAttribute('role') === 'dialog');
@@ -386,6 +386,86 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
     }
     let gone = ''; try { await T.api('/api/diet-logs/' + (created.log ? created.log.id : 0), { method: 'DELETE' }); } catch (e) { gone = e.message; }
     check('diet delete idempotent error', gone.includes('不存在'));
+  }
+
+  // ---------- 药箱：栏目渲染 / 状态机 / 筛选 / 日历第四源 / 撤销 / 校验 ----------
+  if (kel) {
+    const localISO = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    try {
+      T.go('medbox'); await sleep(700);
+      check('medbox 3 status cards', n('#medbox-stats .stat-card') === 3, 'got ' + n('#medbox-stats .stat-card'));
+      const mb0 = await (await fetch(BASE + '/api/medbox')).json();
+      const before = mb0.items.length;
+      const soon = await T.api('/api/medbox', { method: 'POST', body: JSON.stringify({ name: '__smoke_药__', form: 'drops', qty: 2, unit: '瓶', expiry_date: localISO(new Date(Date.now() + 3 * 864e5)), pet_ids: [kel.id] }) });
+      check('medbox add soon', soon.item.status === 'soon' && soon.item.remain_days >= 2 && soon.item.remain_days <= 3 && soon.item.form_label === '滴剂', JSON.stringify({ s: soon.item.status, d: soon.item.remain_days }));
+      await window.renderMedbox(); await sleep(400);
+      check('medbox list renders row', n('#medbox-list .box-row') === before + 1 && n(`#medbox-list .box-row[data-id="${soon.item.id}"]`) === 1);
+      check('medbox row progressbar semantics', !!doc.querySelector(`.box-row[data-id="${soon.item.id}"] .exp-bar[role=progressbar]`) && (doc.querySelector(`.box-row[data-id="${soon.item.id}"] .exp-bar`)?.getAttribute('aria-valuetext') || '').includes('剩'));
+      check('medbox soon badge text', !!doc.querySelector(`.box-row[data-id="${soon.item.id}"] .badge.attention`) && doc.querySelector(`.box-row[data-id="${soon.item.id}"] .badge.attention`).textContent.includes('临期'));
+      check('medbox pet chip', doc.querySelector(`.box-row[data-id="${soon.item.id}"] .box-pet`)?.textContent.includes(kel.name));
+      const attn = await (await fetch(BASE + '/api/medbox/attention')).json();
+      check('attention contains soon item', attn.items.some(i => i.id === soon.item.id));
+      const cal = await (await fetch(BASE + '/api/calendar?year=' + new Date().getFullYear() + '&month=' + (new Date().getMonth() + 1))).json();
+      check('calendar expiry fourth source', Object.values(cal.days).some(d => (d.expiry || []).some(e => e.id === soon.item.id)));
+      // 筛选交互：直调 medFilterTo（与全站冒烟一致，不依赖 jsdom 内联 onclick）→ filtering 类 + aria-pressed
+      const cardSoon = () => [...doc.querySelectorAll('#medbox-stats .stat-card')].find(c => c.textContent.includes('临期'));
+      window.medFilterTo('soon'); await sleep(250);
+      check('filter aria-pressed + only-soon rows', cardSoon().getAttribute('aria-pressed') === 'true' && state().medFilter === 'soon' && n('#medbox-list .box-row') === attn.items.length);
+      window.medFilterTo('soon'); await sleep(250);
+      check('filter toggles off', state().medFilter === '');
+      // 删除 → trash 撤销 → 关联仍在
+      const del = await T.api('/api/medbox/' + soon.item.id, { method: 'DELETE' });
+      check('medbox delete returns trash_id', typeof del.trash_id === 'number' && del.ok === true);
+      let gone = ''; try { await T.api('/api/medbox/' + soon.item.id, { method: 'DELETE' }); } catch (e) { gone = e.message; }
+      check('medbox delete idempotent error', gone.includes('不存在'));
+      const undo = await T.api('/api/trash/' + del.trash_id + '/restore', { method: 'POST' });
+      check('medbox undo ok', undo.ok === true);
+      const mbBack = await (await fetch(BASE + '/api/medbox')).json();
+      const backItem = mbBack.items.find(i => i.id === soon.item.id);
+      check('medbox undo restores item+pets', !!backItem && backItem.name === '__smoke_药__' && backItem.pets.some(p => p.id === kel.id));
+      await T.api('/api/medbox/' + soon.item.id, { method: 'DELETE' });   // 清理
+      // 校验与降级端点
+      let verr = ''; try { await T.api('/api/medbox', { method: 'POST', body: JSON.stringify({ name: 'x', qty: -1 }) }); } catch (e) { verr = e.message; }
+      check('medbox qty<0 rejected', verr.includes('0') || verr.includes('大于'), verr);
+      let oerr = ''; try { oerr = (await T.api('/api/medbox/ocr', { method: 'POST', body: JSON.stringify({ image: 'http:// evil' }) })).error || ''; } catch (e) { oerr = e.message; }
+      check('ocr rejects non-data image', oerr.includes('图片'), oerr);
+      const brf = await (await fetch(BASE + '/api/medbox/briefing')).json();
+      check('briefing structure', typeof brf.briefing.text === 'string' && ['agent', 'example'].includes(brf.briefing.mode));
+      await window.renderMedbox(); await sleep(300);
+    } finally {
+      try { const mm = await (await fetch(BASE + '/api/medbox')).json();
+        for (const i of (mm.items || []).filter(i => i.name === '__smoke_药__')) await T.api('/api/medbox/' + i.id, { method: 'DELETE' }).catch(() => {}); } catch (e) {}
+    }
+  }
+
+  // ---------- AI 巡检：端点结构 / hero 三态 / 发现卡片 / 仪表盘入口（结构断言，不绑数据量） ----------
+  {
+    const p = await (await fetch(BASE + '/api/patrol')).json();
+    check('patrol payload shape', ['calm', 'watch', 'high'].includes(p.level) && Array.isArray(p.findings) && p.scanned === 6 && Array.isArray(p.rule_errors || []), JSON.stringify({ lv: p.level, n: (p.findings || []).length }));
+    check('patrol findings fields', (p.findings || []).every(f => f.id && f.level && f.title && (f.ai_text || '').length > 0 && (!f.link || typeof f.link.view === 'string')), (p.findings || []).map(f => f.id).join(','));
+    check('patrol id 决定式含日期', (p.findings || []).every(f => f.id.split(':').pop() === new Date().toISOString().slice(0, 10)));
+    T.go('patrol'); await sleep(900);
+    const hero = doc.querySelector('#patrol-hero');
+    check('patrol hero rendered', !!hero && ['calm', 'watch', 'high'].includes(hero.classList[1]) && !!doc.querySelector('#patrol-refresh'), hero ? hero.className : 'none');
+    check('patrol cards consistent with api', n('#patrol-findings .find-card') === (p.findings || []).length + (p.insights || []).length
+      || (!(p.findings || []).length && !(p.insights || []).length && !!doc.querySelector('#patrol-findings .empty-state')), n('#patrol-findings .find-card') + ' vs ' + ((p.findings || []).length + (p.insights || []).length));
+    if ((p.findings || []).length) {
+      check('patrol card semantics', [...doc.querySelectorAll('#patrol-findings .find-card')].every(c => c.querySelector('.exp-cat-badge') && c.getAttribute('role') === 'listitem'));
+    }
+    const rf = await T.api('/api/patrol/refresh', { method: 'POST' });
+    check('patrol refresh shape', rf.ok === true && typeof rf.capped === 'boolean');
+    await window.renderBriefing(); await sleep(500);
+    check('dashboard patrol entry', (doc.querySelector('#patrol-entry')?.textContent || '').includes('巡检'));
+    // 日历第四源 DOM 级验证（API 有 expiry 不算数，格子必须渲染出来）
+    {
+      const li = new Date(); const lm = `${li.getFullYear()}-${String(li.getMonth() + 1).padStart(2, '0')}`;
+      const todayISOs = `${lm}-${String(li.getDate()).padStart(2, '0')}`;
+      const exp = await T.api('/api/medbox', { method: 'POST', body: JSON.stringify({ name: '__cal_view_药__', expiry_date: todayISOs, pet_ids: [] }) });
+      state().calCache = null;
+      T.go('calendar'); await sleep(900);
+      check('calendar expiry rendered in DOM', [...doc.querySelectorAll('#cal-grid .cal-evt')].some(e => e.textContent.includes('__cal_view_药__') && e.textContent.includes('今天')));
+      await T.api('/api/medbox/' + exp.item.id, { method: 'DELETE' });
+    }
   }
 
   // ---------- 症状分诊向导：入口 / 问卷渲染 / 按物种症状 / 组装文本 / disabled 逻辑 ----------

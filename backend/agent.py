@@ -7,9 +7,11 @@
 
 对外入口：answer(message) -> {"reply": str, "mode": "agent"|"example"}
 """
+import hashlib
 import json
 import os
 import re
+import threading
 import time
 
 import tools
@@ -75,7 +77,8 @@ TOOLS_BRIEF = """可用工具：
 - get_attention_ranking(): 多宠物关注优先级排序，回答"我该先管哪只"类问题；无需参数
 - query_medications(宠物名): 查该宠物的用药情况——在用药物的剂量/频次/疗程剩余天数与已结束的用药历史
 - query_expenses(宠物名, 月份): 查养宠花费——合计/分类占比/按宠物分摊/最近明细；宠物名留空表示全部，月份传 YYYY-MM 或 YYYY，留空表示本月
-- query_feeding(宠物名): 查该宠物的饮食日志——今日/本周喂食次数、近 30 天类型分布（干粮/湿粮/零食/生骨肉）与最近流水"""
+- query_feeding(宠物名): 查该宠物的饮食日志——今日/本周喂食次数、近 30 天类型分布（干粮/湿粮/零食/生骨肉）与最近流水
+- query_medbox(宠物名): 查家庭药箱库存——药品名/剂型/数量/有效期与开封后剩余天数、状态（可用/临期/已过期）与关联宠物；宠物名留空表示全部"""
 
 SYSTEM_PROMPT = """你是「智能宠物健康管家」的 AI 助手，一个专业的宠物健康管理 Agent。
 你通过工具查询 SQLite 数据库中的真实宠物档案与健康记录，请遵循：
@@ -134,7 +137,8 @@ WRITER_PROMPT = """你是「智能宠物健康管家」的【报告撰稿人】�
 EXPERTS = {
     "health_analyst": {"label": "健康分析师", "prompt": ANALYST_PROMPT,
                        "tools": ["query_pet", "query_health_records", "get_reminders", "analyze_health",
-                                 "query_medications", "get_attention_ranking", "query_expenses", "query_feeding"]},
+                                 "query_medications", "get_attention_ranking", "query_expenses", "query_feeding",
+                                 "query_medbox"]},
     "care_advisor":   {"label": "护理顾问", "prompt": ADVISOR_PROMPT,
                        "tools": ["query_pet", "get_care_guide", "query_medications", "get_reminders",
                                  "create_record_draft"]},
@@ -148,7 +152,7 @@ _ROUTE_DRAFT = re.compile(r"记一笔|记一下|记录一下|帮我记|帮我登
 _ROUTE_REPORT = re.compile(r"报告|周报|月报|年报|报表|总结|成长回顾|回忆|故事")
 _ROUTE_CARE = re.compile(r"能吃|不能吃|可以吃|禁忌|该做|不该做|怎么照顾|照顾|护理|注意什么|怎么办|换羽|能不能|可不可以|注意事项")
 # 「第一次」不再路由到报告撰稿人（"第一次吃生骨肉"是饮食陈述）：饮食场景词归健康分析师
-_ROUTE_HEALTH = re.compile(r"疫苗|驱虫|体检|用药|吃药|什么药|药物|剂量|体重|健康|分析|记录|提醒|到期|临期|逾期|过期|优先|先管|就诊|复诊|三联|狂犬|打针|接种|花了|开销|多少钱|花费|记账|花销|支出|费用|账单|开支|喂了|喂食|喂过|在吃什么|吃了什么|最近吃|饮食|食欲|食量|吃得|生骨肉|第一次吃|第一次喂")
+_ROUTE_HEALTH = re.compile(r"疫苗|驱虫|体检|用药|吃药|什么药|药物|剂量|体重|健康|分析|记录|提醒|到期|临期|逾期|过期|优先|先管|就诊|复诊|三联|狂犬|打针|接种|花了|开销|多少钱|花费|记账|花销|支出|费用|账单|开支|喂了|喂食|喂过|在吃什么|吃了什么|最近吃|饮食|食欲|食量|吃得|生骨肉|第一次吃|第一次喂|药箱|药品库存|库存|开封|有效期")
 # 弱信号（"怎么样/多大"等）单独出现太泛（"今天天气怎么样"），只在句中带库内宠物名时才算健康问题
 _ROUTE_HEALTH_WEAK = re.compile(r"怎么样|状况|多大|多重|几岁|情况|正常吗")
 _VACCINE_WORDS = re.compile(r"疫苗|驱虫|接种")
@@ -373,6 +377,9 @@ def _build_tools():
         name: str = Field(default="", description="宠物名字；留空表示全部宠物（含家庭共同支出）")
         month: str = Field(default="", description="YYYY-MM 查某月、YYYY 查全年；留空表示本月。'今年'换算为当前年份")
 
+    class MedboxQueryIn(BaseModel):
+        name: str = Field(default="", description="宠物名字；留空表示查看家庭全部药箱药品")
+
     return [
         StructuredTool.from_function(tools.query_pet, name="query_pet",
                                      description=tools.query_pet.__doc__.strip(),
@@ -423,6 +430,11 @@ def _build_tools():
         StructuredTool.from_function(tools.query_feeding, name="query_feeding",
                                      description=tools.query_feeding.__doc__.strip(),
                                      args_schema=NameIn),
+        StructuredTool.from_function(
+            lambda name="": tools.query_medbox(name),
+            name="query_medbox",
+            description=tools.query_medbox.__doc__.strip(),
+            args_schema=MedboxQueryIn),
     ]
 
 
@@ -729,6 +741,610 @@ def weight_insight(pet_id: int) -> dict:
         text, mode = _weight_fallback(pet, weights), "example"
     db.kv_set(key, json.dumps({"text": text, "mode": mode, "sig": sig}, ensure_ascii=False))
     return {"text": text, "mode": mode, "cached": False}
+
+
+# ---------------------------------------------------------------- 药箱：OCR 识药与管家简报
+
+MEDBOX_OCR_PROMPT = (
+    "这是宠物药品照片。识别药名/剂型(药片tablet胶囊capsule口服液liquid滴剂drops外用ointment喷剂"
+    "spray针剂injection其他other)/规格/数量单位/有效期/用途，只输出JSON：{\"items\":[{\"name\":\"…\","
+    "\"form\":\"tablet\",\"spec\":\"…\",\"qty\":2,\"unit\":\"盒\",\"expiry_date\":\"YYYY-MM-DD\","
+    "\"purpose\":\"…\"}]}。一张药盒输出 1 条，处方单可输出多条；识别不出的字段直接省略，日期一律"
+    " YYYY-MM-DD；form 只取那 8 个英文键之一。除 JSON 外不要输出任何其他文字。"
+)
+_OCR_ERR_TEXT = "未能识别，可改用文字描述或手动填写"
+
+
+def _extract_text(content) -> str:
+    """LangChain 消息 content 归一为纯文本：Anthropic 块数组只取 text 块（忽略 thinking）。"""
+    if isinstance(content, list):
+        return "".join(b.get("text", "") for b in content
+                       if isinstance(b, dict) and b.get("type") == "text")
+    return str(content or "")
+
+
+def medbox_ocr(image_data_uri: str) -> dict:
+    """视觉识药：药盒/处方单照片 → 条目候选（不落库，前端确认后走 POST /api/medbox）。
+    按供应商链（百炼 → DeepSeek，跳过熔断中者）以多模态消息调用；只输出 JSON。
+    任何失败——无可用视觉供应商/无输出/坏 JSON/清洗后无有效条目——统一返回 {error}。"""
+    import db
+    import datetime as _dt
+    for prov in _llm_candidates():
+        if _provider_skippable(prov) or prov == "tongyi":
+            continue          # 通义走 DashScope 原生 SDK，多模态消息格式不同，本工具不支持
+        try:
+            if prov == "bailian":
+                from langchain_anthropic import ChatAnthropic
+                model = ChatAnthropic(model=os.environ.get("BAILIAN_MODEL", "qwen3.8-flash"),
+                                      api_key=bailian_key(),
+                                      base_url=os.environ.get("BAILIAN_BASE_URL",
+                                                              "https://dashscope.aliyuncs.com/apps/anthropic"),
+                                      temperature=0, max_tokens=1024, timeout=30, max_retries=0)
+            else:
+                from langchain_openai import ChatOpenAI
+                model = ChatOpenAI(model=os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"),
+                                   api_key=deepseek_key(),
+                                   base_url=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+                                   temperature=0, max_tokens=1024, timeout=30, max_retries=0)
+            out = model.invoke([{"role": "user", "content": [
+                {"type": "image_url", "image_url": {"url": image_data_uri}},
+                {"type": "text", "text": MEDBOX_OCR_PROMPT}]}])
+            text = _extract_text(out.content)
+            m = re.search(r"\{.*\}", text, re.S)
+            if not m:
+                continue
+            data = json.loads(m.group(0))
+            cleaned = []
+            for raw in data.get("items") or []:
+                if not isinstance(raw, dict):
+                    continue
+                item_name = (str(raw.get("name") or "")).strip()[:60]
+                if not item_name:
+                    continue      # 无名条目整条丢弃
+                item: dict = {"name": item_name}
+                form = str(raw.get("form") or "").strip().lower()
+                item["form"] = form if form in db.MED_FORMS else "other"
+                if raw.get("spec"):
+                    item["spec"] = str(raw["spec"]).strip()[:200]
+                if raw.get("qty") is not None:
+                    try:
+                        q = float(raw["qty"])
+                        if q >= 0:
+                            item["qty"] = q
+                    except (TypeError, ValueError):
+                        pass      # 数字非法丢字段
+                if raw.get("unit"):
+                    item["unit"] = str(raw["unit"]).strip()[:20]
+                for key in ("expiry_date", "opened_date"):
+                    v = str(raw.get(key) or "").strip()
+                    if v:
+                        try:
+                            _dt.datetime.strptime(v, "%Y-%m-%d")
+                            item[key] = v
+                        except ValueError:
+                            pass  # 日期非法丢字段
+                if raw.get("purpose"):
+                    item["purpose"] = str(raw["purpose"]).strip()[:200]
+                cleaned.append(item)
+            if cleaned:
+                _revive_provider(prov)
+                return {"items": cleaned}
+        except Exception as e:
+            txt = str(e)
+            if "402" in txt or "Insufficient Balance" in txt or "Arrearage" in txt:
+                _trip_provider(prov)
+            continue
+    return {"error": _OCR_ERR_TEXT}
+
+
+def medbox_briefing_fallback() -> str:
+    """无 Key / LLM 失败时的规则版药箱话术（数据来自真实库）。"""
+    import db
+    items = db.list_medbox()
+    if not items:
+        return "药箱还是空的，可以在「药箱」页面录入第一件常备药。"
+    attention = [i for i in items if i["status"] != "ok"]
+    lines = [f"药箱共 {len(items)} 种药品。"]
+    if attention:
+        parts = []
+        for a in attention[:4]:
+            parts.append(f"{a['name']}（已过期）" if a["remain_days"] is not None and a["remain_days"] < 0
+                         else f"{a['name']}（剩 {a['remain_days']} 天）")
+        lines.append("需要关注：" + "、".join(parts) + "。")
+        if len(attention) > 4:
+            lines.append(f"另有 {len(attention) - 4} 种也需留意。")
+    else:
+        lines.append("全部在有效期内，一切安好。")
+    return "\n".join(lines)
+
+
+def _medbox_briefing_llm(prompt: str) -> str:
+    """简报专用直答：无工具纯文本（复用 _ask_agent 风格，但独立小函数、超时 30s）。
+    全链失败返回以 ⚠️ 开头的说明文本（调用方据此回落规则版）。"""
+    last_err = None
+    for prov in _llm_candidates():
+        if _provider_skippable(prov):
+            continue
+        try:
+            if prov == "bailian":
+                from langchain_anthropic import ChatAnthropic
+                model = ChatAnthropic(model=os.environ.get("BAILIAN_MODEL", "qwen3.8-flash"),
+                                      api_key=bailian_key(),
+                                      base_url=os.environ.get("BAILIAN_BASE_URL",
+                                                              "https://dashscope.aliyuncs.com/apps/anthropic"),
+                                      temperature=0.3, max_tokens=4096, timeout=60, max_retries=1)
+            elif prov == "deepseek":
+                from langchain_openai import ChatOpenAI
+                model = ChatOpenAI(model=os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"),
+                                   api_key=deepseek_key(),
+                                   base_url=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+                                   temperature=0.3, max_tokens=4096, timeout=60)
+            else:
+                from langchain_community.chat_models.tongyi import ChatTongyi
+                model = ChatTongyi(model=os.environ.get("QWEN_MODEL", "qwen-plus"),
+                                   dashscope_api_key=dashscope_key(),
+                                   temperature=0.3, request_timeout=60)
+            text = ""
+            for _attempt in range(2):        # 思考模型偶发空输出：同供应商重试一次（与巡检链路同款加固）
+                out = model.invoke([("user", prompt)])
+                text = _extract_text(out.content).strip()
+                if text:
+                    break
+            if text:
+                _revive_provider(prov)
+                return text
+            last_err = RuntimeError("模型未返回内容")
+        except Exception as e:
+            last_err = e
+            txt = str(e)
+            if "402" in txt or "Insufficient Balance" in txt or "Arrearage" in txt:
+                _trip_provider(prov)
+    if last_err is not None:
+        return f"⚠️ 药箱简报调用失败（{type(last_err).__name__}: {last_err}）"
+    return "⚠️ 没有可用的模型供应商"
+
+
+def medbox_briefing() -> dict:
+    """药箱管家话：有 Key 走 LLM 总结+建议，失败/无 Key 回落规则拼接；返回 {text, mode, cached}。
+    按数据签名（条数|关注数|各条剩余天数|今天）缓存 app_kv，命中直返 cached；
+    同一天内药箱不变不重复调 LLM（简报成本护栏，日期入签名保证每日刷新）。"""
+    import db
+    from datetime import date as _date
+    items = db.list_medbox()
+    attention = [i for i in items if i["status"] != "ok"]
+    today = _date.today().isoformat()
+    sig = (f"{len(items)}|{len(attention)}|"
+           + ",".join(str(i["remain_days"]) for i in items) + f"|{today}")
+    key = "medbox:briefing"
+    meta = db.kv_get_meta(key)
+    if meta:
+        try:
+            data = json.loads(meta["value"])
+            if data.get("sig") == sig:
+                return {"text": data["text"], "mode": data.get("mode", "example"),
+                        "cached": True, "generated_at": meta["updated_at"]}
+        except Exception:
+            pass
+    text, mode = medbox_briefing_fallback(), "example"
+    if items and provider() and not _agent_failed:
+        facts = [f"共 {len(items)} 种药品，需要关注（过期/临期）{len(attention)} 种。"]
+        for a in attention[:8]:
+            facts.append(f"- {a['name']}（{a['form_label']}）：{a['status_label']}，截止 {a['effective_deadline']}"
+                         + (f"，剩 {a['remain_days']} 天" if a["remain_days"] is not None else ""))
+        if not attention:
+            facts.append("- 其余全部在有效期内。")
+        prompt = ("你是宠物健康管家的药箱管家。以下是药箱现状：\n" + "\n".join(facts)
+                  + f"\n[系统注：今天是 {today}]\n"
+                  "用不超过80字中文总结药箱状态并给一条最优先行动建议，"
+                  "涉及用药判断以兽医意见为准，不要编造数字，直接输出正文。")
+        try:
+            result = _medbox_briefing_llm(prompt)
+            if not result.startswith("⚠️"):
+                text, mode = result.strip(), "agent"
+        except Exception:
+            pass
+    db.kv_set(key, json.dumps({"text": text, "mode": mode, "sig": sig}, ensure_ascii=False))
+    return {"text": text, "mode": mode, "cached": False}
+
+
+# ---------------------------------------------------------------- AI 巡检员
+# 分工：db.patrol_scan() 规则引擎出事实与通知资格；LLM 只做表达润色（一次批量调用）。
+# 诚信护栏：润色文本里的每个数字都必须能在该条 title/facts 中找到，否则整条丢弃。
+# 成本护栏：sig 缓存当天命中零成本；stale 才后台润色；每日预算 2 次（自动1+手动1）；
+#           patrol:fail:<date> 连续失败 2 次当日停用；PATROL_LLM=0 硬开关永远模板态。
+
+PATROL_CACHE_KEY = "patrol:cache"
+PATROL_HISTORY_KEY = "patrol:history"
+PATROL_BUDGET_MAX = 2          # 每日润色预算（自动 1 + 手动 1）
+PATROL_FAIL_MAX = 2            # 当日连续润色失败次数达到即停用
+_patrol_lock = threading.Lock()
+_patrol_generating = False     # 并发票：同时最多一个后台润色任务
+
+
+def _patrol_today() -> str:
+    from datetime import date as _date
+    return _date.today().isoformat()
+
+
+def _patrol_kv_int(key: str) -> int:
+    import db
+    try:
+        return int(db.kv_get(key) or "0")
+    except (TypeError, ValueError):
+        return 0
+
+
+def _patrol_sig(findings: list) -> str:
+    """事实签名：只装 id/level/title（LLM 文案不进签名），排序后 sha1。"""
+    base = "|".join(sorted(f"{f['id']}:{f['level']}:{f['title']}" for f in findings))
+    return hashlib.sha1(base.encode("utf-8")).hexdigest()
+
+
+def patrol_briefing_fallback_text(findings: list) -> str:
+    """日报模板句（无 LLM 也能写 history text）。"""
+    if not findings:
+        return "6 项信号已核对，今天一切平稳。"
+    return "今日巡检 " + str(len(findings)) + " 项发现：" + "；".join(f["title"] for f in findings[:6]) + "。"
+
+
+def _patrol_llm(prompt: str) -> str:
+    """巡检润色专用直答（text-only）。max_tokens=4096：qwen3.8-flash 思考块吃掉大量预算，
+    1024 实测整段被 thinking 耗尽返回空 text；空输出同供应商重试一次（同 _classify_llm 经验）。
+    全链失败返回以 ⚠️ 开头的说明文本（调用方计失败）。"""
+    last_err = None
+    for prov in _llm_candidates():
+        if _provider_skippable(prov):
+            continue
+        try:
+            if prov == "bailian":
+                from langchain_anthropic import ChatAnthropic
+                model = ChatAnthropic(model=os.environ.get("BAILIAN_MODEL", "qwen3.8-flash"),
+                                      api_key=bailian_key(),
+                                      base_url=os.environ.get("BAILIAN_BASE_URL",
+                                                              "https://dashscope.aliyuncs.com/apps/anthropic"),
+                                      temperature=0.3, max_tokens=4096, timeout=60, max_retries=0)
+            elif prov == "deepseek":
+                from langchain_openai import ChatOpenAI
+                model = ChatOpenAI(model=os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"),
+                                   api_key=deepseek_key(),
+                                   base_url=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+                                   temperature=0.3, max_tokens=4096, timeout=60)
+            else:
+                from langchain_community.chat_models.tongyi import ChatTongyi
+                model = ChatTongyi(model=os.environ.get("QWEN_MODEL", "qwen-plus"),
+                                   dashscope_api_key=dashscope_key(),
+                                   temperature=0.3, request_timeout=60)
+            text = ""
+            for _attempt in range(2):        # 思考模型偶发整段空输出：同供应商重试一次
+                out = model.invoke([("user", prompt)])
+                text = _extract_text(out.content).strip()
+                if text:
+                    break
+            if text:
+                _revive_provider(prov)
+                return text
+            last_err = RuntimeError("模型未返回内容")
+        except Exception as e:
+            last_err = e
+            txt = str(e)
+            if "402" in txt or "Insufficient Balance" in txt or "Arrearage" in txt:
+                _trip_provider(prov)
+    if last_err is not None:
+        return f"⚠️ 巡检润色调用失败（{type(last_err).__name__}: {last_err}）"
+    return "⚠️ 没有可用的模型供应商"
+
+
+PATROL_PROMPT_SYSTEM = (
+    "你是宠物健康管家。为每条巡检发现各写一句 ≤40字中文建议，语气专业温暖克制。"
+    "只能使用输入事实中的数字，严禁新增或改写任何数字。医疗判断提示以兽医意见为准。"
+    '只输出 JSON：{"prose":[{"finding_id":"…","text":"…"}],'
+    '"insight":{"text":"≤60字跨条目综合观察，没有值得关联的就输出空串"}}'
+)
+
+_NUM_RE = re.compile(r"\d+(?:\.\d+)?")
+
+
+def _patrol_fact_numbers(finding: dict) -> set:
+    """一条发现的可信数字集合（title + facts 的 k/v）。"""
+    parts = [finding.get("title") or ""]
+    parts += [str(p.get("k", "")) + str(p.get("v", "")) for p in finding.get("facts") or []]
+    return set(_NUM_RE.findall(" ".join(parts)))
+
+
+def _patrol_validate(out: dict, findings: list) -> tuple[dict, str]:
+    """润色结果逐条校验（纯函数，可单测）：
+    finding_id 必须存在于输入；text 中每个数字都必须出现在该条 title/facts 数字集合里；
+    insight.text 的数字必须出现在全部发现的数字并集里。不合格条目丢弃，不抛异常。"""
+    prose: dict[str, str] = {}
+    by_id = {f["id"]: f for f in findings}
+    all_nums: set = set()
+    for f in findings:
+        all_nums |= _patrol_fact_numbers(f)
+    for item in (out.get("prose") or []):
+        try:
+            fid = str(item.get("finding_id") or "")
+            text = str(item.get("text") or "").strip()
+            if not fid or fid not in by_id or not text:
+                continue
+            allowed = _patrol_fact_numbers(by_id[fid])
+            if any(n not in allowed for n in _NUM_RE.findall(text)):
+                continue          # 编造/改写数字 → 丢弃该条
+            prose[fid] = text[:120]
+        except (AttributeError, TypeError):
+            continue
+    insight_text = ""
+    ins = out.get("insight")
+    if isinstance(ins, dict):
+        insight_text = str(ins.get("text") or "").strip()[:160]
+        if insight_text and any(n not in all_nums for n in _NUM_RE.findall(insight_text)):
+            insight_text = ""    # 综合观察数字越界 → 整条丢
+    return prose, insight_text
+
+
+def patrol_polish(findings: list, force: bool = False) -> dict:
+    """一次批量润色：规则发现 → prose 映射 + 跨条目综合观察。
+    调用失败/JSON 不可解析 → {"ok": False}（当日连续 2 次失败后停用；force=手动刷新旁路停用）。
+    环境性失败（链灭/欠费）不计入停用计数——充值恢复后必须留自愈路径。
+    永不同步阻塞请求线程之外的逻辑——由 patrol_report 的后台线程调用。"""
+    import db
+    if not findings:
+        return {"ok": True, "prose": {}, "insight": ""}
+    today = _patrol_today()
+    if not force and _patrol_kv_int(f"patrol:fail:{today}") >= PATROL_FAIL_MAX:
+        return {"ok": False, "disabled": True}
+    lines = [PATROL_PROMPT_SYSTEM, f"\n[系统注：今天是 {today}]\n巡检发现："]
+    for f in findings:
+        facts = "，".join(f"{p['k']} {p['v']}" for p in f.get("facts") or [])
+        lines.append(f'- finding_id={f["id"]}｜{f["title"]}｜{facts}')
+    raw = _patrol_llm("\n".join(lines))
+    if raw.startswith("⚠️"):
+        env_down = ("没有可用" in raw or any(k in raw for k in ("402", "Insufficient Balance", "Arrearage")))
+        if not env_down:   # 环境灭不算质量坏：不计数，恢复后可重试
+            db.kv_set(f"patrol:fail:{today}", str(_patrol_kv_int(f"patrol:fail:{today}") + 1))
+        return {"ok": False, "env": env_down}   # env=请求根本没发出去，预算应退款
+    m = re.search(r"\{.*\}", raw, re.S)
+    if not m:
+        db.kv_set(f"patrol:fail:{today}", str(_patrol_kv_int(f"patrol:fail:{today}") + 1))
+        return {"ok": False}
+    try:
+        out = json.loads(m.group(0))
+    except Exception:
+        db.kv_set(f"patrol:fail:{today}", str(_patrol_kv_int(f"patrol:fail:{today}") + 1))
+        return {"ok": False}
+    if not isinstance(out, dict):
+        return {"ok": False}
+    prose, insight = _patrol_validate(out, findings)
+    db.kv_set(f"patrol:fail:{today}", "0")   # 成功清连续失败计数
+    return {"ok": True, "prose": prose, "insight": insight}
+
+
+def _patrol_top_level(findings: list) -> str:
+    if any(f["level"] == "high" for f in findings):
+        return "high"
+    return "watch" if findings else "calm"
+
+
+def _patrol_history_update(findings: list, text: str) -> None:
+    """当日条目并入历史（最多 14 条）：润色成功或当天首次模板生成时调用。"""
+    import db
+    today = _patrol_today()
+    try:
+        hist = json.loads(db.kv_get(PATROL_HISTORY_KEY) or "[]")
+        if not isinstance(hist, list):
+            hist = []
+    except Exception:
+        hist = []
+    counts = {"high": 0, "warn": 0, "info": 0}
+    for f in findings:
+        if f["level"] in counts:
+            counts[f["level"]] += 1
+    entry = {"date": today, "level": _patrol_top_level(findings), "counts": counts, "text": text}
+    hist = [h for h in hist if isinstance(h, dict) and h.get("date") != today]
+    hist.append(entry)
+    db.kv_set(PATROL_HISTORY_KEY, json.dumps(hist[-14:], ensure_ascii=False))
+
+
+def _patrol_claim_budget() -> bool:
+    """原子认领当日润色预算（先 +1 再调用：认领-生成-回写）。"""
+    import db
+    key = f"patrol:budget:{_patrol_today()}"
+    used = _patrol_kv_int(key)
+    if used >= PATROL_BUDGET_MAX:
+        return False
+    db.kv_set(key, str(used + 1))
+    return True
+
+
+def _patrol_cache_load() -> dict | None:
+    import db
+    raw = db.kv_get(PATROL_CACHE_KEY)
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+
+
+def _patrol_fill(findings: list, prose_map: dict, insight: dict | None,
+                 mode: str, generated_at: str | None, fresh: bool) -> dict:
+    """组装 patrol 响应（findings 各条填 ai_text；缺失回落 title）。"""
+    import db
+    out_findings = []
+    for f in findings:
+        g = dict(f)
+        g["ai_text"] = prose_map.get(f["id"]) or f["title"]
+        out_findings.append(g)
+    insights = []
+    if insight and insight.get("text"):
+        insights.append({"id": "insight:0:" + _patrol_today(), "title": "今日综合观察",
+                         "ai_text": insight["text"], "level": "info",
+                         "facts": [], "link": None,
+                         "mode": insight.get("mode", mode)})
+    return {"level": _patrol_top_level(findings), "findings": out_findings,
+            "insights": insights, "mode": mode, "generated_at": generated_at,
+            "fresh": fresh, "scanned": len(db.PATROL_RULES),
+            "history": _patrol_history()}
+
+
+def _patrol_history() -> list:
+    import db
+    try:
+        hist = json.loads(db.kv_get(PATROL_HISTORY_KEY) or "[]")
+        return hist if isinstance(hist, list) else []
+    except Exception:
+        return []
+
+
+def _patrol_bg_polish(findings: list, sig: str, force: bool = False) -> None:
+    """后台线程：润色 → 回写缓存与历史；无论成败都放票。
+    环境性失败（请求没发出去，零 token 成本）退回预算——充值/并发空出后当天仍有自愈额度。"""
+    import db
+    global _patrol_generating
+    try:
+        result = patrol_polish(findings, force=force)
+        if result.get("ok"):
+            today = _patrol_today()
+            db.kv_set(PATROL_CACHE_KEY, json.dumps({
+                "date": today, "sig": sig,
+                "prose_map": result["prose"],
+                "insight": {"text": result["insight"], "mode": "agent"},
+                "mode": "agent" if result["prose"] or result["insight"] else "rules",
+            }, ensure_ascii=False))
+            hist_text = "；".join(list(result["prose"].values())[:3]) if result["prose"] else patrol_briefing_fallback_text(findings)
+            _patrol_history_update(findings, hist_text)
+        elif result.get("env"):
+            bkey = f"patrol:budget:{_patrol_today()}"
+            db.kv_set(bkey, str(max(0, _patrol_kv_int(bkey) - 1)))   # 退款
+    except Exception:
+        pass
+    finally:
+        with _patrol_lock:
+            _patrol_generating = False
+
+
+def _patrol_live() -> list:
+    """活供应商（排除熔断未到期者）：链灭时不占票不占预算——给充值/并发恢复留全额自愈额度。"""
+    return [p for p in _llm_candidates() if not _provider_skippable(p)]
+
+
+def _patrol_try_spawn(findings: list, sig: str) -> None:
+    """票与预算判定后才发后台线程（同时最多一个润色任务；每日预算封顶）。"""
+    global _patrol_generating
+    if os.environ.get("PATROL_LLM", "1") == "0" or not findings:
+        return
+    if not _patrol_live():
+        return
+    with _patrol_lock:
+        if _patrol_generating:
+            return
+        _patrol_generating = True
+    if not _patrol_claim_budget():
+        with _patrol_lock:
+            _patrol_generating = False
+        return
+    threading.Thread(target=_patrol_bg_polish, args=(findings, sig), daemon=True).start()
+
+
+def patrol_report(force: bool = False) -> dict:
+    """GET /api/patrol 核心：规则层永远实时，LLM 只在后台异步润色，本函数永不同步调 LLM。"""
+    import db
+    from datetime import datetime as _dt
+    scan = db.patrol_scan()
+    findings = scan["findings"]
+    sig = _patrol_sig(findings)
+    today = _patrol_today()
+    cache = _patrol_cache_load()
+    if cache and cache.get("date") == today and cache.get("sig") == sig:
+        meta = db.kv_get_meta(PATROL_CACHE_KEY)
+        return _patrol_fill(findings, cache.get("prose_map") or {}, cache.get("insight"),
+                            cache.get("mode", "agent"), (meta or {}).get("updated_at"), True)
+    # stale：本轮先回模板态；票/预算判定后才发后台线程（force=True 时留给 refresh 端点处理）
+    if not force:
+        _patrol_try_spawn(findings, sig)
+    # 当天首次（或缓存过期/跨天）：模板版也入历史与缓存，保证 generated_at 与后续命中有锚点
+    if not cache or cache.get("date") != today:
+        _patrol_history_update(findings, patrol_briefing_fallback_text(findings))
+        db.kv_set(PATROL_CACHE_KEY, json.dumps({
+            "date": today, "sig": sig, "prose_map": {},
+            "insight": {"text": "", "mode": "rules"}, "mode": "rules",
+        }, ensure_ascii=False))
+    return _patrol_fill(findings, {}, None, "rules", _dt.now().strftime("%Y-%m-%d %H:%M:%S"), False)
+
+
+def patrol_manual_refresh() -> dict:
+    """POST /api/patrol/refresh 的核心：sig 未变直接报 fresh；变了则占票+占预算后台重润色；预算满返回 capped。"""
+    import db
+    scan = db.patrol_scan()
+    findings = scan["findings"]
+    sig = _patrol_sig(findings)
+    cache = _patrol_cache_load()
+    today = _patrol_today()
+    # 模板态缓存（如熔断期生成）不算"已润色"：手动刷新必须给重试机会，否则充值恢复后当天无自愈路径
+    if cache and cache.get("date") == today and cache.get("sig") == sig and cache.get("mode") == "agent":
+        return {"ok": True, "capped": False, "fresh": True}
+    if os.environ.get("PATROL_LLM", "1") == "0" or not findings or not _patrol_live():
+        return {"ok": True, "capped": False}   # 链灭/PATROL_LLM=0：不占票不占预算，模板态照常
+    global _patrol_generating
+    with _patrol_lock:
+        if _patrol_generating:
+            return {"ok": True, "capped": False}    # 已有任务在跑，静默合并
+        _patrol_generating = True
+    if not _patrol_claim_budget():
+        with _patrol_lock:
+            _patrol_generating = False
+        return {"ok": True, "capped": True}     # 今日本额度用完：前端如实提示"明天自动恢复"
+    threading.Thread(target=_patrol_bg_polish, args=(findings, sig, True), daemon=True).start()
+    return {"ok": True, "capped": False}
+
+
+# ---------------------------------------------------------------- 宠物收藏卡：AI 称号与赠言
+
+CARD_TEXT_PROMPT = (
+    "给这只宠物的收藏卡写一个称号（title，≤10字）和一句赠言（motto，≤20字）。"
+    "用克制的游戏卡牌语言，不油腻不堆形容词，只输出 JSON：{{\"title\":\"…\",\"motto\":\"…\"}}。"
+    "宠物事实：名字「{name}」，{who}，陪伴 {days} 天，稀有度 {rar}（{rar_label}），性格备注：{personality}。"
+    "赠言可以提及陪伴，但不得编造输入之外的事实。"
+)
+CARD_RAR_LABEL = {"R": "新锐", "SR": "忠实", "SSR": "老牌", "UR": "传奇"}
+
+
+def pet_card_text(pet: dict, days, rar: str, force: bool = False) -> dict | None:
+    """收藏卡称号+赠言（打开卡时调用）。缓存按 宠物+稀有度 分档，升档自动重算。
+    LLM 不可用/失败一律返回 None，前端回落模板文案——表达层永不阻塞主链路。"""
+    import db
+    if not provider() or _agent_failed or os.environ.get("PATROL_LLM", "1") == "0":
+        return None
+    key = f"card-text:{pet['id']}:{rar}"
+    if not force:
+        hit = db.kv_get(key)
+        if hit:
+            try:
+                return json.loads(hit)
+            except Exception:
+                pass
+    who = {"cat": "九命深思者", "dog": "阳光守护者", "bird": "羽翼歌唱家", "fish": "静默禅者"}.get(pet.get("type"), "独一无二的伙伴")
+    prompt = CARD_TEXT_PROMPT.format(name=pet.get("name") or "小家伙", who=who,
+                                     days=days if days is not None else "未知",
+                                     rar=rar, rar_label=CARD_RAR_LABEL.get(rar, ""),
+                                     personality=(pet.get("personality") or "无备注")[:60])
+    out = _medbox_briefing_llm(prompt)      # 复用无工具直答小函数：超时 30s、402 熔断、链灭返回 ⚠️
+    if out.startswith("⚠️"):
+        return None
+    m = re.search(r"\{.*\}", out, re.S)
+    if not m:
+        return None
+    try:
+        d = json.loads(m.group(0))
+    except Exception:
+        return None
+    title, motto = str(d.get("title") or "").strip()[:16], str(d.get("motto") or "").strip()[:30]
+    if not title or not motto:
+        return None
+    res = {"title": title, "motto": motto}
+    db.kv_set(key, json.dumps(res, ensure_ascii=False))
+    return res
 
 
 # ---------------------------------------------------------------- AI 护理计划

@@ -486,6 +486,51 @@ def query_feeding(name: str) -> str:
     return "\n".join(lines)
 
 
+def query_medbox(name: str = "") -> str:
+    """查询家庭药箱库存：药品名/剂型/数量/有效期与开封后剩余天数、状态（可用/临期/已过期）与关联宠物。
+    name 传宠物名时只看它相关的药品；留空查全部。只读，不做任何写入。"""
+    name = (name or "").strip()
+    pet = None
+    if name:
+        pet = db.fetch_pet_by_name(name)
+        if not pet:
+            return _pet_missing_text(name)
+    items = db.list_medbox()
+    if pet:
+        items = [i for i in items if any(p["id"] == pet["id"] for p in i["pets"])]
+    if not items:
+        return (f"「{pet['name']}」还没有关联任何药箱药品，可以在「药箱」页面录入。" if pet
+                else "药箱还是空的，可以在「药箱」页面录入第一件常备药。")
+    expired = sum(1 for i in items if i["status"] == "expired")
+    soon = sum(1 for i in items if i["status"] == "soon")
+    who = f"「{pet['name']}」相关药品" if pet else "家庭药箱"
+    lines = [f"{who}共 {len(items)} 种｜过期 {expired} 临期 {soon}。"]
+    for i in items:
+        qty = ""
+        if i.get("qty") is not None:
+            q = int(i["qty"]) if float(i["qty"]).is_integer() else i["qty"]
+            qty = f"，{q}{i.get('unit') or ''}"
+        line = f"- {i['name']}（{i['form_label']}{qty}）"
+        if i["remain_days"] is None:
+            line += f"，{i['effective_deadline']} 到期" if i["effective_deadline"] else "，无期限"
+        elif i["remain_days"] < 0:
+            line += f"，已过期 {-i['remain_days']} 天（截止 {i['effective_deadline']}）"
+        else:
+            line += f"，{i['status_label']}（剩 {i['remain_days']} 天，截止 {i['effective_deadline']}）"
+        if i["opened"]:
+            line += "，已开封"
+        if i.get("purpose"):
+            line += f"，用途：{i['purpose']}"
+        if i["pets"]:
+            line += "，适用：" + "、".join(p["name"] for p in i["pets"])
+        if i.get("location"):
+            line += f"，放在{i['location']}"
+        lines.append(line)
+    if expired:
+        lines.append("- ⚠️ 有过期药品，请清理并按需补购；是否换药补药以兽医意见为准。")
+    return "\n".join(lines)
+
+
 # 供 agent.py 注册 LangChain 工具用的元信息
 TOOL_META = [
     ("query_pet", "按宠物名字查询该宠物的基本信息（品种/年龄/体重/健康状态）"),
@@ -500,4 +545,5 @@ TOOL_META = [
     ("query_medications", "按宠物名字查询用药情况：在用药物的剂量/频次/疗程剩余天数，以及已结束的用药历史"),
     ("query_expenses", "查询养宠花费：合计/分类占比/按宠物分摊/最近明细。参数：宠物名（可为空表示全部）、月份 YYYY-MM 或 YYYY（可为空表示本月）"),
     ("query_feeding", "按宠物名字查询饮食日志：今日/本周喂食次数、近 30 天类型分布与最近流水"),
+    ("query_medbox", "查询家庭药箱库存：药品/剂型/数量/有效期与开封后剩余天数、过期临期状态与关联宠物。参数：宠物名（可为空表示全部）"),
 ]

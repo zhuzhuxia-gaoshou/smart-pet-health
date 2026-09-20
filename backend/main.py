@@ -238,6 +238,38 @@ class FeedingIn(BaseModel):
         return v
 
 
+class MedboxIn(BaseModel):
+    name: str = Field(..., min_length=1, max_length=60, description="药品名")
+    form: str | None = Field("other", description="tablet|capsule|liquid|drops|ointment|spray|injection|other")
+    spec: str | None = Field(None, max_length=200, description="规格，如：0.5g×12片/瓶")
+    qty: float | None = Field(None, ge=0, description="库存数量，可为空")
+    unit: str | None = Field(None, max_length=20, description="数量单位，如：盒、支、袋")
+    expiry_date: str | None = Field(None, description="有效期截止日 YYYY-MM-DD")
+    opened_date: str | None = Field(None, description="开封日期 YYYY-MM-DD（填了即按开封后使用期计算）")
+    open_period_days: int | None = Field(90, ge=1, le=3650, description="开封后可用天数，默认 90")
+    location: str | None = Field(None, max_length=100, description="存放位置")
+    purpose: str | None = Field(None, max_length=200, description="用途简述")
+    pet_ids: list[int] = Field(default_factory=list, max_length=20, description="适用宠物 id 列表，空=全家通用")
+
+    @field_validator("expiry_date", "opened_date")
+    @classmethod
+    def _vd(cls, v):
+        return _check_date(v)
+
+    @field_validator("form")
+    @classmethod
+    def _vf(cls, v):
+        if v in (None, ""):
+            return "other"
+        if v not in db.MED_FORMS:
+            raise ValueError("剂型无效，可选：" + "/".join(db.MED_FORMS))
+        return v
+
+
+class MedboxOcrIn(BaseModel):
+    image: str = Field(..., max_length=4_000_000, description="药盒/处方单照片 data URI（前端已压缩）")
+
+
 # ---------------------------------------------------------------- 宠物 CRUD
 
 @app.get("/api/pets")
@@ -628,6 +660,82 @@ def api_delete_diet(log_id: int):
     return {"ok": True, "trash_id": tid}
 
 
+# ---------------------------------------------------------------- 药箱
+# 与用药方案 /api/medications 是两码事：那边是"这只宠物正在吃什么"，这里是"家里还剩哪些药、过没过期"。
+
+@app.get("/api/medbox")
+def api_list_medbox():
+    """全部药箱条目（含到期计算字段与适用宠物），已过期→临期→可用排序。"""
+    return {"items": db.list_medbox()}
+
+
+@app.get("/api/medbox/attention")
+def api_medbox_attention():
+    """只回需要关注的条目（已过期/临期），供徽章与提醒卡使用。必须注册在 /{item_id} 风格路由之前。"""
+    return {"items": db.medbox_attention()}
+
+
+@app.get("/api/medbox/briefing")
+def api_medbox_briefing():
+    """药箱管家话：数据签名+当天缓存，AI 失败回落规则拼接。"""
+    import agent
+    return {"briefing": agent.medbox_briefing()}
+
+
+@app.get("/api/pets/{pet_id}/card-text")
+def api_card_text(pet_id: int, force: int = 0):
+    """收藏卡 AI 称号+赠言（按宠物+稀有度缓存；force=1 换一句）。LLM 不可用返回 text=null，前端回落模板。"""
+    import agent
+    pet = db.get_pet(pet_id)
+    if pet is None:
+        return {"error": "宠物不存在"}
+    from datetime import date
+    days = None
+    anchor = pet.get("birthday") or pet.get("created_at")
+    if anchor:
+        try:
+            days = (date.today() - date.fromisoformat(str(anchor)[:10])).days
+        except ValueError:
+            days = None
+    rar = "R"
+    if days is not None:
+        rar = "UR" if days >= 1095 else "SSR" if days >= 365 else "SR" if days >= 90 else "R"
+    return {"text": agent.pet_card_text(pet, days, rar, force=bool(force))}
+
+
+@app.post("/api/medbox")
+def api_add_medbox(body: MedboxIn):
+    result = db.add_medbox(body.model_dump())
+    if result is None:
+        return {"error": "宠物不存在或名称为空"}
+    return {"item": result}
+
+
+@app.post("/api/medbox/ocr")
+def api_medbox_ocr(body: MedboxOcrIn):
+    """视觉识药：药盒/处方单照片 → 条目候选（不落库，前端填表确认后走 POST /api/medbox）。"""
+    import agent
+    if not (body.image or "").startswith("data:image/"):
+        return {"error": "图片格式无效"}
+    return agent.medbox_ocr(body.image)
+
+
+@app.put("/api/medbox/{item_id}")
+def api_update_medbox(item_id: int, body: MedboxIn):
+    result = db.update_medbox(item_id, body.model_dump())
+    if result is None:
+        return {"error": "药品不存在或宠物不存在"}
+    return {"item": result}
+
+
+@app.delete("/api/medbox/{item_id}")
+def api_delete_medbox(item_id: int):
+    tid = db.trash_put("medbox", item_id)
+    if tid is None or not db.delete_medbox(item_id):
+        return {"error": "药品不存在"}
+    return {"ok": True, "trash_id": tid}
+
+
 # ---------------------------------------------------------------- 健康日历
 
 @app.get("/api/calendar")
@@ -714,6 +822,29 @@ def api_briefing_refresh():
     """手动触发重新生成。"""
     _start_briefing_generation()
     return {"generating": True}
+
+
+# ---------------------------------------------------------------- AI 巡检员
+# 契约（前端已实现）：GET /api/patrol → {level,findings[{id,rule,level,title,ai_text,facts,link}],
+#   insights,mode,generated_at,fresh,scanned,history}；POST /api/patrol/refresh → {ok,capped}
+# 异常兜底不 500：规则层实时、LLM 只在后台异步润色（见 agent.patrol_report）。
+
+@app.get("/api/patrol")
+def api_patrol():
+    try:
+        import agent
+        return agent.patrol_report()
+    except Exception as e:
+        return {"error": f"巡检失败（{type(e).__name__}）"}
+
+
+@app.post("/api/patrol/refresh")
+def api_patrol_refresh():
+    try:
+        import agent
+        return agent.patrol_manual_refresh()
+    except Exception as e:
+        return {"error": f"刷新失败（{type(e).__name__}）"}
 
 
 # ---------------------------------------------------------------- 回忆集

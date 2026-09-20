@@ -34,6 +34,9 @@ MED_STATUS = {"active": "在用", "finished": "已结束"}
 EXPENSE_CATEGORIES = {"medical": "医疗", "food": "粮食", "supply": "用品", "grooming": "洗护", "other": "其他"}
 # 饮食类型（饮食日志页签与 AI 工具共用）
 FEEDING_TYPES = {"kibble": "干粮", "wet": "湿粮", "treat": "零食", "raw": "生骨肉", "other": "其他"}
+# 药品剂型（药箱页签与 AI 工具共用）
+MED_FORMS = {"tablet": "药片", "capsule": "胶囊", "liquid": "口服液", "drops": "滴剂",
+             "ointment": "外用", "spray": "喷剂", "injection": "针剂", "other": "其他"}
 
 
 def get_conn() -> sqlite3.Connection:
@@ -121,6 +124,25 @@ CREATE TABLE IF NOT EXISTS feeding_logs(
   created_at TEXT DEFAULT (datetime('now','localtime')),
   FOREIGN KEY(pet_id) REFERENCES pets(id) ON DELETE CASCADE
 );
+CREATE TABLE IF NOT EXISTS medbox_items(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  form TEXT DEFAULT 'other',
+  spec TEXT DEFAULT '',
+  qty REAL,
+  unit TEXT DEFAULT '',
+  expiry_date TEXT,
+  opened_date TEXT,
+  open_period_days INTEGER DEFAULT 90,
+  location TEXT DEFAULT '',
+  purpose TEXT DEFAULT '',
+  created_at TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE IF NOT EXISTS medbox_pets(
+  item_id INTEGER NOT NULL REFERENCES medbox_items(id) ON DELETE CASCADE,
+  pet_id INTEGER NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
+  PRIMARY KEY(item_id, pet_id)
+);
 CREATE INDEX IF NOT EXISTS idx_records_pet ON health_records(pet_id, date);
 CREATE INDEX IF NOT EXISTS idx_records_next ON health_records(next_date);
 CREATE INDEX IF NOT EXISTS idx_weights_pet ON weight_logs(pet_id, date);
@@ -130,6 +152,7 @@ CREATE INDEX IF NOT EXISTS idx_chat_session ON chat_history(session_id);
 CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);
 CREATE INDEX IF NOT EXISTS idx_expenses_pet ON expenses(pet_id, date);
 CREATE INDEX IF NOT EXISTS idx_feeding_pet ON feeding_logs(pet_id, date);
+CREATE INDEX IF NOT EXISTS idx_medbox_pets ON medbox_pets(pet_id, item_id);
 CREATE TABLE IF NOT EXISTS trash(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   kind TEXT NOT NULL,
@@ -874,7 +897,8 @@ def reset_demo_data() -> dict:
     conn = get_conn()
     try:
         for t in ("chat_history", "chat_sessions", "app_kv", "weight_logs",
-                  "health_records", "medications", "memories", "expenses", "feeding_logs", "pets"):
+                  "health_records", "medications", "memories", "expenses", "feeding_logs",
+                  "medbox_pets", "medbox_items", "pets"):
             conn.execute(f"DELETE FROM {t}")
         conn.commit()
     finally:
@@ -932,11 +956,13 @@ TRASHABLE = {
     "medication": {"table": "medications"},
     "expense":   {"table": "expenses"},
     "diet":      {"table": "feeding_logs"},
+    # 药箱：删条目连带适用关联进快照；删宠物时 medbox_pets 是 CASCADE 子表，回插即可（medbox_items 本体不消失）
+    "medbox":    {"table": "medbox_items", "children": [("medbox_pets", "item_id")]},
     "session":   {"table": "chat_sessions", "children": [("chat_history", "session_id")]},
     # pets 级联删 CASCADE 子表；memories/expenses 是 SET NULL 不消失——撤销时 relink 回宠物而不是回插
     "pet":       {"table": "pets", "children": [
         ("health_records", "pet_id"), ("weight_logs", "pet_id"), ("medications", "pet_id"),
-        ("feeding_logs", "pet_id")],
+        ("feeding_logs", "pet_id"), ("medbox_pets", "pet_id")],
         "relink": [("expenses", "pet_id"), ("memories", "pet_id")]},
 }
 
@@ -1419,7 +1445,8 @@ def seed_expenses() -> None:
 
 def calendar_month(year: int, month: int) -> dict:
     """某月每天的健康事项：待办提醒（health_records.next_date，分级 overdue/soon/todo）、
-    已做记录（health_records.date）、进行中的用药（medications active 且当天落在 start~end 区间，end 空视为长期）。
+    已做记录（health_records.date）、进行中的用药（medications active 且当天落在 start~end 区间，end 空视为长期）、
+    药箱到期事项（medbox_items，effective_deadline 落在当天，分级 overdue/today/soon，整条只标 1 天）。
     只返回有事项的日期；分级基准是"今天"而非所查月份，翻到未来月份时逾期项仍按今天判定。"""
     last_day = calendar.monthrange(year, month)[1]
     lo, hi = date(year, month, 1).isoformat(), date(year, month, last_day).isoformat()
@@ -1441,7 +1468,7 @@ def calendar_month(year: int, month: int) -> dict:
 
     days: dict[str, dict] = {}
     def bucket(d: str) -> dict:
-        return days.setdefault(d, {"reminders": [], "records": [], "meds": []})
+        return days.setdefault(d, {"reminders": [], "records": [], "meds": [], "expiry": []})
 
     for r in recs:
         r = dict(r)
@@ -1493,6 +1520,14 @@ def calendar_month(year: int, month: int) -> dict:
                 bucket(cur.isoformat())["meds"].append(item)
                 cur += timedelta(days=1)
 
+    # 第四源：药箱到期（list_medbox 原始行批量算 effective_deadline，落在所查月份的按日标记）
+    for it in list_medbox():
+        dl = it.get("effective_deadline")
+        if not dl or not (lo <= dl <= hi) or it.get("remain_days") is None:
+            continue
+        level = "overdue" if it["remain_days"] < 0 else ("today" if it["remain_days"] == 0 else "soon")
+        bucket(dl)["expiry"].append({"id": it["id"], "name": it["name"], "level": level})
+
     level_rank = {"overdue": 0, "soon": 1, "todo": 2}
     for d in days.values():
         d["reminders"].sort(key=lambda x: (level_rank[x["level"]], x["days_left"]))
@@ -1503,6 +1538,7 @@ def calendar_month(year: int, month: int) -> dict:
             "reminders": sum(len(d["reminders"]) for d in days.values()),
             "records": sum(len(d["records"]) for d in days.values()),
             "med_days": sum(1 for d in days.values() if d["meds"]),
+            "medbox": sum(len(d["expiry"]) for d in days.values()),
         },
     }
 
@@ -1638,6 +1674,361 @@ def seed_feeding() -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+# ---------------------------------------------------------------- 药箱
+# 家庭常备药库存：有效期与开封后使用期取更早者为截止日（effective_deadline）；
+# medbox_pets 多对多关联适用宠物（无关联=全家通用）。到期计算纯函数，不落库。
+
+def _med_date(s) -> date | None:
+    """宽容解析 YYYY-MM-DD：空值/脏值返回 None，绝不让列表或日历整页 500。"""
+    if not s:
+        return None
+    try:
+        return datetime.strptime(str(s)[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def medbox_status(item: dict) -> dict:
+    """给单条药箱条目追加到期/临期计算字段并返回（就地改）：
+    form_label 剂型中文；effective_deadline 截止日（开封药取 min(有效期, 开封日+开封保质期)，
+    未开封取有效期，皆空 None）；remain_days 剩余天数（可负）；remain_pct 剩余/总保质期
+    钳到 [2,100]（无期限 None，总长≤0 按 1 天算）；opened 是否已开封；
+    status 三态 expired/soon/ok（截止已过=expired，≤30 天=soon），未建期限一律 ok。"""
+    form = item.get("form") or "other"
+    item["form_label"] = MED_FORMS.get(form, form)
+    expiry = _med_date(item.get("expiry_date"))
+    opened_dt = _med_date(item.get("opened_date"))
+    item["opened"] = opened_dt is not None
+    try:
+        period = int(item.get("open_period_days") or 0)
+    except (TypeError, ValueError):
+        period = 0
+    open_dl = opened_dt + timedelta(days=period) if (opened_dt and period > 0) else None
+    deadline, from_open = None, False
+    if expiry and open_dl:
+        deadline = min(expiry, open_dl); from_open = open_dl < expiry
+    elif expiry:
+        deadline = expiry
+    elif open_dl:
+        deadline = open_dl; from_open = True
+    item["effective_deadline"] = deadline.isoformat() if deadline else None
+    if deadline is None:
+        item["remain_days"] = None
+        item["remain_pct"] = None
+        item["status"] = "ok"
+    else:
+        remain = (deadline - date.today()).days
+        item["remain_days"] = remain
+        if from_open:
+            total = period          # 截止由开封后使用期决定：总长就是开封保质期
+        else:
+            anchor = opened_dt or _med_date(item.get("created_at")) or date.today()
+            total = (deadline - anchor).days
+        if total <= 0:
+            total = 1               # 开封日期晚于截止等脏数据：按 1 天算，不除零
+        item["remain_pct"] = max(2, min(100, int(round(remain / total * 100))))
+        item["status"] = "expired" if remain < 0 else ("soon" if remain <= 30 else "ok")
+    item["status_label"] = {"expired": "已过期", "soon": "临期"}.get(item["status"], "可用")
+    return item
+
+
+MEDBOX_FIELDS = ("name", "form", "spec", "qty", "unit", "expiry_date", "opened_date",
+                 "open_period_days", "location", "purpose")
+
+
+def _medbox_pets_of(conn, item_id: int) -> list[dict]:
+    """某条药品的适用宠物（id/name/avatar/type）。"""
+    return [{"id": r["id"], "name": r["name"], "avatar": r["avatar"], "type": r["type"]}
+            for r in conn.execute(
+                "SELECT p.id, p.name, p.avatar, p.type FROM medbox_pets mp"
+                " JOIN pets p ON p.id = mp.pet_id WHERE mp.item_id=? ORDER BY p.id", (item_id,))]
+
+
+def list_medbox() -> list[dict]:
+    """全部药箱条目（带 pets 与 medbox_status 展开字段），紧急度排序：expired→soon→ok，同级按剩余天数升（无期限最后）。"""
+    conn = get_conn()
+    try:
+        rows = [dict(r) for r in conn.execute("SELECT * FROM medbox_items").fetchall()]
+        for d in rows:
+            d["pets"] = _medbox_pets_of(conn, d["id"])
+            medbox_status(d)
+    finally:
+        conn.close()
+    rank = {"expired": 0, "soon": 1, "ok": 2}
+    rows.sort(key=lambda x: (rank[x["status"]], x["remain_days"] is None,
+                             x["remain_days"] if x["remain_days"] is not None else 0))
+    return rows
+
+
+def get_medbox(item_id: int) -> dict | None:
+    conn = get_conn()
+    try:
+        row = conn.execute("SELECT * FROM medbox_items WHERE id=?", (item_id,)).fetchone()
+        if row is None:
+            return None
+        d = dict(row)
+        d["pets"] = _medbox_pets_of(conn, item_id)
+    finally:
+        conn.close()
+    return medbox_status(d)
+
+
+def add_medbox(data: dict) -> dict | None:
+    """新增药箱条目：data 可含 pet_ids:[int]（任一宠物不存在则整体 None）；form 白名单外落 other。"""
+    name = (data.get("name") or "").strip()
+    if not name:
+        return None
+    pet_ids = sorted({int(p) for p in (data.get("pet_ids") or [])})
+    conn = get_conn()
+    try:
+        if pet_ids:
+            marks = ",".join("?" * len(pet_ids))
+            found = {r["id"] for r in conn.execute(f"SELECT id FROM pets WHERE id IN ({marks})", pet_ids)}
+            if found != set(pet_ids):
+                return None
+        cur = conn.execute(
+            "INSERT INTO medbox_items(name,form,spec,qty,unit,expiry_date,opened_date,open_period_days,location,purpose)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?)",
+            (name,
+             data.get("form") if data.get("form") in MED_FORMS else "other",
+             (data.get("spec") or "").strip(),
+             None if data.get("qty") is None else float(data["qty"]),
+             (data.get("unit") or "").strip(),
+             data.get("expiry_date") or None,
+             data.get("opened_date") or None,
+             int(data.get("open_period_days") or 90),
+             (data.get("location") or "").strip(),
+             (data.get("purpose") or "").strip()))
+        item_id = cur.lastrowid
+        for pid in pet_ids:
+            conn.execute("INSERT INTO medbox_pets(item_id,pet_id) VALUES(?,?)", (item_id, pid))
+        conn.commit()
+    finally:
+        conn.close()
+    return get_medbox(item_id)
+
+
+def update_medbox(item_id: int, data: dict) -> dict | None:
+    """编辑药箱条目：白名单字段给了值才更新（qty 允许显式 null 清空）；
+    pet_ids 给定时全删重建关联（含空列表=清空），宠物不存在返回 None。"""
+    pet_ids = data.get("pet_ids") if "pet_ids" in data else None
+    if pet_ids is not None:
+        pet_ids = sorted({int(p) for p in pet_ids})
+        conn = get_conn()
+        try:
+            if pet_ids:
+                marks = ",".join("?" * len(pet_ids))
+                found = {r["id"] for r in conn.execute(f"SELECT id FROM pets WHERE id IN ({marks})", pet_ids)}
+                if found != set(pet_ids):
+                    return None
+        finally:
+            conn.close()
+    conn = get_conn()
+    try:
+        row = conn.execute("SELECT * FROM medbox_items WHERE id=?", (item_id,)).fetchone()
+        if row is None:
+            return None
+        row = dict(row)
+        fields = {k: v for k, v in data.items() if k in MEDBOX_FIELDS and v is not None}
+        if "qty" in data and data["qty"] is None:
+            fields["qty"] = None
+        # 日期同理：前端把空 date input 归一为 null，显式传 null 即清空（否则清不掉还提示成功）
+        for dk in ("expiry_date", "opened_date"):
+            if dk in data and data[dk] is None:
+                fields[dk] = None
+        if "qty" in fields and fields["qty"] is not None:
+            fields["qty"] = float(fields["qty"])
+        if "open_period_days" in fields:
+            fields["open_period_days"] = int(fields["open_period_days"])
+        if "form" in fields and fields["form"] not in MED_FORMS:
+            fields["form"] = "other"
+        if "name" in fields:
+            fields["name"] = str(fields["name"]).strip() or row["name"]
+        for k in ("spec", "unit", "location", "purpose"):
+            if k in fields:
+                fields[k] = str(fields[k]).strip()
+        if fields:
+            conn.execute("UPDATE medbox_items SET " + ",".join(f"{k}=?" for k in fields) + " WHERE id=?",
+                         list(fields.values()) + [item_id])
+        if pet_ids is not None:
+            conn.execute("DELETE FROM medbox_pets WHERE item_id=?", (item_id,))
+            for pid in pet_ids:
+                conn.execute("INSERT INTO medbox_pets(item_id,pet_id) VALUES(?,?)", (item_id, pid))
+        conn.commit()
+    finally:
+        conn.close()
+    return get_medbox(item_id)
+
+
+def delete_medbox(item_id: int) -> bool:
+    conn = get_conn()
+    try:
+        cur = conn.execute("DELETE FROM medbox_items WHERE id=?", (item_id,))
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def medbox_attention() -> list[dict]:
+    """需要关注的药箱条目（已过期/临期），沿用 list_medbox 的紧急度排序。"""
+    return [i for i in list_medbox() if i["status"] != "ok"]
+
+
+# ---------------------------------------------------------------- AI 巡检规则引擎
+# 6 条独立规则，每条各自 try/except：单条坏数据只记 rule_errors，不拖垮整体。
+# finding.id 为决定式（规则+实体+当天日期），与 LLM 无关；title/facts 全是规则拼接的事实句。
+
+PATROL_RULES = ("appetite", "weight_gap", "spend", "overdue", "medbox", "weight_delta")
+
+
+def _patrol_finding(rid: str, rule: str, level: str, title: str, facts: list, link: dict | None) -> dict:
+    return {"id": rid, "rule": rule, "level": level, "title": title,
+            "ai_text": "", "facts": facts[:4], "link": link}
+
+
+def _patrol_pet_scan_rules(findings: list, errors: list) -> None:
+    """逐宠规则：appetite / weight_gap / weight_delta（各自 try，互不牵连）。"""
+    from datetime import timedelta
+    today = date.today()
+    conn = get_conn()
+    try:
+        pets = [dict(r) for r in conn.execute("SELECT id, name, created_at FROM pets ORDER BY id").fetchall()]
+        for pet in pets:
+            pid = pet["id"]
+            # ① appetite：近3天喂食次数 vs 此前21天日均×3
+            try:
+                recent = conn.execute("SELECT COUNT(*) FROM feeding_logs WHERE pet_id=? AND date>=?",
+                                      (pid, (today - timedelta(days=2)).isoformat())).fetchone()[0]
+                prev = conn.execute("SELECT COUNT(*) FROM feeding_logs WHERE pet_id=? AND date>=? AND date<?",
+                                    (pid, (today - timedelta(days=23)).isoformat(),
+                                     (today - timedelta(days=2)).isoformat())).fetchone()[0]
+                avg = prev / 21.0
+                if recent == 0 and avg >= 1:
+                    findings.append(_patrol_finding(
+                        f"appetite:{pid}:{today.isoformat()}", "appetite", "high",
+                        f"{pet['name']} · 近3天没有任何进食记录",
+                        [{"k": "近3天喂餐", "v": "0 次"}, {"k": "此前日均", "v": f"{round(avg, 1)} 次/天"}],
+                        {"view": "detail", "opts": {"petId": pid}}))
+                elif recent >= 1 and avg >= 1 and recent <= avg * 3 * 0.6:
+                    pct = round((1 - recent / (avg * 3)) * 100)
+                    findings.append(_patrol_finding(
+                        f"appetite:{pid}:{today.isoformat()}", "appetite", "warn",
+                        f"{pet['name']} · 近3天食欲下降{pct}%",
+                        [{"k": "近3天喂餐", "v": f"{recent} 次"},
+                         {"k": "此前均值", "v": f"{round(avg, 1)} 次/天"},
+                         {"k": "降幅", "v": f"{pct}%"}],
+                        {"view": "detail", "opts": {"petId": pid}}))
+            except Exception as e:
+                errors.append(f"appetite:{pid}: {type(e).__name__}")
+            # ② weight_gap：距最新体重 >60 天且养宠 >60 天
+            try:
+                latest = conn.execute("SELECT date FROM weight_logs WHERE pet_id=? ORDER BY date DESC LIMIT 1",
+                                      (pid,)).fetchone()
+                created = (pet.get("created_at") or "")[:10]
+                if latest and created:
+                    gap = days_until(latest["date"])
+                    owned = -days_until(created)
+                    if gap < -60 and owned > 60:
+                        findings.append(_patrol_finding(
+                            f"weight_gap:{pid}:{today.isoformat()}", "weight_gap", "warn",
+                            f"{pet['name']} · 已 {-gap} 天没有称重",
+                            [{"k": "距上次称重", "v": f"{-gap} 天"}, {"k": "上次日期", "v": latest["date"]}],
+                            {"view": "detail", "opts": {"petId": pid}}))
+            except Exception as e:
+                errors.append(f"weight_gap:{pid}: {type(e).__name__}")
+            # ⑥ weight_delta：近30天首末差超 10%
+            try:
+                rows = [dict(r) for r in conn.execute(
+                    "SELECT date, weight FROM weight_logs WHERE pet_id=? AND date>=? ORDER BY date ASC",
+                    (pid, (today - timedelta(days=29)).isoformat())).fetchall()]
+                if len(rows) >= 2 and rows[0]["weight"]:
+                    w0, w1 = rows[0]["weight"], rows[-1]["weight"]
+                    pct = abs(w1 - w0) / w0 * 100
+                    if pct > 10:
+                        trend = "上升" if w1 > w0 else "下降"
+                        findings.append(_patrol_finding(
+                            f"weight_delta:{pid}:{today.isoformat()}", "weight_delta", "warn",
+                            f"{pet['name']} · 近30天体重{trend} {round(pct, 1)}%",
+                            [{"k": "30天前", "v": f"{w0} kg"}, {"k": "当前", "v": f"{w1} kg"},
+                             {"k": "幅度", "v": f"{round(pct, 1)}%"}],
+                            {"view": "detail", "opts": {"petId": pid}}))
+            except Exception as e:
+                errors.append(f"weight_delta:{pid}: {type(e).__name__}")
+    finally:
+        conn.close()
+
+
+def patrol_scan() -> dict:
+    """AI 巡检规则引擎：食欲骤降 / 久未称重 / 医疗花费异动 / 提醒逾期 / 药箱到期 / 体重波动。
+    每条规则独立捕获异常（坏数据记入 rule_errors），findings 按 high→warn→info 排序。"""
+    findings: list[dict] = []
+    errors: list[str] = []
+    today = date.today()
+    try:
+        _patrol_pet_scan_rules(findings, errors)
+    except Exception as e:
+        errors.append(f"pet-rules: {type(e).__name__}")
+    # ③ spend：本月医疗 vs 上月医疗（3 倍且 ≥100 → warn；上月 0 且本月 ≥300 → info）
+    try:
+        now = today
+        py, pm = (now.year - 1, 12) if now.month == 1 else (now.year, now.month - 1)
+        cur_med = expense_summary(now.year, now.month)["by_category"].get("medical", 0.0)
+        prev_med = expense_summary(py, pm)["by_category"].get("medical", 0.0)
+        rid = f"spend:0:{today.isoformat()}"
+        if prev_med > 0 and cur_med >= prev_med * 3 and cur_med >= 100:
+            findings.append(_patrol_finding(rid, "spend", "warn",
+                          f"本月医疗花费异动（上月 ¥{prev_med:.2f} → 本月 ¥{cur_med:.2f}）",
+                          [{"k": "本月医疗", "v": f"¥{cur_med:.2f}"},
+                           {"k": "上月医疗", "v": f"¥{prev_med:.2f}"}],
+                          {"view": "ledger", "opts": {}}))
+        elif prev_med == 0 and cur_med >= 300:
+            findings.append(_patrol_finding(rid, "spend", "info",
+                          f"本月医疗花费 ¥{cur_med:.2f}（上月无医疗支出）",
+                          [{"k": "本月医疗", "v": f"¥{cur_med:.2f}"}, {"k": "上月医疗", "v": "¥0.00"}],
+                          {"view": "ledger", "opts": {}}))
+    except Exception as e:
+        errors.append(f"spend: {type(e).__name__}")
+    # ④ overdue：逾期最久分级（>14 天 high；>7 天 warn；1~7 天 info 汇总一条）
+    try:
+        overdue = [r for r in compute_reminders() if r["overdue"]]
+        if overdue:
+            worst = max(-r["days_left"] for r in overdue)
+            level = "high" if worst > 14 else ("warn" if worst > 7 else "info")
+            facts = [{"k": "逾期事项", "v": f"{len(overdue)} 项"},
+                     {"k": "最久逾期", "v": f"{worst} 天"}]
+            for r in overdue[:2]:
+                facts.append({"k": f"{r['pet_name']}·{r['title']}", "v": f"逾期 {-r['days_left']} 天"})
+            findings.append(_patrol_finding(
+                f"overdue:0:{today.isoformat()}", "overdue", level,
+                f"{len(overdue)} 项提醒已逾期（最久 {worst} 天）",
+                facts, {"view": "reminders", "opts": {}}))
+    except Exception as e:
+        errors.append(f"overdue: {type(e).__name__}")
+    # ⑤ medbox：过期 high / 仅临期 warn
+    try:
+        attention = medbox_attention()
+        if attention:
+            has_expired = any(a["status"] == "expired" for a in attention)
+            facts = []
+            for a in attention[:3]:
+                rd = a.get("remain_days")
+                facts.append({"k": a["name"],
+                              "v": (f"已过期 {-rd} 天" if rd is not None and rd < 0
+                                    else f"剩 {rd} 天" if rd is not None else "临期")})
+            findings.append(_patrol_finding(
+                f"medbox:0:{today.isoformat()}", "medbox",
+                "high" if has_expired else "warn",
+                f"药箱 {len(attention)} 种药品需关注"
+                + ("（含已过期）" if has_expired else "（临期）"),
+                facts, {"view": "medbox", "opts": {}}))
+    except Exception as e:
+        errors.append(f"medbox: {type(e).__name__}")
+    rank = {"high": 0, "warn": 1, "info": 2}
+    findings.sort(key=lambda f: (rank.get(f["level"], 3), f["id"]))
+    return {"findings": findings, "scanned": len(PATROL_RULES), "rule_errors": errors}
 
 
 if __name__ == "__main__":
