@@ -111,6 +111,15 @@ class RecordIn(BaseModel):
     next_date: str | None = None
     weight: float | None = None
     repeat_rule: str | None = Field(None, description="''|daily|weekly|monthly|yearly；配合 next_date 使用")
+    image: str | None = Field(None, max_length=4_000_000, description="图片 data URI（前端已压缩）；编辑传 '' 清除")
+
+    @field_validator("image", mode="before")
+    @classmethod
+    def _vi(cls, v):
+        # 只收 data:image/ URI，拒绝把任意大文本塞进本字段
+        if v is not None and v != "" and not str(v).startswith("data:image/"):
+            raise ValueError("图片格式无效")
+        return v
 
     @field_validator("date", "next_date")
     @classmethod

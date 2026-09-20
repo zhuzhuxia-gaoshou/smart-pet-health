@@ -680,6 +680,13 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
 .img-preview-wrap { position: relative; display: none; }
 .img-preview-wrap.show { display: block; }
 .img-preview { width: 100%; max-height: 160px; object-fit: contain; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); }
+/* 时间线记录照片缩略图 */
+.tl-thumb-btn { display: block; margin-top: 2px; padding: 0; border: none; background: none; cursor: zoom-in; }
+.tl-thumb { width: 96px; height: 72px; object-fit: cover; border-radius: 10px; border: 1px solid var(--border);
+  background: var(--surface-2); transition: transform var(--dur) var(--ease), border-color var(--dur) var(--ease); }
+.tl-thumb-btn:hover .tl-thumb { transform: scale(1.03); border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+.tl-thumb-btn:active .tl-thumb { transform: scale(.97); }
+.tl-thumb-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 12px; }
 .img-remove { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border-radius: 50%; border: none; background: var(--overlay-strong); color: var(--on-accent); font-size: 14px; line-height: 1; display: grid; place-items: center; }
 .wall-head { display: flex; align-items: center; gap: 18px; padding: 24px 26px; margin-bottom: 24px; }
 .wall-sum { font-size: 14px; color: var(--text-2); margin-top: 5px; }
@@ -2035,7 +2042,7 @@ async function renderRecords() {
       <span class="rec-date">${esc((r.date || '').slice(5))}</span>
       <span class="rec-type" style="background:${TYPE_COLOR[r.type] || 'var(--accent)'}">${esc(r.type_label)}</span>
       <span class="rec-pet">${esc(r.pet_avatar || TYPE_EMOJI[r.pet_type] || '🐾')} ${esc(r.pet_name)}</span>
-      <span class="rec-title">${esc(r.title)}</span>
+      <span class="rec-title">${esc(r.title)}${r.image ? ' 📷' : ''}</span>
       ${nextChip}
     </div>`;
   }).join('')}`).join('') + `<div class="rec-foot">本月新增 ${list.filter(r => (r.date || '').startsWith(monthNow)).length} 条 · ${filtering ? '筛选' : '累计'} ${list.length} 条</div></div>`;
@@ -2235,10 +2242,20 @@ function switchTab(tab, btn) {
   $('pane-' + tab).classList.add('active');
   if (tab === 'weight') drawWeightChart();
 }
+/* ---------- 记录照片：渲染时缓存到 _recImgCache，缩略图点击开 lightbox ---------- */
+const _recImgCache = {};
+function showRecImg(rid) {
+  const rec = _recImgCache[rid];
+  if (!rec) return;
+  openModal(`<h3>${esc(rec.title)} · 照片</h3>
+    <img class="lb-img" src="${rec.src}" alt="${esc(rec.title)} 照片">
+    <div class="modal-actions"><button class="btn" onclick="closeModal()">关闭</button></div>`, true);
+}
 function timelineHTML(records) {
   if (!records.length) return '<div class="empty-hint">暂无健康记录，点击右上角「新增记录」开始</div>';
   return `<div class="timeline">` + records.map(r => {
     const color = TYPE_COLOR[r.type] || 'var(--accent)';
+    if (r.image) _recImgCache[r.id] = { src: r.image, title: r.title };
     let nextBadge = '';
     if (r.next_date) {
       const d = r.days_left;
@@ -2253,6 +2270,7 @@ function timelineHTML(records) {
         <span class="tl-date">${esc(r.date)}</span>
       </div>
       ${r.note ? `<div class="tl-note">${esc(r.note)}</div>` : ''}
+      ${r.image ? `<button type="button" class="tl-thumb-btn" onclick="showRecImg(${r.id})" aria-label="查看「${esc(r.title)}」的图片"><img class="tl-thumb" src="${r.image}" alt="${esc(r.title)} 照片"></button>` : ''}
       ${nextBadge}
       <div class="tl-ops">
         ${r.next_date ? `<button class="tl-del tl-done" onclick="completeReminder(${r.id}, this)">✓ 标记完成${r.repeat_label ? '并排下一轮' : ''}</button>` : ''}
@@ -3078,6 +3096,13 @@ function openRecordModal(petId) {
       <div class="form-field full"><label>标题 <span class="req">*</span></label><input name="title" required maxlength="60" placeholder="${sp ? `如：${esc(sp.diseases[0])}观察与处理` : '如：狂犬疫苗（第2年）'}"></div>
       ${chips}
       <div class="form-field full"><label>说明</label><textarea name="note" rows="2" maxlength="300" placeholder="医生嘱托、剂量、反应观察…"></textarea></div>
+      <div class="form-field full"><label>照片（选填：疫苗本内页、处方、恢复对比，自动压缩）</label>
+        <input type="file" accept="image/*" onchange="handleRecImage(this)">
+        <div class="img-preview-wrap" id="rec-img-wrap">
+          <img class="img-preview" id="rec-img-prev" src="">
+          <button type="button" class="img-remove" onclick="clearRecImage()" title="移除图片">✕</button>
+        </div>
+      </div>
       <div class="form-field"><label>下次日期（选填，用于提醒）</label><input name="next_date" type="date"></div>
       <div class="form-field"><label>重复周期（完成后自动排下一轮）</label><select name="repeat_rule">${repeatOptions('')}</select></div>
       <div class="form-field"><label>当时体重 kg（选填，记录进趋势）</label><input name="weight" type="number" step="0.01" min="0"></div>
@@ -3087,6 +3112,7 @@ function openRecordModal(petId) {
       <button type="submit" class="btn primary" id="rec-save-btn">保存记录</button>
     </div>
   </form>`);
+  state.recImg = '';
 }
 function chipTitle(btn) {
   const input = document.querySelector('#rec-form input[name="title"], #rec-edit-form input[name="title"]');
@@ -3098,7 +3124,7 @@ async function submitRecord(e) {
   const pid = +(f.pet_id || state.detailPetId); delete f.pet_id;
   Object.keys(f).forEach(k => { if (f[k] === '') delete f[k]; });
   try {
-    await api(`/api/pets/${pid}/records`, { method: 'POST', body: JSON.stringify(f) });
+    await api(`/api/pets/${pid}/records`, { method: 'POST', body: JSON.stringify(Object.assign(f, { image: state.recImg || '' })) });
     flashSaved($('rec-save-btn'));
     setTimeout(() => {
       closeModal();
@@ -3133,6 +3159,13 @@ function openRecordEditModal(rid) {
       <div class="form-field"><label>日期</label><input name="date" type="date" value="${esc(r.date || '')}"></div>
       <div class="form-field full"><label>标题 <span class="req">*</span></label><input name="title" required maxlength="60" value="${esc(r.title || '')}"></div>
       <div class="form-field full"><label>说明</label><textarea name="note" rows="2" maxlength="300">${esc(r.note || '')}</textarea></div>
+      <div class="form-field full"><label>照片（自动压缩；✕ 移除后保存即清除）</label>
+        <input type="file" accept="image/*" onchange="handleRecImage(this)">
+        <div class="img-preview-wrap${r.image ? ' show' : ''}" id="rec-img-wrap">
+          <img class="img-preview" id="rec-img-prev" src="${r.image || ''}">
+          <button type="button" class="img-remove" onclick="clearRecImage()" title="移除图片">✕</button>
+        </div>
+      </div>
       <div class="form-field"><label>下次日期（选填，用于提醒）</label><input name="next_date" type="date" value="${esc(r.next_date || '')}"></div>
       <div class="form-field"><label>重复周期（完成后自动排下一轮）</label><select name="repeat_rule">${repeatOptions(r.repeat_rule)}</select></div>
       <div class="form-field"><label>补充体重 kg（选填，留空不改）</label><input name="weight" type="number" step="0.01" min="0" placeholder="不修改请留空"></div>
@@ -3142,12 +3175,29 @@ function openRecordEditModal(rid) {
       <button type="submit" class="btn primary" id="rec-edit-btn">保存修改</button>
     </div>
   </form>`);
+  state.recImg = r.image || '';
+}
+async function handleRecImage(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  try {
+    toast('正在压缩图片…');
+    state.recImg = await compressImage(file);
+    $('rec-img-prev').src = state.recImg;
+    $('rec-img-wrap').classList.add('show');
+  } catch (e) { toast(e.message, true); }
+}
+function clearRecImage() {
+  state.recImg = '';
+  $('rec-img-wrap')?.classList.remove('show');
+  $('rec-img-prev').src = '';
 }
 async function submitRecordEdit(e, rid) {
   e.preventDefault();
   const f = Object.fromEntries(new FormData(e.target).entries());
-  // repeat_rule 的空串表示「改为不重复」，需要保留提交
+  // repeat_rule 的空串表示「改为不重复」，需要保留提交；image 空串表示清除
   Object.keys(f).forEach(k => { if (f[k] === '' && k !== 'repeat_rule') delete f[k]; });
+  f.image = state.recImg || '';
   try {
     await api(`/api/records/${rid}`, { method: 'PUT', body: JSON.stringify(f) });
     flashSaved($('rec-edit-btn'));

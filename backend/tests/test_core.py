@@ -273,3 +273,22 @@ def test_restore_backup_rejects_bad_names(tmp_db):
     assert db.restore_backup("../pets.db")["error"]                  # 路径穿越
     assert db.restore_backup("pets-999.db")["error"]                 # 格式不符
     assert db.restore_backup("pets-20200101-000000.db")["error"]     # 名称合法但不存在
+
+
+# ---------------------------------------------------------------- 健康记录附图
+
+def test_record_image_crud(tmp_db):
+    keke = db.fetch_pet_by_name("测测")
+    r = db.add_record(keke["id"], {"type": "clinic", "title": "t-img", "image": "data:image/jpeg;base64,AAA"})
+    assert r["image"] == "data:image/jpeg;base64,AAA"
+    # 编辑不传 image → 保留
+    assert db.update_record(r["id"], {"type": "clinic", "title": "t-img2"})["image"] == "data:image/jpeg;base64,AAA"
+    # 编辑传 '' → 清除
+    assert not db.update_record(r["id"], {"type": "clinic", "title": "t-img3", "image": ""})["image"]
+
+def test_record_in_image_validation():
+    from main import RecordIn
+    assert RecordIn(type="clinic", title="t", image="data:image/png;base64,BBB").image.startswith("data:")
+    assert RecordIn(type="clinic", title="t", image="").image == ""
+    with pytest.raises(ValidationError):
+        RecordIn(type="clinic", title="t", image="<script>bad</script>")   # 非 data:image URI 拒绝

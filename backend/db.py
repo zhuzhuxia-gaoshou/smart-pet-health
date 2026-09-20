@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS health_records(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   pet_id INTEGER, type TEXT, date TEXT, title TEXT, note TEXT, next_date TEXT,
   repeat_rule TEXT DEFAULT '',
+  image TEXT,
   FOREIGN KEY(pet_id) REFERENCES pets(id) ON DELETE CASCADE
 );
 CREATE TABLE IF NOT EXISTS weight_logs(
@@ -160,10 +161,12 @@ def init_db() -> None:
         if cols and "session_id" not in cols:
             conn.execute("DROP TABLE chat_history")
         conn.executescript(SCHEMA)
-        # 增量迁移：老库 health_records 补 repeat_rule 列（保留数据）
+        # 增量迁移：老库 health_records 补 repeat_rule / image 列（保留数据）
         rec_cols = [r["name"] for r in conn.execute("PRAGMA table_info(health_records)").fetchall()]
         if rec_cols and "repeat_rule" not in rec_cols:
             conn.execute("ALTER TABLE health_records ADD COLUMN repeat_rule TEXT DEFAULT ''")
+        if rec_cols and "image" not in rec_cols:
+            conn.execute("ALTER TABLE health_records ADD COLUMN image TEXT")
         conn.commit()
     finally:
         conn.close()
@@ -438,11 +441,11 @@ def add_record(pet_id: int, data: dict) -> dict | None:
     conn = get_conn()
     try:
         cur = conn.execute(
-            "INSERT INTO health_records(pet_id,type,date,title,note,next_date,repeat_rule)"
-            " VALUES(?,?,?,?,?,?,?)",
+            "INSERT INTO health_records(pet_id,type,date,title,note,next_date,repeat_rule,image)"
+            " VALUES(?,?,?,?,?,?,?,?)",
             (pet_id, data.get("type"), data.get("date") or today_str(),
              data.get("title"), data.get("note"), data.get("next_date") or None,
-             data.get("repeat_rule") or ""))
+             data.get("repeat_rule") or "", data.get("image") or None))
         # 带体重的记录同步写入体重表（供趋势图与 Agent 分析）
         if data.get("weight"):
             conn.execute("INSERT INTO weight_logs(pet_id,date,weight) VALUES(?,?,?)",
@@ -477,11 +480,13 @@ def update_record(record_id: int, data: dict) -> dict | None:
         cur_date = data.get("date") or row["date"]
         repeat = data["repeat_rule"] if data.get("repeat_rule") is not None else (row["repeat_rule"] or "")
         conn.execute(
-            "UPDATE health_records SET type=?, date=?, title=?, note=?, next_date=?, repeat_rule=? WHERE id=?",
+            "UPDATE health_records SET type=?, date=?, title=?, note=?, next_date=?, repeat_rule=?, image=?"
+            " WHERE id=?",
             (cur_type, cur_date or today_str(),
              data.get("title") if data.get("title") is not None else row["title"],
              data.get("note") if data.get("note") is not None else row["note"],
-             data.get("next_date") or None, repeat, record_id))
+             data.get("next_date") or None, repeat,
+             data["image"] if data.get("image") is not None else row["image"], record_id))
         if data.get("weight"):
             conn.execute("INSERT INTO weight_logs(pet_id,date,weight) VALUES(?,?,?)",
                          (row["pet_id"], cur_date or today_str(), float(data["weight"])))
