@@ -1,0 +1,29 @@
+{
+  "title": "翠翠",
+  "subtitle": "羽翼歌唱家",
+  "technique": "歪头杀",
+  "tagline": "鸟舍里最好奇的一小只",
+  "edition": "003 / 003",
+  "collection": "宠物健康管家 · 全息典藏",
+  "description": "虎皮纹羽，黑亮大眼，电解质水的忠实品鉴官。对世界永远歪头好奇。",
+  "assets": {
+    "model": "./assets/card.glb",
+    "subject": "./assets/subject.png",
+    "background": "./assets/background.png",
+    "text": "./assets/text.png",
+    "lineart": "./assets/lineart.png"
+  },
+  "parameters": {
+    "subjectScale": 1.05,
+    "subjectDepth": 0.4,
+    "backgroundDepth": -0.25,
+    "foil": 0.65
+  },
+  "safeArea": {
+    "scale": 1.12,
+    "offset": [
+      -0.06,
+      -0.085
+    ]
+  }
+}

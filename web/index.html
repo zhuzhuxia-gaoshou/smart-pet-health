@@ -3198,6 +3198,11 @@ let _holoCache = {};
 async function openHoloCard(petId) {
   const p = state.pets.find(x => x.id === petId);
   if (!p) return;
+  // 真 3D 实体卡优先（RuiC 管线产物 /cards/<id>/）；无产物回落 CSS 全息卡
+  try {
+    const probe = await fetch('/cards/' + petId + '/card-config.json', { cache: 'no-store' });
+    if (probe.ok) { openRealCard(petId, p); return; }
+  } catch (e) { /* 探测失败走 CSS 卡 */ }
   let photo = '';
   try {
     const ms = (await api(`/api/memories?pet_id=${petId}`)).memories || [];
@@ -3258,6 +3263,17 @@ async function loadHoloText(petId, force) {
   } catch (e) { /* 静默 */ }
 }
 function holoRegenText() { if (_holoCache.id) loadHoloText(_holoCache.id, true); }
+/* 实体全息卡（Blender 管线产物）：iframe 嵌 /cards/<id>/ 查看器，拖拽/翻面/景深调节全功能 */
+function openRealCard(petId, p) {
+  openModal(`<h3>✦ ${esc(p.name)} 的实体全息卡</h3>
+    <iframe src="/cards/${petId}/" title="${esc(p.name)}的 3D 收藏卡" loading="lazy"
+      style="width:100%;height:70vh;min-height:420px;border:1px solid var(--border);border-radius:14px;background:var(--surface)"></iframe>
+    <div class="care-note">按住拖动转卡看镭射 · 滚轮缩放 · 右下「正/背」翻面 · 「景深调整」调分层</div>
+    <div class="modal-actions">
+      <button class="btn ghost sm" style="margin-right:auto" onclick="window.open('/cards/${petId}/','_blank')">↗ 全屏打开</button>
+      <button class="btn primary" onclick="closeModal()">关闭</button>
+    </div>`, true);
+}
 function bindHoloTilt() {
   const card = $('holo-card');
   if (!card) return;

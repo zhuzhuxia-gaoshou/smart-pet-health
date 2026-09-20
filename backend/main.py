@@ -1005,5 +1005,12 @@ def web_icon():
     return FileResponse(os.path.join(WEB_DIR, "icon.svg"), media_type="image/svg+xml")
 
 
+# 宠物收藏卡真 3D 查看器（RuiC 管线产物，按 pet id 目录）；目录缺失则不挂载，前端自动回落 CSS 卡
+_CARDS_DIR = os.path.join(WEB_DIR, "cards")
+if os.path.isdir(_CARDS_DIR):
+    from fastapi.staticfiles import StaticFiles
+    app.mount("/cards", StaticFiles(directory=_CARDS_DIR, html=True), name="cards")
+
+
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=False)

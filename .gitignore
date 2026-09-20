@@ -29,3 +29,7 @@ Thumbs.db
 node_modules/
 package.json
 package-lock.json
+
+# 本地工具与收藏卡工程（不入库）
+/tools/
+/cards/

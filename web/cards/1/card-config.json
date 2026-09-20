@@ -1,0 +1,23 @@
+{
+  "title": "可乐",
+  "subtitle": "阳光守护者 · UR",
+  "technique": "见球定身",
+  "tagline": "腿短情长的一只柯基",
+  "edition": "001 / 003",
+  "collection": "宠物健康管家 · 全息典藏",
+  "description": "活泼贪吃，见到球就走不动路。陪伴第 1000+ 天的老牌家人。",
+  "assets": {
+    "model": "./assets/card.glb",
+    "subject": "./assets/subject.png",
+    "background": "./assets/background.png",
+    "text": "./assets/text.png",
+    "lineart": "./assets/lineart.png"
+  },
+  "parameters": {
+    "subjectScale": 1.12,
+    "subjectDepth": 0.4,
+    "backgroundDepth": -0.25,
+    "foil": 0.65
+  },
+  "safeArea": { "scale": 1.12, "offset": [-0.06, -0.085] }
+}

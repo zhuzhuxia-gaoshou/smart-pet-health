@@ -1,0 +1,29 @@
+{
+  "title": "布丁",
+  "subtitle": "九命深思者",
+  "technique": "滴耳纪律",
+  "tagline": "需要盯紧的毛团子",
+  "edition": "002 / 003",
+  "collection": "宠物健康管家 · 全息典藏",
+  "description": "外耳炎康复中，滴耳药水的课业从不旷课。圆脸大眼，优雅微胖。",
+  "assets": {
+    "model": "./assets/card.glb",
+    "subject": "./assets/subject.png",
+    "background": "./assets/background.png",
+    "text": "./assets/text.png",
+    "lineart": "./assets/lineart.png"
+  },
+  "parameters": {
+    "subjectScale": 1.12,
+    "subjectDepth": 0.4,
+    "backgroundDepth": -0.25,
+    "foil": 0.65
+  },
+  "safeArea": {
+    "scale": 1.12,
+    "offset": [
+      -0.06,
+      -0.085
+    ]
+  }
+}
