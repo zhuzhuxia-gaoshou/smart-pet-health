@@ -1323,6 +1323,10 @@ html[data-theme="dark"] .msg.user .bubble {
 .exp-bar { flex: 1 1 80px; min-width: 80px; margin: 0; }
 .exp-bar i { transition: width 400ms var(--ease), background-color var(--dur) var(--ease); }
 .eb-ok { background: var(--success); } .eb-warn { background: var(--warn); } .eb-bad { background: var(--danger); }
+/* .med-bar i 基底紫色(用药疗程语义)特异性高于单类选择器，药箱有效期条按状态着色需提权压过 */
+.exp-bar.eb-ok, .exp-bar i.eb-ok { background: var(--success); }
+.exp-bar.eb-warn, .exp-bar i.eb-warn { background: var(--warn); }
+.exp-bar.eb-bad, .exp-bar i.eb-bad { background: var(--danger); }
 .box-meta { font-size: 12px; color: var(--text-3); flex: none; }
 .box-pet { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px 2px 6px; border-radius: var(--r-pill);
   font-size: 11.5px; background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border); }
