@@ -211,19 +211,31 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
   T.go('chat');
   await sleep(800);
   check('chat welcome', n('#chat-scroll .msg.bot') >= 1);
-  T.$('chat-input').value = '最近有哪些到期或逾期的事项？';
-  await T.sendChat();
-  await sleep(800);
-  const last = [...doc.querySelectorAll('#chat-scroll .msg.bot .bubble')].pop();
-  const txt = last ? last.textContent : '';
-  check('AI answer mentions reminders', /临期|逾期/.test(txt), txt.slice(0, 60));
-  check('mode tag shown', n('#chat-scroll .mode-tag') >= 1);
-  // 供应商状态可能在线路中途翻转（如余额耗尽触发熔断），status=example 时容忍历史标签
-  const expectMode = (await (await fetch(BASE + '/api/agent/status')).json()).mode;
-  check('agent mode matches status',
-    state().agentMode === expectMode || (expectMode === 'example' && ['agent', 'example'].includes(state().agentMode)),
-    state().agentMode + ' vs ' + expectMode);
-  check('copy button exists', n('#chat-scroll .msg-actions .btn') >= 1);
+  // chat 测试在独立临时会话中进行（强制新建），测完删除——绝不写进用户最近会话（曾有 67 条测试消息污染用户会话的前车之鉴）
+  const prevSid = state().chatSessionId;
+  state().chatSessionId = null;
+  try {
+    T.$('chat-input').value = '最近有哪些到期或逾期的事项？';
+    await T.sendChat();
+    await sleep(800);
+    const last = [...doc.querySelectorAll('#chat-scroll .msg.bot .bubble')].pop();
+    const txt = last ? last.textContent : '';
+    check('AI answer mentions reminders', /临期|逾期/.test(txt), txt.slice(0, 60));
+    check('mode tag shown', n('#chat-scroll .mode-tag') >= 1);
+    // 供应商状态可能在线路中途翻转（如余额耗尽触发熔断），status=example 时容忍历史标签
+    const expectMode = (await (await fetch(BASE + '/api/agent/status')).json()).mode;
+    check('agent mode matches status',
+      state().agentMode === expectMode || (expectMode === 'example' && ['agent', 'example'].includes(state().agentMode)),
+      state().agentMode + ' vs ' + expectMode);
+    check('copy button exists', n('#chat-scroll .msg-actions .btn') >= 1);
+  } finally {
+    const tid = state().chatSessionId;
+    if (tid && tid !== prevSid) await T.api('/api/chat/sessions/' + tid, { method: 'DELETE' }).catch(() => {});
+    state().chatSessionId = prevSid;
+    state().chat = [];
+    await window.renderChat();
+    await sleep(300);
+  }
 
   T.toggleTheme();
   check('dark mode', doc.documentElement.dataset.theme === 'dark');
