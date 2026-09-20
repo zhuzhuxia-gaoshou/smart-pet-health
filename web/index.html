@@ -120,9 +120,11 @@ a { color: var(--accent); }
   backdrop-filter: blur(16px) saturate(1.4); -webkit-backdrop-filter: blur(16px) saturate(1.4);
   border: 1px solid var(--border); border-radius: 19px;
   box-shadow: 0 12px 32px -20px color-mix(in srgb, var(--accent) 30%, rgba(0,0,0,.5));
-  overflow: hidden;
+  /* 常态不裁切（否则「更多」下拉菜单会被裁掉）；仅 island 收缩态裁切内容形成"吸入"效果 */
+  overflow: visible;
   transition: width .34s var(--ease), height .3s var(--ease), padding .3s var(--ease), border-radius .3s var(--ease);
 }
+.topbar.island { overflow: hidden; }
 /* island 态：大内容淡出让位（visibility 延迟切换，隐藏后不可 Tab 聚焦），胶囊收缩为迷你岛 */
 .topbar > .logo, .topbar > .tabs, .topbar > .topbar-right { transition: opacity .16s var(--ease), visibility 0s; visibility: visible; }
 .topbar.island > .logo, .topbar.island > .tabs, .topbar.island > .topbar-right {
