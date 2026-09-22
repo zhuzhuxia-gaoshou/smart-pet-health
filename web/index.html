@@ -2268,6 +2268,10 @@ async function api(path, opts) {
   return data;
 }
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const safeImg = s => {
+  const v = String(s ?? '');
+  return /^data:image\/(?:jpeg|jpg|png|webp|gif|svg\+xml);base64,[A-Za-z0-9+/=\s]+$/.test(v) ? v : '';
+};
 // 本地时区的 YYYY-MM-DD（后端全部按本地日期；toISOString 是 UTC，东八区 0~8 点会差一天）
 const localISO = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const todayISO = () => localISO(new Date());
@@ -2635,7 +2639,7 @@ function timelineHTML(records) {
   if (!records.length) return '<div class="empty-hint">暂无健康记录，点击右上角「新增记录」开始</div>';
   return `<div class="timeline">` + records.map(r => {
     const color = TYPE_COLOR[r.type] || 'var(--accent)';
-    if (r.image) _recImgCache[r.id] = { src: r.image, title: r.title };
+    if (r.image) _recImgCache[r.id] = { src: safeImg(r.image), title: r.title };
     let nextBadge = '';
     if (r.next_date) {
       const d = r.days_left;
@@ -2666,7 +2670,7 @@ function propsHTML(p) {
     ${cell('名字', esc(p.name))}${cell('类型', PET_TYPE_LABEL[p.type] || '—')}
     ${cell('品种', esc(p.breed))}${cell('性别', { male:'公', female:'母', unknown:'未知' }[p.gender] || '—')}
     ${cell('生日', esc(p.birthday))}${cell('年龄', p.age)}
-    ${cell('体重 (kg)', p.weight ?? p.latest_weight)}${cell('健康状态', STATUS_LABEL[p.status] || p.status)}
+    ${cell('体重 (kg)', p.weight ?? p.latest_weight)}${cell('健康状态', STATUS_LABEL[p.status] || esc(p.status))}
     ${cell('性格备注', esc(p.personality))}${cell('档案建立于', esc((p.created_at || '').slice(0, 10)))}
   </div>`;
 }
@@ -3428,10 +3432,10 @@ async function openHoloCard(petId) {
   let photo = '';
   try {
     const ms = (await api(`/api/memories?pet_id=${petId}`)).memories || [];
-    photo = (ms.find(m => m.image) || {}).image || '';
+    photo = safeImg((ms.find(m => m.image) || {}).image || '');
     if (!photo) {
       const rs = (await api(`/api/pets/${petId}/records`)).records || [];
-      photo = (rs.find(r => r.image) || {}).image || '';
+      photo = safeImg((rs.find(r => r.image) || {}).image || '');
     }
   } catch (e) {}
   const anchor = p.birthday || p.created_at;
@@ -3444,7 +3448,7 @@ async function openHoloCard(petId) {
     ['体重', p.latest_weight ? p.latest_weight + ' kg' : '—'],
     ['年龄', esc(p.age || '—')],
     ['健康记录', (p.record_count || 0) + ' 条'],
-    ['状态', STATUS_LABEL[p.status] || '健康'],
+    ['状态', esc(STATUS_LABEL[p.status] || '健康')],
   ];
   openModal(`
     <div class="holo-stage">
@@ -3619,15 +3623,15 @@ async function renderCalendar() {
     });
     if (b.records.length) {
       const r0 = b.records[0];
-      evtRows.push(`<span class="cal-evt done" title="这天已做：${b.records.map(r => `${r.title}·${r.pet_name}`).join('、')}">
+      evtRows.push(`<span class="cal-evt done" title="${esc('这天已做：' + b.records.map(r => `${r.title}·${r.pet_name}`).join('、'))}">
         <span class="evt-txt">✓ 已做 ${b.records.length} 条</span></span>`);
     }
     const evts = evtRows.slice(0, 6).join('')
       + (evtRows.length > 6 ? `<span class="cal-more">还有 ${evtRows.length - 6} 项</span>` : '');
-    const parts = b.reminders.map(r => `${r.title}(${r.pet_name}${r.level === 'overdue' ? '·已逾期' : r.level === 'soon' ? `·还剩${r.days_left}天` : '·待办'})`)
-      .concat(b.meds.length ? [`用药中：${b.meds.map(m => m.name).join('、')}`] : [])
-      .concat((b.expiry || []).length ? [`药箱到期：${b.expiry.map(e => e.name).join('、')}`] : [])
-      .concat(b.records.map(r => `这天已做：${r.title}(${r.pet_name})`));
+    const parts = b.reminders.map(r => esc(`${r.title}(${r.pet_name}${r.level === 'overdue' ? '·已逾期' : r.level === 'soon' ? `·还剩${r.days_left}天` : '·待办'})`))
+      .concat(b.meds.length ? [`用药中：${b.meds.map(m => esc(m.name)).join('、')}`] : [])
+      .concat((b.expiry || []).length ? [`药箱到期：${b.expiry.map(e => esc(e.name)).join('、')}`] : [])
+      .concat(b.records.map(r => esc(`这天已做：${r.title}(${r.pet_name})`)));
     const label = `${m}月${c.d}日 周${DOW[idx % 7]}${c.iso === today ? '（今天）' : ''}，${parts.length ? parts.join('；') : '无事项'}`;
     return `<div class="cal-cell${c.iso === today ? ' today' : ''}" role="button" tabindex="0" aria-label="${esc(label)}" onclick="openDayCard('${c.iso}')">
       <span class="cal-num">${c.d}</span>
@@ -3912,7 +3916,7 @@ async function submitPet(e, id) {
 function askDeletePet(id, btn) {
   const p = state.pets.find(x => x.id === id);
   openModal(`<h3>删除宠物「${esc(p?.name || '')}」？</h3>
-    <p style="color:var(--text-2);font-size:14px;margin-bottom:4px">其全部健康记录与体重记录将一并删除，且不可恢复。</p>
+    <p style="color:var(--text-2);font-size:14px;margin-bottom:4px">其全部健康记录与体重记录将一并删除；6 秒内可点「撤销」，或从备份恢复。</p>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">取消</button>
       <button class="btn solid-danger" id="del-btn" onclick="confirmDeletePet(${id}, this)">确认删除</button>
@@ -4038,7 +4042,7 @@ function openRecordEditModal(rid) {
       <div class="form-field full"><label>照片（自动压缩；✕ 移除后保存即清除）</label>
         <input aria-label="更换或新增记录照片" type="file" accept="image/*" onchange="handleRecImage(this)">
         <div class="img-preview-wrap${r.image ? ' show' : ''}" id="rec-img-wrap">
-          <img class="img-preview" id="rec-img-prev" src="${r.image || ''}">
+          <img class="img-preview" id="rec-img-prev" src="${safeImg(r.image)}">
           <button type="button" class="img-remove" onclick="clearRecImage()" title="移除图片">✕</button>
         </div>
       </div>
@@ -4185,7 +4189,7 @@ function memTimelineHTML(list, showPet) {
     const y = (m.date || '').slice(0, 4);
     if (y && y !== lastYear) { html += `<div class="mem-year">${y}</div>`; lastYear = y; }
     html += `<div class="mem-item" data-id="${m.id}"><div class="card mem-card" role="button" tabindex="0" onclick="openMemoryLightbox(${m.id})">
-      ${m.image ? `<img class="mem-thumb" src="${m.image}" alt="" loading="lazy">` : ''}
+      ${m.image ? `<img class="mem-thumb" src="${safeImg(m.image)}" alt="" loading="lazy">` : ''}
       <div class="mem-body">
         <div class="mem-date">${esc(m.date)}</div>
         <div class="mem-title">${esc(m.title)}</div>
@@ -4323,7 +4327,7 @@ function openMemoryLightbox(id) {
     <div class="lb-date">${esc(m.date)}${m.pet_name ? ` · ${esc(m.pet_avatar || '')} ${esc(m.pet_name)}` : ''}</div></div>
     <button class="btn ghost sm" onclick="closeModal()">✕</button>
   </div>
-  ${m.image ? `<img class="lb-img" src="${m.image}" alt="${esc(m.title)}">` : ''}
+  ${m.image ? `<img class="lb-img" src="${safeImg(m.image)}" alt="${esc(m.title)}">` : ''}
   <div class="lb-text">${esc(m.text || '（这条回忆没有文字）')}</div>
   <div class="lb-actions">
     <button class="btn sm danger" onclick="deleteMemory(${m.id}, this)">删除</button>
@@ -4609,7 +4613,7 @@ async function openChatSession(id) {
 }
 function askDeleteSession(id) {
   openModal(`<h3>删除这个历史会话？</h3>
-    <p style="color:var(--text-2);font-size:14px;margin-bottom:4px">会话中的全部对话消息将一并删除，且不可恢复。</p>
+    <p style="color:var(--text-2);font-size:14px;margin-bottom:4px">会话中的全部对话消息将一并删除；6 秒内可点「撤销」。</p>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">取消</button>
       <button class="btn solid-danger" onclick="confirmDeleteSession(${id})">确认删除</button>

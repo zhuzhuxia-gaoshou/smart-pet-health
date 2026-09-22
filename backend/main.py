@@ -88,11 +88,11 @@ def _check_date(v: str | None) -> str | None:
 
 class PetIn(BaseModel):
     name: str = Field(..., min_length=1, max_length=30)
-    type: str | None = None      # cat|dog|bird|other
+    type: str | None = None      # cat|dog|bird|fish|other
     breed: str | None = None
     gender: str | None = None    # male|female|unknown
     birthday: str | None = None  # YYYY-MM-DD
-    weight: float | None = None
+    weight: float | None = Field(None, gt=0, le=500)
     status: str | None = "healthy"  # healthy|attention|ill
     personality: str | None = None
     avatar: str | None = None
@@ -102,14 +102,35 @@ class PetIn(BaseModel):
     def _vd(cls, v):
         return _check_date(v)
 
+    @field_validator("type")
+    @classmethod
+    def _vt(cls, v):
+        if v is not None and v not in ("cat", "dog", "bird", "fish", "other"):
+            raise ValueError("宠物类型无效")
+        return v
+
+    @field_validator("gender")
+    @classmethod
+    def _vg(cls, v):
+        if v is not None and v not in ("male", "female", "unknown"):
+            raise ValueError("性别无效")
+        return v
+
+    @field_validator("status")
+    @classmethod
+    def _vs(cls, v):
+        if v is not None and v not in ("healthy", "attention", "ill"):
+            raise ValueError("健康状态无效")
+        return v
+
 
 class RecordIn(BaseModel):
     type: str = Field(..., description="vaccine|checkup|deworm|medication|clinic")
     date: str | None = None
     title: str = Field(..., min_length=1, max_length=60)
-    note: str | None = None
+    note: str | None = Field(None, max_length=2000)
     next_date: str | None = None
-    weight: float | None = None
+    weight: float | None = Field(None, gt=0, le=500)
     repeat_rule: str | None = Field(None, description="''|daily|weekly|monthly|yearly；配合 next_date 使用")
     image: str | None = Field(None, max_length=4_000_000, description="图片 data URI（前端已压缩）；编辑传 '' 清除")
 
@@ -143,7 +164,7 @@ class ChatIn(BaseModel):
 
 
 class WeightIn(BaseModel):
-    weight: float = Field(..., gt=0, description="体重 kg")
+    weight: float = Field(..., gt=0, le=500, description="体重 kg")
     date: str | None = None
 
     @field_validator("date")
@@ -784,6 +805,8 @@ def api_stats():
 # ---------------------------------------------------------------- AI 今日简报
 
 BRIEF_KEY = "briefing"
+_briefing_lock = threading.Lock()
+_briefing_busy = False
 
 
 def _briefing_signature() -> str:
@@ -795,16 +818,26 @@ def _briefing_signature() -> str:
 
 
 def _start_briefing_generation() -> None:
-    """后台线程生成简报并写缓存（不阻塞请求）。"""
+    """后台线程生成简报并写缓存（不阻塞请求；并发合并为单飞）。"""
+    global _briefing_busy
+    with _briefing_lock:
+        if _briefing_busy:
+            return
+        _briefing_busy = True
+
     def work():
+        global _briefing_busy
         try:
             import agent
             payload = agent.generate_briefing()
             payload["sig"] = _briefing_signature()
             payload["date"] = datetime.now().strftime("%Y-%m-%d")
             db.kv_set(BRIEF_KEY, json.dumps(payload, ensure_ascii=False))
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[briefing] 生成失败（{type(e).__name__}）")
+        finally:
+            with _briefing_lock:
+                _briefing_busy = False
     threading.Thread(target=work, daemon=True).start()
 
 

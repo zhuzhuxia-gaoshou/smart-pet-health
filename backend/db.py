@@ -1030,15 +1030,28 @@ def restore_from_trash(trash_id: int) -> bool:
         payload = json.loads(snap["rows_json"])
         for part in payload["rows"]:
             table, data = part["table"], part["data"]
+            allowed = set()
+            for spec in TRASHABLE.values():
+                allowed.add(spec["table"])
+                allowed.update(t for t, _fk in spec.get("children", []))
+                allowed.update(t for t, _fk in spec.get("relink", []))
+            if table not in allowed:
+                raise ValueError("非法表名")
             items = data if isinstance(data, list) else [data]
             for item in items:
                 # 必须按原 id 回插：子表行引用父表旧 id，撞号时整笔回滚失败而非留下孤行
-                cols = list(item.keys())
+                cols = [c for c in item.keys() if c.isidentifier()]
+                if len(cols) != len(item):
+                    raise ValueError("非法列名")
                 conn.execute(
                     f"INSERT INTO {table}({','.join(cols)}) VALUES({','.join('?' * len(cols))})",
                     [item[c] for c in cols])
         # relink：宠物删除时被 SET NULL 的 expenses 等，把外键指回（只认领仍为 NULL 的）
         for rl in payload.get("relink", []):
+            rel_table = rl.get("table")
+            allowed_rl = {t for spec in TRASHABLE.values() for t, _fk in spec.get("relink", [])}
+            if rel_table not in allowed_rl or not str(rl.get("fk", "")).isidentifier():
+                raise ValueError("非法 relink")
             marks = ",".join("?" * len(rl["ids"]))
             conn.execute(
                 f"UPDATE {rl['table']} SET {rl['fk']}=? WHERE id IN ({marks}) AND {rl['fk']} IS NULL",

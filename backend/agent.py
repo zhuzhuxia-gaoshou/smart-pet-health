@@ -1429,13 +1429,6 @@ def coach_letter(payload: dict, force: bool = False) -> dict:
                 return {"text": d["text"], "mode": d.get("mode", "agent")}
         except Exception:
             pass
-    if cached and force:
-        try:
-            d = json.loads(cached)
-            if d.get("week") == week and d.get("sig") == sig and d.get("mode") == "agent":
-                return {"text": d["text"], "mode": "agent"}
-        except Exception:
-            pass
     text, mode = coach_letter_fallback(payload), "rules"
     if provider() and not _agent_failed:
         with _coach_letter_lock:
