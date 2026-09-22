@@ -1444,6 +1444,8 @@ def coach_letter(payload: dict, force: bool = False) -> dict:
                 threading.Thread(
                     target=_coach_letter_bg, args=(payload, week, sig), daemon=True
                 ).start()
+                # 不写规则缓存：留给后台写 agent 版，避免把刚生成的 AI 周报盖成模板
+                return {"text": text, "mode": mode}
     db.kv_set(COACH_CACHE_KEY, json.dumps(
         {"week": week, "sig": sig, "text": text, "mode": mode},
         ensure_ascii=False))

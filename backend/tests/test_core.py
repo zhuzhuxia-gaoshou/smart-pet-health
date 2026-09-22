@@ -710,3 +710,12 @@ def test_coach_letter_fallback_mentions_score(tmp_db):
     assert payload["grade"] in text
     letter = agent.coach_letter(payload)
     assert letter["text"] and letter["mode"] in ("rules", "agent")
+
+
+def test_coach_reset_demo_clears_tasks(tmp_db):
+    w = db.coach_weekly()
+    assert w["tasks"]
+    db.reset_demo_data()
+    week = db.coach_week_id()
+    assert db.coach_list_tasks(week) == []
+    assert db.kv_get("coach:streak") in (None, "") or ":" in (db.kv_get("coach:streak") or "")

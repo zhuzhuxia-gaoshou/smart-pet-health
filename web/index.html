@@ -5183,6 +5183,16 @@ function coachToggle() {
   p.classList.add('open');
   renderCoach();
 }
+function coachGoto(view) {
+  if (!view) return;
+  const p = $('coach-panel');
+  if (p) p.classList.remove('open');
+  go(view);
+}
+function coachClose() {
+  const p = $('coach-panel');
+  if (p) p.classList.remove('open');
+}
 async function renderCoach() {
   const box = $('coach-panel');
   if (!box) return;
@@ -5216,7 +5226,7 @@ function coachPanelHTML(d) {
   const tasks = (d.tasks || []).map(t => `
     <div class="coach-task ${t.status === 'done' ? 'done' : ''}" data-task="${t.id}">
       <button type="button" onclick="coachDone(${t.id})" aria-label="完成任务" title="打卡">${t.status === 'done' ? '✓' : '○'}</button>
-      <span>${esc(t.title)}</span>
+      <span${t.link_view ? ` role="link" tabindex="0" style="cursor:pointer;text-decoration:underline;text-underline-offset:3px" onclick="coachGoto('${esc(t.link_view)}')" onkeydown="if(event.key==='Enter')coachGoto('${esc(t.link_view)}')"` : ''}>${esc(t.title)}</span>
     </div>`).join('') || '<div class="empty-hint">本周没有待办，保持住。</div>';
   const L = d.letter || { text: '…', mode: 'rules' };
   const letterMode = L.mode === 'agent' ? 'AI 教练' : '规则模板';
@@ -5257,8 +5267,16 @@ async function coachRefresh() {
   }
 }
 (function coachBoot() {
-  // 首屏拉一次角标（面板未开也显示未完成任务数）
   setTimeout(renderCoach, 800);
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') coachClose();
+  });
+  document.addEventListener('click', e => {
+    const p = $('coach-panel'), f = $('coach-fab');
+    if (!p || !p.classList.contains('open')) return;
+    if (p.contains(e.target) || (f && f.contains(e.target))) return;
+    coachClose();
+  });
 })();
 </script>
 <div id="print-root" aria-hidden="true"></div>
