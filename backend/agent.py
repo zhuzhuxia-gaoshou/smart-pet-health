@@ -1378,39 +1378,74 @@ def _coach_letter_llm(prompt: str) -> str:
     return _medbox_briefing_llm(prompt)
 
 
+_coach_letter_lock = threading.Lock()
+_coach_letter_busy = False
+
+
+def _coach_letter_prompt(payload: dict) -> str:
+    return (
+        "你是温柔但严格的宠物养育教练。根据下列「已锁定事实」写一封 120 字以内的周报口吻短文：\n"
+        "1) 先具体夸 1 个做得好的维度；2) 再温和点出 1–2 个缺口（可引用 note）；"
+        "3) 最后用一句话鼓励。\n"
+        "禁止编造或改写任何数字与百分比；禁止医疗诊断；语气克制不说教。\n"
+        f"事实：综合分 {payload.get('score')}，等级 {payload.get('grade')}，"
+        f"连续达标 {payload.get('streak')} 周。\n"
+        f"维度：{[(d['label'], d['score'], d.get('note') or '') for d in payload.get('dims') or []]}\n"
+        f"本周任务：{[t.get('title') for t in payload.get('tasks') or []]}\n"
+        "直接输出正文，不要标题。"
+    )
+
+
+def _coach_letter_bg(payload: dict, week: str, sig: str) -> None:
+    """后台写 AI 周报并缓存；任何失败保留规则模板（不在请求线程里调 LLM）。"""
+    global _coach_letter_busy
+    try:
+        out = _coach_letter_llm(_coach_letter_prompt(payload))
+        import db
+        if out and not out.startswith("⚠️"):
+            db.kv_set(COACH_CACHE_KEY, json.dumps(
+                {"week": week, "sig": sig, "text": out.strip(), "mode": "agent"},
+                ensure_ascii=False))
+    except Exception:
+        pass
+    finally:
+        with _coach_letter_lock:
+            _coach_letter_busy = False
+
+
 def coach_letter(payload: dict, force: bool = False) -> dict:
-    """写教练周报。payload 必须来自 db.coach_weekly()；数字展示以 payload 为准，信里不采信 LLM 数字。"""
+    """写教练周报：同步只读缓存/回落模板，LLM 后台异步（GET 永不阻塞）。force=手动刷新时若缓存命中可直接返回。"""
+    global _coach_letter_busy
     import db
     week = payload.get("week") or ""
+    sig = coach_sig(payload)
     if os.environ.get("COACH_LLM", "1") == "0":
         return {"text": coach_letter_fallback(payload), "mode": "rules"}
     cached = db.kv_get(COACH_CACHE_KEY)
     if cached and not force:
         try:
             d = json.loads(cached)
-            if d.get("week") == week and d.get("sig") == coach_sig(payload):
+            if d.get("week") == week and d.get("sig") == sig:
                 return {"text": d["text"], "mode": d.get("mode", "agent")}
+        except Exception:
+            pass
+    if cached and force:
+        try:
+            d = json.loads(cached)
+            if d.get("week") == week and d.get("sig") == sig and d.get("mode") == "agent":
+                return {"text": d["text"], "mode": "agent"}
         except Exception:
             pass
     text, mode = coach_letter_fallback(payload), "rules"
     if provider() and not _agent_failed:
-        weak = [d for d in payload.get("dims") or [] if d.get("score", 100) < 85]
-        prompt = (
-            "你是温柔但严格的宠物养育教练。根据下列「已锁定事实」写一封 120 字以内的周报口吻短文：\n"
-            "1) 先具体夸 1 个做得好的维度；2) 再温和点出 1–2 个缺口（可引用 note）；"
-            "3) 最后用一句话鼓励。\n"
-            "禁止编造或改写任何数字与百分比；禁止医疗诊断；语气克制不说教。\n"
-            f"事实：综合分 {payload.get('score')}，等级 {payload.get('grade')}，"
-            f"连续达标 {payload.get('streak')} 周。\n"
-            f"维度：{[(d['label'], d['score'], d.get('note') or '') for d in payload.get('dims') or []]}\n"
-            f"本周任务：{[t.get('title') for t in payload.get('tasks') or []]}\n"
-            "直接输出正文，不要标题。"
-        )
-        out = _coach_letter_llm(prompt)
-        if out and not out.startswith("⚠️"):
-            text, mode = out.strip(), "agent"
+        with _coach_letter_lock:
+            if not _coach_letter_busy:
+                _coach_letter_busy = True
+                threading.Thread(
+                    target=_coach_letter_bg, args=(payload, week, sig), daemon=True
+                ).start()
     db.kv_set(COACH_CACHE_KEY, json.dumps(
-        {"week": week, "sig": coach_sig(payload), "text": text, "mode": mode},
+        {"week": week, "sig": sig, "text": text, "mode": mode},
         ensure_ascii=False))
     return {"text": text, "mode": mode}
 
