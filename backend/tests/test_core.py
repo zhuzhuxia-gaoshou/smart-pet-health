@@ -658,3 +658,55 @@ def test_patrol_env_failure_refunds_budget(tmp_db, monkeypatch):
     monkeypatch.setattr(agent, "_llm_candidates", lambda: ["fake"])
     r = agent.patrol_manual_refresh()
     assert r.get("capped") is not True                              # 充值恢复后手动刷新仍有全额预算可用
+
+
+# ---------------------------------------------------------------- 主人养成教练（规则层）
+
+def test_coach_dims_and_grade_bounds(tmp_db):
+    dims = db.coach_dims()
+    assert len(dims) == 8
+    keys = [d["key"] for d in dims]
+    assert keys == [k for k, _l, _w in db.COACH_DIM_DEFS]
+    for d in dims:
+        assert 0 <= d["score"] <= 100
+        assert "label" in d and "note" in d
+    assert db.coach_grade(100) == "S" and db.coach_grade(95) == "S"
+    assert db.coach_grade(85) == "A" and db.coach_grade(70) == "B" and db.coach_grade(0) == "C"
+
+
+def test_coach_weekly_tasks_once_and_done(tmp_db):
+    w1 = db.coach_weekly()
+    assert "week" in w1 and w1["tasks"], "低分维应派生任务"
+    n = len(w1["tasks"])
+    w2 = db.coach_weekly()
+    assert len(w2["tasks"]) == n, "同周不得重复派发"
+    tid = w2["tasks"][0]["id"]
+    assert db.coach_task_done(tid)["status"] == "done"
+    w3 = db.coach_weekly()
+    assert all(t["id"] != tid or t["status"] == "done" for t in w3["tasks"])
+    assert len(w3["tasks"]) == n
+
+
+def test_coach_score_covers_ledger_diet(tmp_db):
+    keke = db.fetch_pet_by_name("测测")
+    # 无饮食无记账 → diet/ledger 应低分并进 note
+    dims = {d["key"]: d for d in db.coach_dims()}
+    assert dims["diet"]["score"] < 85 and dims["diet"]["note"]
+    assert dims["ledger"]["score"] < 85
+    db.add_expense({"pet_id": keke["id"], "category": "food", "amount": 10, "date": date.today().isoformat()})
+    db.add_feeding_log(keke["id"], {"food_type": "kibble", "amount": "1", "date": date.today().isoformat()})
+    db.add_feeding_log(keke["id"], {"food_type": "kibble", "amount": "1", "date": date.today().isoformat()})
+    db.add_feeding_log(keke["id"], {"food_type": "kibble", "amount": "1", "date": date.today().isoformat()})
+    dims2 = {d["key"]: d for d in db.coach_dims()}
+    assert dims2["diet"]["score"] >= 75
+    assert dims2["ledger"]["score"] >= 80
+
+
+def test_coach_letter_fallback_mentions_score(tmp_db):
+    import agent
+    payload = db.coach_weekly()
+    text = agent.coach_letter_fallback(payload)
+    assert str(payload["score"]) in text
+    assert payload["grade"] in text
+    letter = agent.coach_letter(payload)
+    assert letter["text"] and letter["mode"] in ("rules", "agent")

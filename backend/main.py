@@ -847,6 +847,46 @@ def api_patrol_refresh():
         return {"error": f"刷新失败（{type(e).__name__}）"}
 
 
+# ---------------------------------------------------------------- 主人养成教练
+# 契约：GET /api/coach/weekly → {week,score,grade,dims,tasks,streak,letter}
+#       POST /api/coach/tasks/{id}/done → 任务完成
+#       POST /api/coach/refresh → 强制重写周报
+# 规则层 db.coach_weekly() 算分派任务；LLM 只写 letter（agent.coach_letter）。
+
+@app.get("/api/coach/weekly")
+def api_coach_weekly():
+    try:
+        import agent
+        payload = db.coach_weekly()
+        letter = agent.coach_letter(payload)
+        payload["letter"] = letter
+        return payload
+    except Exception as e:
+        return {"error": f"教练数据失败（{type(e).__name__}）"}
+
+
+@app.post("/api/coach/tasks/{task_id}/done")
+def api_coach_task_done(task_id: int):
+    try:
+        r = db.coach_task_done(task_id)
+        if r is None:
+            return {"error": "任务不存在"}
+        return r
+    except Exception as e:
+        return {"error": f"打卡失败（{type(e).__name__}）"}
+
+
+@app.post("/api/coach/refresh")
+def api_coach_refresh():
+    try:
+        import agent
+        payload = db.coach_weekly()
+        payload["letter"] = agent.coach_letter(payload, force=True)
+        return payload
+    except Exception as e:
+        return {"error": f"刷新失败（{type(e).__name__}）"}
+
+
 # ---------------------------------------------------------------- 回忆集
 
 @app.get("/api/memories")

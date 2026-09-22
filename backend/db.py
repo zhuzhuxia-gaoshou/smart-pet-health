@@ -159,6 +159,16 @@ CREATE TABLE IF NOT EXISTS trash(
   rows_json TEXT NOT NULL,
   deleted_at TEXT DEFAULT (datetime('now','localtime'))
 );
+CREATE TABLE IF NOT EXISTS coach_tasks(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  week TEXT NOT NULL,
+  dim TEXT NOT NULL,
+  title TEXT NOT NULL,
+  link_view TEXT DEFAULT '',
+  status TEXT DEFAULT 'open',
+  created_at TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_coach_week ON coach_tasks(week, status);
 """
 
 
@@ -2029,6 +2039,284 @@ def patrol_scan() -> dict:
     rank = {"high": 0, "warn": 1, "info": 2}
     findings.sort(key=lambda f: (rank.get(f["level"], 3), f["id"]))
     return {"findings": findings, "scanned": len(PATROL_RULES), "rule_errors": errors}
+
+
+# ---------------------------------------------------------------- 主人养成教练（规则层）
+# 分数与任务全部决定式计算，LLM 只在 agent.coach_letter 写口吻文案。
+# 每维 0–100，综合分加权平均；扣分原因可追溯到具体宠物/日期。
+
+COACH_DIM_DEFS = (
+    ("weigh", "称重规律", 0.15),
+    ("overdue", "提醒响应", 0.20),
+    ("records", "档案完整", 0.15),
+    ("meds", "用药依从", 0.15),
+    ("medbox", "药箱卫生", 0.10),
+    ("diet", "饮食记录", 0.10),
+    ("ledger", "记账习惯", 0.10),
+    ("patrol", "巡检清零", 0.05),
+)
+
+
+def coach_week_id(d: date | None = None) -> str:
+    """ISO 周标识（周一为一周起点），如 2026-W39。"""
+    d = d or date.today()
+    iso = d.isocalendar()
+    return f"{iso[0]}-W{iso[1]:02d}"
+
+
+def _coach_clamp(n: float) -> int:
+    return max(0, min(100, int(round(n))))
+
+
+def coach_dims() -> list[dict]:
+    """八维养育分：score 0–100 + note 扣分说明（空=满分）。"""
+    today = date.today()
+    conn = get_conn()
+    dims: list[dict] = []
+    try:
+        pets = [dict(r) for r in conn.execute("SELECT id, name, created_at FROM pets ORDER BY id").fetchall()]
+        # ① 称重：各宠距最近称重的最大间隔
+        worst_gap, worst_name, last_date = 0, "", ""
+        for p in pets:
+            row = conn.execute(
+                "SELECT date FROM weight_logs WHERE pet_id=? ORDER BY date DESC LIMIT 1", (p["id"],)
+            ).fetchone()
+            if not row:
+                gap = 999
+                ld = "从未"
+            else:
+                gap = max(0, -days_until(row["date"]))
+                ld = row["date"]
+            if gap > worst_gap:
+                worst_gap, worst_name, last_date = gap, p["name"], ld
+        if not pets:
+            w_sc, w_note = 100, ""
+        elif worst_gap <= 30:
+            w_sc, w_note = 100, ""
+        elif worst_gap <= 60:
+            w_sc, w_note = 70, f"{worst_name}距上次称重 {worst_gap} 天（{last_date}）"
+        elif worst_gap >= 999:
+            w_sc, w_note = 40, f"{worst_name}还没有称重记录"
+        else:
+            w_sc = _coach_clamp(55 - (worst_gap - 60) * 0.5)
+            w_note = f"{worst_name}距上次称重 {worst_gap} 天（{last_date}）"
+        dims.append({"key": "weigh", "label": "称重规律", "score": w_sc, "note": w_note})
+
+        # ② 提醒响应：逾期项
+        rem = compute_reminders(within_days=3650)
+        od = [r for r in rem if r.get("overdue")]
+        if not od:
+            o_sc, o_note = 100, ""
+        else:
+            worst = min(int(r.get("days_left") or 0) for r in od)
+            o_sc = _coach_clamp(100 - len(od) * 18 - max(0, -worst) * 0.4)
+            o_note = f"{len(od)} 项逾期，最久已拖 {-worst} 天"
+        dims.append({"key": "overdue", "label": "提醒响应", "score": o_sc, "note": o_note})
+
+        # ③ 档案完整：有宠物却从未体检/驱虫
+        missing = []
+        for p in pets:
+            n_chk = conn.execute(
+                "SELECT COUNT(*) FROM health_records WHERE pet_id=? AND type IN ('checkup','deworm','vaccine')",
+                (p["id"],)).fetchone()[0]
+            if n_chk == 0:
+                missing.append(p["name"])
+        if not pets:
+            r_sc, r_note = 100, ""
+        elif not missing:
+            r_sc, r_note = 100, ""
+        else:
+            r_sc = _coach_clamp(100 - len(missing) * 25)
+            r_note = "缺少健康记录：" + "、".join(missing[:3])
+        dims.append({"key": "records", "label": "档案完整", "score": r_sc, "note": r_note})
+
+        # ④ 用药依从：在用且已超 end_date
+        over_meds = []
+        for m in active_medications_all():
+            ed = m.get("end_date")
+            if ed and days_until(ed) < 0:
+                over_meds.append(f"{m.get('pet_name') or ''}{m['name']}".strip())
+        if not over_meds:
+            m_sc, m_note = 100, ""
+        else:
+            m_sc = _coach_clamp(100 - len(over_meds) * 20)
+            m_note = "疗程已超仍标记在用：" + "、".join(over_meds[:3])
+        dims.append({"key": "meds", "label": "用药依从", "score": m_sc, "note": m_note})
+
+        # ⑤ 药箱卫生
+        att = [i for i in list_medbox() if i.get("status") != "ok"]
+        exp = [i for i in att if i.get("status") == "expired"]
+        if not att:
+            b_sc, b_note = 100, ""
+        elif exp:
+            b_sc = _coach_clamp(100 - len(exp) * 22 - (len(att) - len(exp)) * 8)
+            b_note = "有过期药品：" + "、".join(x["name"] for x in exp[:3])
+        else:
+            b_sc = _coach_clamp(100 - len(att) * 12)
+            b_note = "临期药品：" + "、".join(x["name"] for x in att[:3])
+        dims.append({"key": "medbox", "label": "药箱卫生", "score": b_sc, "note": b_note})
+
+        # ⑥ 饮食记录：本周是否有流水
+        monday = today - timedelta(days=today.weekday())
+        n_feed = conn.execute(
+            "SELECT COUNT(*) FROM feeding_logs WHERE date>=?", (monday.isoformat(),)
+        ).fetchone()[0]
+        if n_feed >= 5:
+            d_sc, d_note = 100, ""
+        elif n_feed >= 2:
+            d_sc, d_note = 75, f"本周仅 {n_feed} 条饮食记录"
+        elif n_feed == 1:
+            d_sc, d_note = 55, "本周只有 1 条饮食记录"
+        else:
+            d_sc, d_note = 35, "本周还没有饮食记录"
+        dims.append({"key": "diet", "label": "饮食记录", "score": d_sc, "note": d_note})
+
+        # ⑦ 记账：本月是否有流水
+        y, mo = today.year, today.month
+        n_exp = conn.execute(
+            "SELECT COUNT(*) FROM expenses WHERE strftime('%Y', date)=? AND strftime('%m', date)=?",
+            (f"{y:04d}", f"{mo:02d}")).fetchone()[0]
+        if n_exp >= 3:
+            g_sc, g_note = 100, ""
+        elif n_exp >= 1:
+            g_sc, g_note = 80, f"本月仅 {n_exp} 笔流水"
+        else:
+            g_sc, g_note = 50, "本月还没有记账"
+        dims.append({"key": "ledger", "label": "记账习惯", "score": g_sc, "note": g_note})
+
+        # ⑧ 巡检清零：高/关注级发现数（与 patrol 同源扫描，这里直接数 level）
+        scan = patrol_scan()
+        bad = [f for f in scan["findings"] if f.get("level") in ("high", "warn")]
+        if not bad:
+            p_sc, p_note = 100, ""
+        else:
+            p_sc = _coach_clamp(100 - len(bad) * 15)
+            p_note = f"{len(bad)} 项巡检发现待处理"
+        dims.append({"key": "patrol", "label": "巡检清零", "score": p_sc, "note": p_note})
+    finally:
+        conn.close()
+    return dims
+
+
+def _coach_task_templates(dims: list[dict], pets: list[dict]) -> list[dict]:
+    """从低分维派生任务文案（够得着，不堆理想清单）。"""
+    by = {d["key"]: d for d in dims}
+    out: list[dict] = []
+    pet = pets[0]["name"] if pets else "宠物"
+
+    def push(dim: str, title: str, view: str = "") -> None:
+        out.append({"dim": dim, "title": title, "link_view": view})
+
+    if by["weigh"]["score"] < 85:
+        push("weigh", f"给{pet}称一次体重", "library")
+    if by["overdue"]["score"] < 85:
+        push("overdue", "清一清到期提醒（先做逾期）", "reminders")
+    if by["records"]["score"] < 85:
+        push("records", f"给{pet}补一条健康记录（体检/驱虫）", "records")
+    if by["meds"]["score"] < 85:
+        push("meds", "核对用药疗程，结束已吃完的", "library")
+    if by["medbox"]["score"] < 85:
+        push("medbox", "清理药箱过期/临期药品", "medbox")
+    if by["diet"]["score"] < 85:
+        push("diet", "这周记满 3 天饮食", "library")
+    if by["ledger"]["score"] < 85:
+        push("ledger", "补几笔本月花销流水", "ledger")
+    if by["patrol"]["score"] < 85:
+        push("patrol", "处理巡检里的高优先发现", "patrol")
+    # 低分优先，最多 3 张
+    out.sort(key=lambda t: by[t["dim"]]["score"])
+    return out[:3]
+
+
+def coach_list_tasks(week: str) -> list[dict]:
+    conn = get_conn()
+    try:
+        rows = [dict(r) for r in conn.execute(
+            "SELECT id, week, dim, title, link_view, status, created_at FROM coach_tasks"
+            " WHERE week=? ORDER BY id", (week,)).fetchall()]
+    finally:
+        conn.close()
+    return rows
+
+
+def coach_ensure_tasks(dims: list[dict], week: str) -> list[dict]:
+    tasks = coach_list_tasks(week)
+    if tasks:
+        return tasks  # 本周已有任务（含已完成）不重复派发
+    pets = list_pets()
+    tpl = _coach_task_templates(dims, pets)
+    conn = get_conn()
+    try:
+        for t in tpl:
+            conn.execute(
+                "INSERT INTO coach_tasks(week, dim, title, link_view, status) VALUES(?,?,?,?, 'open')",
+                (week, t["dim"], t["title"], t["link_view"]))
+        conn.commit()
+    finally:
+        conn.close()
+    return coach_list_tasks(week)
+
+
+def coach_task_done(task_id: int) -> dict | None:
+    conn = get_conn()
+    try:
+        row = conn.execute("SELECT * FROM coach_tasks WHERE id=?", (task_id,)).fetchone()
+        if row is None:
+            return None
+        conn.execute("UPDATE coach_tasks SET status='done' WHERE id=?", (task_id,))
+        conn.commit()
+    finally:
+        conn.close()
+    return {"id": task_id, "status": "done"}
+
+
+def coach_grade(score: int) -> str:
+    if score >= 95:
+        return "S"
+    if score >= 85:
+        return "A"
+    if score >= 70:
+        return "B"
+    return "C"
+
+
+def coach_streak_update(score: int, week: str) -> int:
+    """连续达标周数：本周分 ≥85 记 1 并衔接上周，否则清零；同周重复调用不叠加。"""
+    raw = kv_get("coach:streak") or "0:never"
+    try:
+        streak_s, last = raw.split(":", 1)
+        streak = int(streak_s)
+    except Exception:
+        streak, last = 0, "never"
+    if last == week:
+        return streak
+    if score >= 85:
+        streak = 1 if last == "never" else streak + 1
+    else:
+        streak = 0
+    kv_set("coach:streak", f"{streak}:{week}")
+    return streak
+
+
+def coach_weekly() -> dict:
+    """GET /api/coach/weekly 的规则层主体（不含 LLM 信）。"""
+    week = coach_week_id()
+    dims = coach_dims()
+    score = 0.0
+    for key, _label, w in COACH_DIM_DEFS:
+        d = next(x for x in dims if x["key"] == key)
+        score += d["score"] * w
+    score = _coach_clamp(score)
+    tasks = coach_ensure_tasks(dims, week)
+    streak = coach_streak_update(score, week)
+    return {
+        "week": week,
+        "score": score,
+        "grade": coach_grade(score),
+        "dims": dims,
+        "tasks": tasks,
+        "streak": streak,
+    }
 
 
 if __name__ == "__main__":

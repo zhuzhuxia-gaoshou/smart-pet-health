@@ -161,6 +161,69 @@ a { color: var(--accent); }
 .to-top.show { opacity: 1; transform: none; pointer-events: auto; }
 .to-top:hover { color: var(--accent); border-color: var(--accent); transform: translateY(-2px); }
 .to-top:active { transform: scale(.94); }
+/* 主人养成教练：右下角悬浮钮（叠在回到顶部上方）+ 上浮面板 */
+.coach-fab {
+  position: fixed; right: 22px; bottom: 74px; z-index: 46;
+  width: 48px; height: 48px; border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: linear-gradient(145deg, var(--surface), var(--accent-soft));
+  color: var(--accent-strong); cursor: pointer;
+  display: grid; place-items: center;
+  box-shadow: var(--shadow-pop), 0 0 18px color-mix(in srgb, var(--accent) 18%, transparent);
+  transition: transform .2s var(--ease), box-shadow .2s var(--ease), color .2s var(--ease);
+}
+.coach-fab:hover { transform: translateY(-2px) scale(1.05); color: var(--accent); box-shadow: 0 10px 28px -8px color-mix(in srgb, var(--accent) 45%, transparent); }
+.coach-fab:active { transform: scale(.95); }
+.coach-fab svg { width: 22px; height: 22px; }
+.coach-fab .cf-badge {
+  position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 999px; background: var(--accent-strong); color: var(--on-accent);
+  font-size: 11px; font-weight: 700; line-height: 18px; text-align: center;
+}
+.coach-panel {
+  position: fixed; right: 22px; bottom: 132px; z-index: 46;
+  width: min(340px, calc(100vw - 32px));
+  background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+  box-shadow: var(--shadow-deep);
+  padding: 16px; display: none;
+  max-height: min(70vh, 560px); overflow: auto;
+}
+.coach-panel.open { display: block; animation: fade-up .24s var(--ease); }
+.coach-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.coach-ring {
+  width: 64px; height: 64px; border-radius: 50%; flex: none;
+  display: grid; place-items: center;
+  background:
+    radial-gradient(circle at center, var(--surface) 58%, transparent 59%),
+    conic-gradient(var(--accent) calc(var(--pct, 0) * 1%), var(--surface-2) 0);
+  font-family: var(--font-title); font-weight: 700; font-size: 18px; color: var(--accent-strong);
+}
+.coach-grade { font-family: var(--font-title); font-size: 22px; font-weight: 700; color: var(--accent); }
+.coach-week { font-size: 12px; color: var(--text-2); }
+.coach-dims { display: grid; gap: 6px; margin: 10px 0 12px; }
+.coach-dim { display: grid; grid-template-columns: 64px 1fr 32px; gap: 8px; align-items: center; font-size: 12px; }
+.coach-dim .cd-bar { height: 6px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.coach-dim .cd-bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
+.coach-dim .cd-n { text-align: right; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.coach-dim .cd-note { grid-column: 1 / -1; color: var(--text-3); font-size: 11.5px; margin: -2px 0 2px; }
+.coach-tasks { display: grid; gap: 8px; margin-bottom: 12px; }
+.coach-task {
+  display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2);
+  font-size: 13px; line-height: 1.4;
+}
+.coach-task.done { opacity: .55; text-decoration: line-through; }
+.coach-task button {
+  flex: none; border: 1px solid var(--border); background: var(--surface); color: var(--text-2);
+  border-radius: 8px; width: 24px; height: 24px; cursor: pointer; font-size: 12px;
+}
+.coach-task button:hover { color: var(--success); border-color: var(--success); }
+.coach-letter {
+  font-size: 13px; line-height: 1.7; color: var(--text);
+  background: var(--accent-soft); border-radius: 12px; padding: 12px 14px; white-space: pre-wrap;
+}
+.coach-letter .cl-mode { display: block; margin-top: 6px; font-size: 11px; color: var(--text-3); }
+.coach-ops { display: flex; gap: 8px; margin-top: 10px; justify-content: flex-end; }
 .logo { display: flex; align-items: center; gap: 10px; user-select: none; cursor: pointer; }
 .logo-mark {
   width: 30px; height: 30px; border-radius: 9px; flex: none;
@@ -5110,8 +5173,100 @@ function scrollTopSmooth() {
   update();
   window.addEventListener('scroll', update, { passive: true });
 })();
+
+/* ---------- 主人养成教练（右下角悬浮） ---------- */
+let _coachData = null;
+function coachToggle() {
+  const p = $('coach-panel');
+  if (!p) return;
+  if (p.classList.contains('open')) { p.classList.remove('open'); return; }
+  p.classList.add('open');
+  renderCoach();
+}
+async function renderCoach() {
+  const box = $('coach-panel');
+  if (!box) return;
+  box.innerHTML = '<div class="skel sk-line w60"></div><div class="skel sk-line"></div><div class="skel sk-line w40"></div>';
+  try {
+    const d = await api('/api/coach/weekly');
+    if (d && d.error) throw new Error(d.error);
+    _coachData = d;
+    const badge = $('coach-badge');
+    const open = (d.tasks || []).filter(t => t.status === 'open').length;
+    if (badge) {
+      if (open > 0) { badge.hidden = false; badge.textContent = String(open); }
+      else badge.hidden = true;
+    }
+    box.innerHTML = coachPanelHTML(d);
+  } catch (e) {
+    box.innerHTML = `<div class="empty-state" style="padding:24px"><h3>教练暂时下线</h3><p>${esc(e.message || e)}</p>
+      <button type="button" class="btn sm" onclick="renderCoach()">重试</button></div>`;
+  }
+}
+function coachPanelHTML(d) {
+  const dims = (d.dims || []).map(x => `
+    <div class="coach-dim">
+      <span>${esc(x.label)}</span>
+      <div class="cd-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${x.score}" aria-label="${esc(x.label)}">
+        <i style="width:${x.score}%"></i>
+      </div>
+      <span class="cd-n">${x.score}</span>
+      ${x.note ? `<div class="cd-note">${esc(x.note)}</div>` : ''}
+    </div>`).join('');
+  const tasks = (d.tasks || []).map(t => `
+    <div class="coach-task ${t.status === 'done' ? 'done' : ''}" data-task="${t.id}">
+      <button type="button" onclick="coachDone(${t.id})" aria-label="完成任务" title="打卡">${t.status === 'done' ? '✓' : '○'}</button>
+      <span>${esc(t.title)}</span>
+    </div>`).join('') || '<div class="empty-hint">本周没有待办，保持住。</div>';
+  const L = d.letter || { text: '…', mode: 'rules' };
+  const letterMode = L.mode === 'agent' ? 'AI 教练' : '规则模板';
+  return `
+    <div class="coach-head">
+      <div class="coach-ring" style="--pct:${d.score}" aria-label="养育分 ${d.score}">${d.score}</div>
+      <div>
+        <div class="coach-grade">${esc(d.grade)} · ${d.streak ? '连续 ' + d.streak + ' 周' : '新的开始'}</div>
+        <div class="coach-week">${esc(d.week)} 养成周</div>
+      </div>
+    </div>
+    <div class="coach-dims">${dims}</div>
+    <div class="med-group">本周任务</div>
+    <div class="coach-tasks">${tasks}</div>
+    <div class="coach-letter">${esc(L.text || '')}<span class="cl-mode">${letterMode} · 数字以左栏为准</span></div>
+    <div class="coach-ops">
+      <button type="button" class="btn sm ghost" onclick="coachRefresh()">刷新周报</button>
+    </div>`;
+}
+async function coachDone(id) {
+  try {
+    await api('/api/coach/tasks/' + id + '/done', { method: 'POST' });
+    window.toast && toast('已打卡', 'ok');
+    renderCoach();
+  } catch (e) {
+    window.toast && toast('打卡失败', true);
+  }
+}
+async function coachRefresh() {
+  try {
+    const d = await api('/api/coach/refresh', { method: 'POST' });
+    if (d && d.error) throw new Error(d.error);
+    _coachData = d;
+    $('coach-panel').innerHTML = coachPanelHTML(d);
+    window.toast && toast('周报已刷新', 'ok');
+  } catch (e) {
+    window.toast && toast('刷新失败', true);
+  }
+}
+(function coachBoot() {
+  // 首屏拉一次角标（面板未开也显示未完成任务数）
+  setTimeout(renderCoach, 800);
+})();
 </script>
 <div id="print-root" aria-hidden="true"></div>
+<button class="coach-fab" id="coach-fab" onclick="coachToggle()" aria-label="主人养成教练" title="主人养成教练">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 14.8 7.2 17l.9-5.4L4.2 7.7l5.4-.8z"/></svg>
+  <span class="cf-badge" id="coach-badge" hidden></span>
+</button>
+<div class="coach-panel" id="coach-panel" role="dialog" aria-label="主人养成教练" aria-modal="false"></div>
 <button class="to-top" id="to-top" onclick="scrollTopSmooth()" aria-label="回到顶部" title="回到顶部">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>
 </button>

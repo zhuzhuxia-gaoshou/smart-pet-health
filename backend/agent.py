@@ -1347,6 +1347,85 @@ def pet_card_text(pet: dict, days, rar: str, force: bool = False) -> dict | None
     return res
 
 
+# ---------------------------------------------------------------- 主人养成教练周报
+# 契约：分数/任务/维度全部来自 db.coach_weekly()，LLM 只写口吻段落，禁止改写数字。
+# 无 Key / 失败回落规则模板；COACH_LLM=0 硬开关。
+
+COACH_CACHE_KEY = "coach:letter"
+
+
+def coach_letter_fallback(payload: dict) -> str:
+    score, grade = payload.get("score"), payload.get("grade")
+    dims = payload.get("dims") or []
+    weak = [d for d in dims if d.get("score", 100) < 85][:2]
+    strong = [d for d in dims if d.get("score", 0) >= 95][:2]
+    lines = [f"本周养育分 {score} 分（{grade}）。"]
+    if strong:
+        lines.append("做得好的：" + "、".join(d["label"] for d in strong) + "。")
+    if weak:
+        lines.append("还差一点：" + "、".join(f"{d['label']}（{d['note'] or d['score']}）" for d in weak) + "。")
+    tasks = [t for t in (payload.get("tasks") or []) if t.get("status") == "open"]
+    if tasks:
+        lines.append("本周任务：" + "；".join(t["title"] for t in tasks[:3]) + "。")
+    if payload.get("streak"):
+        lines.append(f"连续达标 {payload['streak']} 周，稳住。")
+    lines.append("习惯是慢慢养出来的，不求完美，只求本周比上周顺一点。")
+    return "\n".join(lines)
+
+
+def _coach_letter_llm(prompt: str) -> str:
+    """无工具直答，风格同 medbox 简报；失败返回 ⚠️ 开头文本。"""
+    return _medbox_briefing_llm(prompt)
+
+
+def coach_letter(payload: dict, force: bool = False) -> dict:
+    """写教练周报。payload 必须来自 db.coach_weekly()；数字展示以 payload 为准，信里不采信 LLM 数字。"""
+    import db
+    week = payload.get("week") or ""
+    if os.environ.get("COACH_LLM", "1") == "0":
+        return {"text": coach_letter_fallback(payload), "mode": "rules"}
+    cached = db.kv_get(COACH_CACHE_KEY)
+    if cached and not force:
+        try:
+            d = json.loads(cached)
+            if d.get("week") == week and d.get("sig") == coach_sig(payload):
+                return {"text": d["text"], "mode": d.get("mode", "agent")}
+        except Exception:
+            pass
+    text, mode = coach_letter_fallback(payload), "rules"
+    if provider() and not _agent_failed:
+        weak = [d for d in payload.get("dims") or [] if d.get("score", 100) < 85]
+        prompt = (
+            "你是温柔但严格的宠物养育教练。根据下列「已锁定事实」写一封 120 字以内的周报口吻短文：\n"
+            "1) 先具体夸 1 个做得好的维度；2) 再温和点出 1–2 个缺口（可引用 note）；"
+            "3) 最后用一句话鼓励。\n"
+            "禁止编造或改写任何数字与百分比；禁止医疗诊断；语气克制不说教。\n"
+            f"事实：综合分 {payload.get('score')}，等级 {payload.get('grade')}，"
+            f"连续达标 {payload.get('streak')} 周。\n"
+            f"维度：{[(d['label'], d['score'], d.get('note') or '') for d in payload.get('dims') or []]}\n"
+            f"本周任务：{[t.get('title') for t in payload.get('tasks') or []]}\n"
+            "直接输出正文，不要标题。"
+        )
+        out = _coach_letter_llm(prompt)
+        if out and not out.startswith("⚠️"):
+            text, mode = out.strip(), "agent"
+    db.kv_set(COACH_CACHE_KEY, json.dumps(
+        {"week": week, "sig": coach_sig(payload), "text": text, "mode": mode},
+        ensure_ascii=False))
+    return {"text": text, "mode": mode}
+
+
+def coach_sig(payload: dict) -> str:
+    """周报缓存签名：分数+各维分+未完成任务标题。"""
+    parts = [str(payload.get("score")), payload.get("grade") or ""]
+    for d in payload.get("dims") or []:
+        parts.append(f"{d.get('key')}:{d.get('score')}")
+    for t in payload.get("tasks") or []:
+        if t.get("status") == "open":
+            parts.append(f"t:{t.get('title')}")
+    return "|".join(parts)
+
+
 # ---------------------------------------------------------------- AI 护理计划
 
 # 各记录类型的默认复做周期（天）
