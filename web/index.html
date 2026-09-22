@@ -146,7 +146,7 @@ a { color: var(--accent); }
     box-shadow var(--dur) var(--ease); }
 .mi-tab:hover { background: var(--surface-2); color: var(--text); transform: translateY(-2px) scale(1.04); }
 .mi-tab:active { transform: scale(.95); }
-.mi-tab.on { background: var(--accent-soft); color: var(--accent-strong); font-weight: 600; }
+.mi-tab.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 .mi-tab.on svg { transform: scale(1.08); }
 /* 回到顶部：滚动 >400px 浮现，右下角常驻可达 */
 .to-top {
@@ -1043,60 +1043,60 @@ body.theme-flip .theme-toggle svg { animation: spin-y .55s var(--ease); }
 .page { position: relative; z-index: 1; }
 .topbar {
   backdrop-filter: blur(18px) saturate(1.25); -webkit-backdrop-filter: blur(18px) saturate(1.25);
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  border-color: color-mix(in srgb, var(--accent) 16%, var(--border));
   box-shadow:
-    0 10px 40px -16px color-mix(in srgb, var(--accent) 55%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent),
-    0 0 36px color-mix(in srgb, var(--accent) 16%, transparent);
+    0 10px 36px -18px color-mix(in srgb, var(--accent) 28%, rgba(0,0,0,.2)),
+    0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent),
+    0 0 28px color-mix(in srgb, var(--accent) 8%, transparent);
 }
-/* 顶栏/灵动岛：胶囊描边光 + island 态呼吸光环（morph 光影同步） */
+/* 顶栏/灵动岛：浅桃陶描边光（不用深棕/琥珀），island 态呼吸 */
 .topbar::before {
   content: ''; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none; z-index: -1;
   background: linear-gradient(120deg,
-    color-mix(in srgb, var(--accent) 55%, transparent),
-    color-mix(in srgb, var(--warn) 45%, transparent),
-    color-mix(in srgb, var(--accent-strong) 55%, transparent),
-    color-mix(in srgb, var(--accent) 55%, transparent));
+    color-mix(in srgb, var(--accent) 35%, transparent),
+    color-mix(in srgb, var(--accent-2) 70%, transparent),
+    color-mix(in srgb, var(--accent) 28%, transparent),
+    color-mix(in srgb, var(--accent-2) 65%, transparent));
   background-size: 300% 300%;
   animation: grad-shift 3.2s linear infinite;
-  opacity: .55;
+  opacity: .45;
   filter: blur(10px);
 }
 .topbar.island::before {
-  opacity: .95;
+  opacity: .7;
   filter: blur(14px);
   animation: grad-shift 2.2s linear infinite, island-breathe 1.8s ease-in-out infinite;
 }
 .topbar.island {
-  border-color: color-mix(in srgb, var(--accent) 65%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
   box-shadow:
-    0 8px 36px -10px color-mix(in srgb, var(--accent) 75%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent),
-    0 0 48px color-mix(in srgb, var(--accent) 32%, transparent);
+    0 8px 32px -12px color-mix(in srgb, var(--accent) 35%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent),
+    0 0 36px color-mix(in srgb, var(--accent) 14%, transparent);
 }
 @keyframes island-breathe {
-  0%,100% { opacity: .7; filter: blur(12px); }
-  50% { opacity: 1; filter: blur(18px); }
+  0%,100% { opacity: .55; filter: blur(12px); }
+  50% { opacity: .85; filter: blur(18px); }
 }
 .mini-island .mi-tab svg {
-  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 35%, transparent));
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 25%, transparent));
   transition: transform .2s var(--ease), filter .2s var(--ease);
 }
-.mi-tab:hover svg { filter: drop-shadow(0 0 8px color-mix(in srgb, var(--accent) 70%, transparent)); transform: scale(1.1); }
+.mi-tab:hover svg { filter: drop-shadow(0 0 8px color-mix(in srgb, var(--accent) 45%, transparent)); transform: scale(1.1); }
 .mi-tab.on {
   background: linear-gradient(135deg,
-    color-mix(in srgb, var(--accent) 22%, transparent),
+    color-mix(in srgb, var(--accent) 12%, transparent),
     var(--accent-soft),
-    color-mix(in srgb, var(--warn) 18%, transparent));
-  color: var(--accent-strong); font-weight: 700;
+    color-mix(in srgb, var(--accent-2) 35%, transparent));
+  color: var(--accent); font-weight: 600;
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent),
-    0 0 18px color-mix(in srgb, var(--accent) 40%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent),
+    0 0 14px color-mix(in srgb, var(--accent) 18%, transparent),
     inset 0 1px 0 color-mix(in srgb, var(--surface) 55%, transparent);
 }
 .mi-tab.on svg {
   transform: scale(1.14);
-  filter: drop-shadow(0 0 8px var(--accent));
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 55%, transparent));
   animation: mi-icon-pop .35s var(--ease);
 }
 @keyframes mi-icon-pop {
@@ -1108,7 +1108,7 @@ body.theme-flip .theme-toggle svg { animation: spin-y .55s var(--ease); }
   content: ''; position: absolute; left: 50%; bottom: 2px; width: 4px; height: 4px;
   border-radius: 50%; background: var(--accent);
   transform: translateX(-50%);
-  box-shadow: 0 0 8px var(--accent), 0 0 16px color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 55%, transparent);
   animation: mi-dot-pulse 1.3s ease-in-out infinite;
 }
 @keyframes mi-dot-pulse {
@@ -1116,27 +1116,27 @@ body.theme-flip .theme-toggle svg { animation: spin-y .55s var(--ease); }
   50% { transform: translateX(-50%) scale(1.35); opacity: .75; }
 }
 .tab-ind {
-  box-shadow: 0 0 28px color-mix(in srgb, var(--accent) 65%, transparent), 0 0 12px color-mix(in srgb, var(--warn) 40%, transparent);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 .theme-toggle:hover, #notify-btn:hover, #fx-btn:hover {
-  color: var(--accent); border-color: var(--accent);
-  box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 .theme-toggle:hover { transform: rotate(18deg) scale(1.08); }
 #notify-btn:hover, #fx-btn:hover { transform: scale(1.08); }
 .logo-mark {
-  background: linear-gradient(135deg, var(--accent), var(--warn), var(--accent-strong), var(--accent));
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 60%, var(--accent-2)), var(--accent));
   background-size: 300% 300%;
   animation: grad-shift 2.4s ease infinite;
-  box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 70%, transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 40%, transparent);
 }
-.logo-name { background: linear-gradient(90deg, var(--text), var(--accent-strong)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.logo-name { background: linear-gradient(90deg, var(--text), var(--accent)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 @keyframes grad-shift { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
 .tab-btn.active {
-  background: linear-gradient(135deg, var(--surface), var(--accent-soft), color-mix(in srgb, var(--accent) 18%, var(--surface)));
-  color: var(--accent-strong); font-weight: 700;
-  text-shadow: 0 0 12px color-mix(in srgb, var(--accent) 45%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent), 0 4px 18px -4px color-mix(in srgb, var(--accent) 55%, transparent);
+  background: linear-gradient(135deg, var(--surface), var(--accent-soft));
+  color: var(--accent); font-weight: 600;
+  text-shadow: none;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent), 0 3px 12px -4px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 .btn.primary {
   background: linear-gradient(135deg, var(--accent-strong), var(--accent), var(--warn), var(--accent-strong));
@@ -1301,9 +1301,9 @@ body.theme-flip .theme-toggle svg { animation: spin-y .55s var(--ease); }
   transition: transform .4s var(--ease), width .4s var(--ease), opacity .3s;
   padding: 2px;
   background: conic-gradient(from var(--ind-angle, 0deg),
-    var(--accent), var(--warn), #E9D5B8, var(--accent-strong), var(--accent));
+    var(--accent), var(--accent-2), #F3E6D4, var(--accent), color-mix(in srgb, var(--accent) 70%, var(--accent-2)));
   animation: ind-spin 2.8s linear infinite;
-  box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 50%, transparent);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 @property --ind-angle {
   syntax: '<angle>';
@@ -1397,10 +1397,10 @@ html[data-theme="dark"] .btn.primary {
   box-shadow: 0 0 32px color-mix(in srgb, var(--accent) 70%, transparent), 0 4px 18px -4px color-mix(in srgb, var(--accent) 50%, transparent);
 }
 html[data-theme="dark"] .tab-ind {
-  box-shadow: 0 0 24px var(--accent), inset 0 0 14px color-mix(in srgb, var(--accent) 25%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 80%, #fff);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 45%, transparent), inset 0 0 10px color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 55%, #fff);
 }
-html[data-theme="dark"] .logo-mark { box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 70%, transparent); }
+html[data-theme="dark"] .logo-mark { box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 45%, transparent); }
 html[data-theme="dark"] .orb { opacity: .4; }
 html[data-theme="dark"] .msg.user .bubble {
   box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 45%, transparent);
@@ -1413,7 +1413,7 @@ html[data-theme="dark"] .msg.user .bubble {
 }
 .detail-avatar { animation: avatar-pop .55s cubic-bezier(.2,.9,.3,1.35); }
 /* 页签选中文字微光 */
-.tab-btn.active { text-shadow: 0 0 12px color-mix(in srgb, var(--accent) 50%, transparent); }
+.tab-btn.active { text-shadow: none; color: var(--accent); }
 /* ===== 特效增强 v2：可见动态加码（用户要求加特效，勿再收束） ===== */
 .stat-num {
   text-shadow: 0 0 24px color-mix(in srgb, var(--accent) 35%, transparent);
