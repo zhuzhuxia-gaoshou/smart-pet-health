@@ -27,8 +27,7 @@ Thumbs.db
 
 # Node（dev 冒烟测试依赖，按 README 手动安装）
 node_modules/
-package.json
-package-lock.json
+# package.json / package-lock.json 必须入库（jsdom 依赖声明），勿忽略
 
 # 本地工具与收藏卡工程（不入库）
 /tools/

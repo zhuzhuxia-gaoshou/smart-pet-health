@@ -116,10 +116,13 @@ class RecordIn(BaseModel):
     @field_validator("image", mode="before")
     @classmethod
     def _vi(cls, v):
-        # 只收 data:image/ URI，拒绝把任意大文本塞进本字段
-        if v is not None and v != "" and not str(v).startswith("data:image/"):
+        # 只收严格 data:image/*;base64 URI，拒绝属性截断型注入（如 data:image/x" onerror=...）
+        if v is None or v == "":
+            return v
+        s = str(v)
+        if not re.match(r"^data:image/(?:jpeg|jpg|png|webp|gif|svg\+xml);base64,[A-Za-z0-9+/=\s]+$", s):
             raise ValueError("图片格式无效")
-        return v
+        return s
 
     @field_validator("date", "next_date")
     @classmethod
@@ -154,7 +157,17 @@ class MemoryIn(BaseModel):
     title: str = Field(..., min_length=1, max_length=60)
     pet_id: int | None = None
     text: str | None = Field(None, max_length=2000)
-    image: str | None = None   # base64 data URI（前端已压缩）
+    image: str | None = Field(None, max_length=4_000_000, description="图片 data URI（前端已压缩）")
+
+    @field_validator("image", mode="before")
+    @classmethod
+    def _v_image(cls, v):
+        if v is None or v == "":
+            return v
+        s = str(v)
+        if not re.match(r"^data:image/(?:jpeg|jpg|png|webp|gif|svg\+xml);base64,[A-Za-z0-9+/=\s]+$", s):
+            raise ValueError("图片仅支持 data:image/ 内嵌格式")
+        return s
 
     @field_validator("date")
     @classmethod

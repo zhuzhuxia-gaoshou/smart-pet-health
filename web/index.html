@@ -2356,12 +2356,15 @@ async function renderDashboard() {
     <div class="activity-item" role="button" tabindex="0" onclick="go('detail',{petId:${a.pet_id}})" style="cursor:pointer">
       <span class="activity-dot" style="background:${dotColor(a.type)}"></span>
       <span class="activity-date">${esc((a.date||'').slice(5))}</span>
-      <span><b>${esc(a.pet_name)}</b> ${esc(a.title)} <span style="color:var(--text-2)">· ${a.type_label}</span></span>
+      <span><b>${esc(a.pet_name)}</b> ${esc(a.title)} <span style="color:var(--text-2)">· ${esc(a.type_label)}</span></span>
     </div>`).join('')
     : '<div class="empty-hint">暂无记录</div>';
 
   const chips = suggestQuestions().slice(0, 3);
-  $('suggest-chips').innerHTML = chips.map((c, i) => `<button class="chip" style="--i:${i}" onclick="askFromSuggest('${esc(c)}')">${esc(c)}</button>`).join('');
+  $('suggest-chips').innerHTML = chips.map((c, i) => `<button class="chip" style="--i:${i}" data-q="${esc(c)}">${esc(c)}</button>`).join('');
+  $('suggest-chips').querySelectorAll('.chip').forEach(b => {
+    b.addEventListener('click', () => askFromSuggest(b.dataset.q || ''));
+  });
 
 }
 
@@ -2517,10 +2520,10 @@ function renderLibrary() {
       <div class="pet-card-top">
         <div class="pet-avatar">${esc(p.avatar || TYPE_EMOJI[p.type] || '🐾')}</div>
         <div><div class="pet-name">${esc(p.name)}</div>
-        <div class="pet-breed">${esc(p.breed || '未知品种')} · ${p.age}</div></div>
+        <div class="pet-breed">${esc(p.breed || '未知品种')} · ${esc(p.age)}</div></div>
       </div>
       <div class="pet-meta">
-        <span class="badge ${p.status}">${STATUS_LABEL[p.status] || p.status}</span>
+        <span class="badge ${esc(p.status)}">${esc(STATUS_LABEL[p.status] || p.status)}</span>
         <span class="badge plain">${p.record_count} 条记录</span>
         ${p.latest_weight ? `<span class="badge plain">${p.latest_weight} kg</span>` : ''}
       </div>
@@ -2579,10 +2582,10 @@ async function openDetail(petId, from) {
       <div class="pet-avatar detail-avatar">${esc(p.avatar || TYPE_EMOJI[p.type] || '🐾')}</div>
       <div class="detail-info">
         <div class="detail-name">${esc(p.name)}
-          <span class="badge ${p.status}">${STATUS_LABEL[p.status] || p.status}</span>
+          <span class="badge ${esc(p.status)}">${esc(STATUS_LABEL[p.status] || p.status)}</span>
           ${worst <= 7 ? `<span class="badge ${worst < 0 ? 'ill' : 'attention'}">${worst < 0 ? `有事项逾期${-worst}天` : `${worst}天后有事项到期`}</span>` : ''}
         </div>
-        <div class="detail-sub">${esc(p.breed || '未知品种')} · ${p.gender === 'male' ? '公' : p.gender === 'female' ? '母' : '未知'} · ${p.age} · 当前体重 ${p.latest_weight ?? '—'} kg · ${p.record_count} 条健康记录</div>
+        <div class="detail-sub">${esc(p.breed || '未知品种')} · ${p.gender === 'male' ? '公' : p.gender === 'female' ? '母' : '未知'} · ${esc(p.age)} · 当前体重 ${esc(String(p.latest_weight ?? '—'))} kg · ${esc(String(p.record_count))} 条健康记录</div>
         <div class="detail-sub">${esc(p.personality || '')}</div>
       </div>
       <div class="detail-actions">

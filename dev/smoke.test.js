@@ -34,12 +34,13 @@ const check = (name, cond, extra) => results.push({ name, ok: !!cond, extra: con
 
   check('boot loads pets (>=3)', state().pets.length >= 3, 'got ' + state().pets.length);
   check('stat cards = 3', n('#stat-row .stat-card') === 3);
-  check('reminders rendered', n('#dash-reminders .reminder-item') >= 3, 'got ' + n('#dash-reminders .reminder-item'));
+  const remN = n('#dash-reminders .reminder-item');
+  // 数据量随真实使用增删：只锁「有则渲染、最多 4 条」，不锁种子条数
+  check('reminders rendered', remN <= 4 && (remN > 0 || state().pets.length === 0), 'got ' + remN);
   check('activity rendered', n('#dash-activity .activity-item') >= 3);
   check('suggest chips', n('#suggest-chips .chip') === 3);
   check('stats are clickable', n('#stat-row .stat-card.clickable') === 3);
-  check('dash reminders capped at 4', n('#dash-reminders .reminder-item') <= 4 && n('#dash-reminders .reminder-item') >= 3,
-    'got ' + n('#dash-reminders .reminder-item'));
+  check('dash reminders capped at 4', remN <= 4, 'got ' + remN);
   check('activity capped at 5', n('#dash-activity .activity-item') <= 5);
   check('month overview removed', !T.$('dash-month-card'));
   check('mini pets removed', !T.$('dash-pets-mini'));

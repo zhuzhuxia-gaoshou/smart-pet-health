@@ -908,7 +908,7 @@ def reset_demo_data() -> dict:
     try:
         for t in ("chat_history", "chat_sessions", "app_kv", "weight_logs",
                   "health_records", "medications", "memories", "expenses", "feeding_logs",
-                  "medbox_pets", "medbox_items", "coach_tasks", "pets"):
+                  "medbox_pets", "medbox_items", "coach_tasks", "trash", "pets"):
             conn.execute(f"DELETE FROM {t}")
         conn.commit()
     finally:
