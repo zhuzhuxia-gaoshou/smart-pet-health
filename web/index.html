@@ -290,7 +290,12 @@ html[data-theme="light"] .icon-sun { display: none; }
 @keyframes fade-up { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
 
 .page-head { margin-bottom: 22px; }
-.page-title { font-family: var(--font-title); font-size: 27px; font-weight: 600; letter-spacing: -.35px; color: var(--text); }
+.page-title {
+  font-family: var(--font-title); font-size: 28px; font-weight: 700; letter-spacing: -.4px;
+  background: linear-gradient(100deg, var(--text) 10%, var(--accent-strong) 48%, var(--accent) 78%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 0 18px color-mix(in srgb, var(--accent) 25%, transparent));
+}
 .page-sub { color: var(--text-2); font-size: 14px; margin-top: 3px; }
 
 /* ---------- 卡片 ---------- */
@@ -434,7 +439,7 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
 
 .pet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(252px, 1fr)); gap: 16px; }
 .pet-card { padding: 20px; cursor: pointer; position: relative; transition: transform var(--dur) ease-out, box-shadow var(--dur) ease-out, border-color var(--dur); }
-.pet-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-deep); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.pet-card:hover { transform: translateY(-6px) scale(1.015); box-shadow: 0 22px 48px -14px color-mix(in srgb, var(--accent) 45%, rgba(0,0,0,.3)); border-color: var(--accent); }
 .pet-card-top { display: flex; align-items: center; gap: 13px; margin-bottom: 12px; }
 .pet-avatar {
   width: 52px; height: 52px; border-radius: 16px; flex: none;
@@ -736,12 +741,12 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
 .detail-tab { transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease); }
 .detail-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .wc-pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-/* 卡片：统一浮起 -2px + 深阴影（全站唯一 lift 幅度） */
+/* 卡片：统一浮起 -6px + 橙光深阴影（可见动态） */
 .card { transition: box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease), border-color var(--dur) var(--ease); }
-.stat-card:hover, .pet-card:hover, .mem-card:hover, .card.lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-deep); }
-.pet-card:hover, .mem-card:hover { border-color: color-mix(in srgb, var(--accent) 32%, var(--border)); }
+.stat-card:hover, .pet-card:hover, .mem-card:hover, .card.lift:hover { transform: translateY(-6px) scale(1.01); box-shadow: 0 22px 48px -14px color-mix(in srgb, var(--accent) 42%, rgba(0,0,0,.28)); }
+.pet-card:hover, .mem-card:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
 .card.lift { cursor: pointer; }
-.card.lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-deep); border-color: color-mix(in srgb, var(--accent) 32%, var(--border)); }
+.card.lift:hover { transform: translateY(-6px) scale(1.01); box-shadow: 0 22px 48px -14px color-mix(in srgb, var(--accent) 42%, rgba(0,0,0,.28)); border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
 /* 弹窗：入场统一 + 关闭动画（离场更短于入场） */
 .modal-overlay.open { animation: overlay-in 280ms var(--ease); }
 .modal { animation: modal-in 300ms var(--ease); }
@@ -766,7 +771,8 @@ select.filter { padding: 9px 12px; border: 1px solid var(--border); border-radiu
   transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
 }
 .reminder-item:hover, .activity-item:hover, .rec-row:hover, .exp-row:hover, .sess-item:hover, .box-row:hover {
-  background: var(--surface-2); border-color: var(--border); transform: translateX(3px);
+  background: var(--surface-2); border-color: var(--border); transform: translateX(8px) scale(1.01);
+  box-shadow: var(--shadow-sm);
 }
 .reminder-item:focus-visible, .activity-item:focus-visible, .rec-row:focus-visible, .exp-row:focus-visible, .sess-item:focus-visible, .box-row:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px;
@@ -853,7 +859,7 @@ input:not(:focus):hover, select:not(:focus):hover, textarea:not(:focus):hover {
 body.theme-flip .theme-toggle svg { animation: spin-y .55s var(--ease); }
 @keyframes today-halo {
   0%, 100% { box-shadow: 0 0 0 3px var(--accent-soft); }
-  50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 22%, transparent); }
+  50% { box-shadow: 0 0 0 10px color-mix(in srgb, var(--accent) 32%, transparent), 0 0 24px color-mix(in srgb, var(--accent) 40%, transparent); }
 }
 .cal-cell.today { animation: today-halo 1.8s ease-in-out infinite; }
 @keyframes paw-burst {
@@ -869,9 +875,17 @@ body.theme-flip .theme-toggle svg { animation: spin-y .55s var(--ease); }
 #weight-chart path.wc-line {
   stroke-dasharray: 1200; stroke-dashoffset: 1200;
   animation: wc-draw .9s var(--ease) forwards;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 65%, transparent));
 }
 #weight-chart path.wc-area { animation: fade-enter .7s var(--ease) both; }
-#weight-chart .wc-dot { animation: fade-enter .4s var(--ease) both; animation-delay: .45s; }
+#weight-chart .wc-dot {
+  animation: fade-enter .4s var(--ease) both, dot-pulse 2s ease-in-out infinite;
+  animation-delay: .45s, .9s;
+}
+@keyframes dot-pulse {
+  0%,100% { filter: drop-shadow(0 0 0 transparent); }
+  50% { filter: drop-shadow(0 0 6px var(--accent)); }
+}
 .tab-pane.active { animation: fade-up .3s var(--ease); }
 .detail-tab.active { animation: tab-pop .28s var(--ease); }
 @keyframes tab-pop { 0% { transform: translateY(4px); } 60% { transform: translateY(-2px); } 100% { transform: none; } }
@@ -1028,28 +1042,38 @@ body.theme-flip .theme-toggle svg { animation: spin-y .55s var(--ease); }
   box-shadow: 0 10px 40px -16px color-mix(in srgb, var(--accent) 45%, transparent);
 }
 .logo-mark {
-  background: linear-gradient(135deg, var(--accent), var(--accent-strong), var(--accent));
-  background-size: 220% 220%;
-  animation: grad-shift 6s ease infinite;
-  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 35%, transparent);
+  background: linear-gradient(135deg, var(--accent), var(--warn), var(--accent-strong), var(--accent));
+  background-size: 300% 300%;
+  animation: grad-shift 2.4s ease infinite;
+  box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 70%, transparent);
 }
 .logo-name { background: linear-gradient(90deg, var(--text), var(--accent-strong)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 @keyframes grad-shift { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
 .tab-btn.active {
-  background: linear-gradient(135deg, var(--surface), var(--accent-soft));
-  color: var(--accent-strong); font-weight: 600;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent), 0 3px 10px -4px color-mix(in srgb, var(--accent) 30%, transparent);
+  background: linear-gradient(135deg, var(--surface), var(--accent-soft), color-mix(in srgb, var(--accent) 18%, var(--surface)));
+  color: var(--accent-strong); font-weight: 700;
+  text-shadow: 0 0 12px color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent), 0 4px 18px -4px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 .btn.primary {
-  background: var(--accent-strong);
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent), var(--warn), var(--accent-strong));
+  background-size: 280% 280%;
+  animation: grad-shift 2.8s ease infinite;
   border: none;
-  box-shadow: 0 2px 10px -4px color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow: 0 4px 20px -4px color-mix(in srgb, var(--accent) 65%, transparent);
+  position: relative; overflow: hidden;
 }
-.btn.primary:hover { transform: translateY(-1px); box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--accent) 50%, transparent); }
-.btn.primary:active { transform: scale(.97); box-shadow: 0 2px 8px -4px color-mix(in srgb, var(--accent) 40%, transparent); }
+.btn.primary::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,.35) 50%, transparent 70%);
+  transform: translateX(-120%);
+  animation: sheen 2.6s ease-in-out infinite;
+}
+.btn.primary:hover { transform: translateY(-2px) scale(1.04); box-shadow: 0 10px 32px -6px color-mix(in srgb, var(--accent) 75%, transparent); }
+.btn.primary:active { transform: scale(.96); }
 /* 氛围光球 */
 .ambient { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
-.orb { position: absolute; border-radius: 50%; filter: blur(70px); opacity: .28; will-change: transform; }
+.orb { position: absolute; border-radius: 50%; filter: blur(70px); opacity: .38; will-change: transform; }
 .orb.o1 { width: 320px; height: 320px; background: var(--accent); top: -8%; left: -6%; animation: orb-a 14s ease-in-out infinite; }
 .orb.o2 { width: 260px; height: 260px; background: var(--medication); bottom: 5%; right: -4%; animation: orb-b 18s ease-in-out infinite; }
 .orb.o3 { width: 200px; height: 200px; background: var(--warn); top: 42%; left: 38%; opacity: .16; animation: orb-c 16s ease-in-out infinite; }
@@ -1061,38 +1085,45 @@ body.theme-flip .theme-toggle svg { animation: spin-y .55s var(--ease); }
 @keyframes view-prev { from { opacity: 0; transform: translateX(-52px) scale(.97); } to { opacity: 1; transform: none; } }
 .view.view-next { animation: view-next .4s var(--ease); }
 .view.view-prev { animation: view-prev .4s var(--ease); }
-/* 统计卡：极淡扫光 + 顶部发丝线（静置不扰，hover 才掠过） */
+/* 统计卡：常驻扫光 + 顶部发丝线 + hover 更立体 */
 .stat-card { overflow: hidden; isolation: isolate; }
 .stat-card::before {
-  content: ''; position: absolute; top: 0; left: 22px; right: 22px; height: 2px; z-index: 1; pointer-events: none;
+  content: ''; position: absolute; top: 0; left: 16px; right: 16px; height: 2px; z-index: 1; pointer-events: none;
   border-radius: 0 0 2px 2px;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 55%, transparent), transparent 85%);
-  opacity: .55;
+  background: linear-gradient(90deg, transparent, var(--accent), var(--warn), transparent);
+  opacity: .85;
+  animation: hairline-glow 2.4s ease-in-out infinite;
 }
 .stat-card::after {
   content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
-  background: linear-gradient(115deg, transparent 35%, color-mix(in srgb, var(--accent) 14%, transparent) 50%, transparent 65%);
+  background: linear-gradient(115deg, transparent 35%, color-mix(in srgb, var(--accent) 28%, transparent) 50%, transparent 65%);
   transform: translateX(-120%);
-  opacity: 0;
+  animation: sheen 2.8s ease-in-out infinite;
 }
-.stat-card:hover::after { animation: sheen 1.1s var(--ease); opacity: 1; }
 .stat-card > * { position: relative; z-index: 1; }
-@keyframes sheen { 0% { transform: translateX(-120%); opacity: 1; } 100% { transform: translateX(120%); opacity: 0; } }
+@keyframes sheen { 0%, 55% { transform: translateX(-120%); } 100% { transform: translateX(120%); } }
+@keyframes hairline-glow { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
 .stat-card, .pet-card, .mem-card, .card.lift {
-  transition: transform .22s var(--ease), box-shadow .22s var(--ease), border-color .22s var(--ease);
+  transition: transform .25s var(--ease), box-shadow .25s var(--ease), border-color .25s var(--ease);
+  transform-style: preserve-3d;
 }
 .pet-card:hover, .mem-card:hover, .stat-card:hover {
-  box-shadow: 0 14px 36px -16px color-mix(in srgb, var(--accent) 28%, rgba(0,0,0,.22));
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  box-shadow: 0 22px 50px -14px color-mix(in srgb, var(--accent) 48%, rgba(0,0,0,.3));
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
 }
 .pet-card.tilt, .mem-card.tilt, .stat-card.tilt {
   transition: transform .08s linear;
-  box-shadow: 0 16px 40px -16px color-mix(in srgb, var(--accent) 32%, rgba(0,0,0,.25));
+  box-shadow: 0 28px 64px -16px color-mix(in srgb, var(--accent) 55%, rgba(0,0,0,.35));
 }
-/* 合计数字保留品牌暖渐变；标题用实色墨水（可读性优先） */
+/* 合计数字 + 详情名：暖渐变 + 呼吸光晕 */
 .exp-total, .detail-name {
-  background: linear-gradient(100deg, var(--text) 20%, var(--accent-strong) 55%, var(--accent) 80%);
+  background: linear-gradient(100deg, var(--text) 15%, var(--accent-strong) 50%, var(--accent) 80%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.exp-total { animation: total-glow 2.4s ease-in-out infinite; }
+@keyframes total-glow {
+  0%,100% { filter: drop-shadow(0 0 0 transparent); }
+  50% { filter: drop-shadow(0 0 16px color-mix(in srgb, var(--accent) 55%, transparent)); }
 }
 /* 聊天气泡弹入 */
 .msg { animation: bubble-in .48s cubic-bezier(.2, .9, .25, 1.25); }
@@ -1114,11 +1145,11 @@ body.theme-flip .theme-toggle svg { animation: spin-y .55s var(--ease); }
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
   box-shadow: 0 12px 40px -8px rgba(0,0,0,.28), 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
 }
-/* 列表 hover：轻位移即可（阅读向，不抢焦点） */
+/* 列表 hover：明显位移 + 轻浮 + 边缘光 */
 .reminder-item:hover, .activity-item:hover, .rec-row:hover, .exp-row:hover {
-  transform: translateX(3px);
-  box-shadow: none;
-  border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
+  transform: translateX(8px) scale(1.01);
+  box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--accent) 35%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
 }
 /* 体重图容器光晕 */
 #weight-chart .weight-chart-wrap, #exp-chart {
@@ -1127,23 +1158,26 @@ body.theme-flip .theme-toggle svg { animation: spin-y .55s var(--ease); }
   background: color-mix(in srgb, var(--surface) 70%, var(--accent-soft));
   padding: 8px;
 }
-/* 日历今日：环光轻脉动；hover 只微抬 */
+/* 日历今日：光晕脉冲更炸；hover 大幅抬起 */
 .cal-cell.today {
-  animation: today-halo 1.8s ease-in-out infinite;
-  background: linear-gradient(160deg, var(--surface), var(--accent-soft));
+  animation: today-halo 1.2s ease-in-out infinite;
+  background: linear-gradient(160deg, var(--surface), var(--accent-soft), color-mix(in srgb, var(--accent) 22%, var(--surface)));
   border-color: var(--accent);
 }
 .cal-cell:not(.dim):hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 18px -10px color-mix(in srgb, var(--accent) 32%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  transform: translateY(-5px) scale(1.04);
+  box-shadow: 0 16px 36px -10px color-mix(in srgb, var(--accent) 55%, transparent);
+  border-color: var(--accent);
 }
-/* 头像：轻微放大即可（专业克制，不做旋转） */
+/* 头像：放大 + 轻旋 + 光环（可见互动） */
 .pet-avatar, .detail-avatar {
-  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px color-mix(in srgb, var(--accent) 32%, transparent);
-  transition: transform .22s var(--ease), box-shadow .22s var(--ease);
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px color-mix(in srgb, var(--accent) 45%, transparent);
+  transition: transform .28s var(--ease), box-shadow .28s var(--ease);
 }
-.pet-card:hover .pet-avatar { transform: scale(1.06); box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px color-mix(in srgb, var(--accent) 55%, transparent); }
+.pet-card:hover .pet-avatar {
+  transform: scale(1.14) rotate(-8deg);
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 6px var(--accent), 0 12px 28px -6px color-mix(in srgb, var(--accent) 65%, transparent);
+}
 /* 聊天 AI 头像呼吸 */
 .msg.bot .msg-avatar { animation: av-pulse 2.4s ease-in-out infinite; }
 @keyframes av-pulse {
@@ -1159,8 +1193,12 @@ body.theme-flip .theme-toggle svg { animation: spin-y .55s var(--ease); }
   border-bottom-color: var(--accent);
   box-shadow: 0 2px 0 0 var(--accent);
 }
-/* 徽章：静态软描边代替微光（状态靠色义，不靠呼吸） */
-.badge.ill, .badge.attention { box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 18%, transparent); }
+/* 徽章：状态呼吸光（一眼看出紧急） */
+.badge.ill, .badge.attention { animation: badge-glow 1.6s ease-in-out infinite; }
+@keyframes badge-glow {
+  0%,100% { box-shadow: 0 0 0 0 transparent; }
+  50% { box-shadow: 0 0 14px color-mix(in srgb, currentColor 55%, transparent), 0 0 0 1px color-mix(in srgb, currentColor 30%, transparent); }
+}
 /* 骨架更明显 */
 .skel::after { animation-duration: 1s; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 12%, var(--surface)), transparent); }
 /* 减弱动效：氛围球与扫光关闭，保留淡入 */
@@ -1264,11 +1302,15 @@ html[data-theme="dark"] .spotlight {
 }
 .btn.primary { will-change: transform; }
 .btn.primary.mag { transition: transform .18s var(--ease), box-shadow .25s var(--ease); }
+#chat-input:focus {
+  box-shadow: 0 0 0 2px var(--accent), 0 0 28px color-mix(in srgb, var(--accent) 45%, transparent);
+  border-color: var(--accent);
+}
 .bubble.typing-reveal { animation: clip-reveal 1.15s var(--ease); }
 @keyframes clip-reveal { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
-/* 暗色主按钮：柔光，不做霓虹 */
+/* 暗色主按钮：霓虹加强 */
 html[data-theme="dark"] .btn.primary {
-  box-shadow: 0 2px 12px -4px color-mix(in srgb, var(--accent) 40%, transparent);
+  box-shadow: 0 0 32px color-mix(in srgb, var(--accent) 70%, transparent), 0 4px 18px -4px color-mix(in srgb, var(--accent) 50%, transparent);
 }
 html[data-theme="dark"] .tab-ind {
   box-shadow: 0 0 24px var(--accent), inset 0 0 14px color-mix(in srgb, var(--accent) 25%, transparent);
@@ -1279,15 +1321,57 @@ html[data-theme="dark"] .orb { opacity: .4; }
 html[data-theme="dark"] .msg.user .bubble {
   box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 45%, transparent);
 }
-/* 详情头像入场 */
+/* 详情头像入场：弹跳落定 */
 @keyframes avatar-pop {
-  0% { opacity: 0; transform: scale(.92); }
-  100% { opacity: 1; transform: none; }
+  0% { opacity: 0; transform: scale(.6) rotate(-14deg); }
+  60% { opacity: 1; transform: scale(1.12) rotate(4deg); }
+  100% { transform: scale(1) rotate(0); }
 }
-.detail-avatar { animation: avatar-pop .45s var(--ease); }
-/* 页签选中：实色字重即可，文字微光会脏 */
-.tab-btn.active { text-shadow: none; }
-/* 记账合计：静态暖渐变（.exp-total 已在上方 token 渐变规则） */
+.detail-avatar { animation: avatar-pop .55s cubic-bezier(.2,.9,.3,1.35); }
+/* 页签选中文字微光 */
+.tab-btn.active { text-shadow: 0 0 12px color-mix(in srgb, var(--accent) 50%, transparent); }
+/* ===== 特效增强 v2：可见动态加码（用户要求加特效，勿再收束） ===== */
+.stat-num {
+  text-shadow: 0 0 24px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.stat-card.clickable:hover .stat-num { animation: num-pop .35s var(--ease); }
+@keyframes num-pop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+.empty-state .big {
+  animation: es-float 2.8s ease-in-out infinite;
+  box-shadow: 0 0 0 6px var(--accent-soft), 0 8px 24px -8px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+@keyframes es-float {
+  0%,100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.pet-card::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 30%),
+    color-mix(in srgb, var(--accent) 18%, transparent), transparent 55%);
+  opacity: 0; transition: opacity .25s var(--ease);
+}
+.pet-card:hover::before { opacity: 1; }
+.card.lift:hover .card-title { color: var(--accent-strong); letter-spacing: .6px; }
+.card-title { transition: color .2s var(--ease), letter-spacing .2s var(--ease); }
+.mem-card:hover .mem-title { text-shadow: 0 0 12px color-mix(in srgb, var(--accent) 40%, transparent); }
+.rem-dot.danger { animation: pulse 1s ease-in-out infinite; }
+.rem-dot.warn { animation: pulse 1.6s ease-in-out infinite; }
+.msg.user .bubble {
+  box-shadow: 0 8px 28px -8px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.btn:not(.primary):hover {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent), 0 6px 18px -8px color-mix(in srgb, var(--accent) 45%, transparent);
+  transform: translateY(-1px);
+}
+.view.active { animation: fade-up .36s var(--ease), view-flash .5s var(--ease); }
+@keyframes view-flash {
+  0% { filter: drop-shadow(0 0 24px color-mix(in srgb, var(--accent) 40%, transparent)); }
+  100% { filter: drop-shadow(0 0 0 transparent); }
+}
 /* 聊天发送中按钮脉冲 */
 .btn.primary.loading::after { border-top-color: var(--on-accent); }
 /* 快照列表（备份与恢复模态框） */
