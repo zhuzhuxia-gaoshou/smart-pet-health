@@ -1446,7 +1446,6 @@ def coach_letter(payload: dict, force: bool = False) -> dict:
 
 
 def coach_sig(payload: dict) -> str:
-    """周报缓存签名：分数+各维分+未完成任务标题。"""
     parts = [str(payload.get("score")), payload.get("grade") or ""]
     for d in payload.get("dims") or []:
         parts.append(f"{d.get('key')}:{d.get('score')}")
@@ -1457,6 +1456,24 @@ def coach_sig(payload: dict) -> str:
 
 
 # ---------------------------------------------------------------- 一句话记账（解析）
+
+# ---------------------------------------------------------------- 回忆 AI 配文
+
+def memory_caption(context: str) -> str:
+    """根据标题/简述生成温暖回忆短文（80–120 字）；无 Key 回落模板。"""
+    fallback = "阳光正好，毛孩子在脚边打了个滚。这样的日子，值得记下来。"
+    if os.environ.get("MEM_LLM", "1") == "0" or not provider() or _agent_failed:
+        return fallback
+    prompt = (
+        "你是温柔的宠物回忆录写手。根据线索写 80–120 字中文短文：\n"
+        "第一人称主人视角，温暖克制，不编造具体医疗诊断；不要标题和列表。\n"
+        f"线索：{context[:200]}\n直接输出正文。"
+    )
+    out = _medbox_briefing_llm(prompt)
+    if out and not out.startswith("⚠️"):
+        return out.strip()[:300]
+    return fallback
+
 
 def expense_parse(text: str) -> dict:
     """口语 → 花销草稿。规则秒回；缺金额且有 Key 时 LLM 补一次（失败保留规则结果）。"""

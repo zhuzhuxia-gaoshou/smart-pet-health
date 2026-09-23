@@ -616,6 +616,14 @@ def api_nl_parse(body: NLParseIn):
             return tools.parse_weight_text(body.text)
         if body.kind == "medbox":
             return tools.parse_medbox_text(body.text)
+        if body.kind == "pet":
+            return tools.parse_pet_text(body.text)
+        if body.kind == "record":
+            return tools.parse_record_nl(body.text)
+        if body.kind == "memory":
+            import agent
+            caption = agent.memory_caption(body.text)
+            return {"caption": caption}
         return {"error": "kind 无效"}
     except Exception as e:
         return {"error": f"解析失败（{type(e).__name__}）", "hints": ["text"]}

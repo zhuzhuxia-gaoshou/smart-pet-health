@@ -3184,7 +3184,7 @@ async function fillFromNL(kind) {
   try {
     const d = await api('/api/parse/nl', { method: 'POST', body: JSON.stringify({ kind, text }) });
     if (d && d.error) throw new Error(d.error);
-    const f = input.closest('form') || document.getElementById('exp-form') || document.querySelector('form');
+    const f = input.closest('form') || document.querySelector('form');
     if (!f) return;
     const set = (name, val) => {
       const el = f.querySelector(`[name="${name}"]`);
@@ -3207,8 +3207,14 @@ async function fillFromNL(kind) {
           c.classList.toggle('on', +c.dataset.pet === +d.pet_id);
         });
       }
+    } else if (kind === 'pet') {
+      set('name', d.name); set('type', d.type); set('breed', d.breed); set('gender', d.gender);
+      set('birthday', d.birthday); set('weight', d.weight); set('personality', d.personality);
+    } else if (kind === 'record') {
+      set('type', d.type); set('title', d.title); set('date', d.date); set('note', d.note);
+      set('next_date', d.next_date); set('repeat_rule', d.repeat_rule);
     }
-    const miss = (d.hints || []).map(h => ({ amount: '份量', frequency: '频次', weight: '体重', pet: '宠物', date: '日期' }[h] || h));
+    const miss = (d.hints || []).map(h => ({ amount: '份量', frequency: '频次', weight: '体重', pet: '宠物', date: '日期', name: '名字', type: '类型', expiry: '有效期', qty: '余量' }[h] || h));
     if (hint) hint.textContent = miss.length ? `已填表 · 还请核对：${miss.join('、')}` : '已填表 · 核对后点保存';
     window.toast && toast('已智能填表 ✓', 'ok');
   } catch (err) {
@@ -3218,6 +3224,7 @@ async function fillFromNL(kind) {
     if (btn) { btn.disabled = false; btn.textContent = '智能填表'; }
   }
 }
+
 async function submitExpense(ev, id) {
   ev.preventDefault();
   const f = Object.fromEntries(new FormData(ev.target).entries());
@@ -4077,6 +4084,7 @@ function openPetModal(id) {
   const p = id ? state.pets.find(x => x.id === id) || {} : {};
   openModal(`
   <h3>${id ? '编辑宠物资料' : '新增宠物'}</h3>
+  ${id ? '' : nlBarHTML('pet', '如：3岁柯基叫可乐 11公斤 公')}
   <form id="pet-form" onsubmit="return submitPet(event, ${id ?? 'null'})">
     <div class="form-grid">
       <div class="form-field"><label>名字 <span class="req">*</span></label><input name="name" required maxlength="30" value="${esc(p.name || '')}"></div>
@@ -4175,6 +4183,7 @@ function openRecordModal(petId) {
       </div></div>` : '';
   openModal(`
   <h3>新增健康记录 · ${esc(pet.name)}</h3>
+  ${nlBarHTML('record', '如：每月初驱虫 / 下周三打狂犬疫苗')}
   <form id="rec-form" onsubmit="return submitRecord(event)">
     <div class="form-grid">
       ${petSelect}
@@ -4472,7 +4481,8 @@ async function openMemoryModal(id, defaultPetId) {
       </select></div>
       <div class="form-field"><label>日期 <span class="req">*</span></label><input name="date" type="date" required value="${esc(m?.date || today)}"></div>
       <div class="form-field full"><label>标题 <span class="req">*</span></label><input name="title" required maxlength="60" placeholder="如：第一次看海" value="${esc(m?.title || '')}"></div>
-      <div class="form-field full"><label>文字（可选）</label><textarea name="text" rows="3" maxlength="2000" placeholder="那一刻的细节、心情、想对TA说的话…">${esc(m?.text || '')}</textarea></div>
+      <div class="form-field full"><label>文字（可选）</label><textarea name="text" rows="3" maxlength="2000" placeholder="那一刻的细节、心情、想对TA说的话…">${esc(m?.text || '')}</textarea>
+        <div style="margin-top:6px"><button type="button" class="btn sm" id="mem-ai-btn" onclick="aiMemCaption()">AI 配文</button></div></div>
       <div class="form-field full"><label>图片（可选，自动压缩后保存）</label>
         <input aria-label="选择回忆照片" type="file" accept="image/*" onchange="handleMemImage(this)">
         <div class="img-preview-wrap ${state.memImg ? 'show' : ''}" id="mem-img-wrap">
@@ -4766,6 +4776,8 @@ async function sendChat() {
     sc.appendChild(de.firstElementChild); sc.scrollTop = sc.scrollHeight;
   }
   $('chat-send').disabled = false; const lbl = $('chat-send').querySelector('.btn-label'); if (lbl) lbl.textContent = '发送';
+  // 口语记账：识别到金额+消费意图时，在聊天里追加记账确认卡
+  maybeAttachExpenseDraft(msg);
 }
 function autoGrow(ta) { ta.style.height = 'auto'; ta.style.height = Math.min(120, ta.scrollHeight) + 'px'; }
 async function newChatSession() {
@@ -5512,6 +5524,10 @@ async function coachRefresh() {
   setTimeout(renderCoach, 800);
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') coachClose();
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+      e.preventDefault();
+      openCmdK();
+    }
   });
   document.addEventListener('click', e => {
     const p = $('coach-panel'), f = $('coach-fab');
@@ -5520,6 +5536,135 @@ async function coachRefresh() {
     coachClose();
   });
 })();
+
+/* ---------- Ctrl+K 智能命令面板 ---------- */
+function openCmdK() {
+  openModal(`<h3>智能命令</h3>
+  <div class="form-field full">
+    <label for="cmdk-in">一句话指令</label>
+    <input id="cmdk-in" placeholder="记一笔可乐看病280 / 去药箱 / 每月初驱虫 / 建档3岁柯基…" onkeydown="if(event.key==='Enter'){event.preventDefault();runCmdK();}">
+    <div class="care-note" style="margin-top:8px">支持：记账、建档、记录/提醒、跳转（药箱/巡检/日历/记账/回忆/AI）</div>
+  </div>
+  <div class="modal-actions">
+    <button type="button" class="btn" onclick="closeModal()">取消</button>
+    <button type="button" class="btn primary" onclick="runCmdK()">执行</button>
+  </div>`);
+  setTimeout(() => $('cmdk-in')?.focus(), 50);
+}
+async function runCmdK() {
+  const t = ($('cmdk-in')?.value || '').trim();
+  if (!t) { toast('先写一句指令', true); return; }
+  const jump = () => {
+    if (/药箱|库存/.test(t)) return 'medbox';
+    if (/巡检|发现/.test(t)) return 'patrol';
+    if (/日历/.test(t)) return 'calendar';
+    if (/回忆/.test(t)) return 'memories';
+    if (/聊天|助手|AI/i.test(t)) return 'chat';
+    if (/记账|账单|花销/.test(t)) return 'ledger';
+    if (/提醒|到期/.test(t)) return 'reminders';
+    return null;
+  };
+  if (/建档|新宠物|领养/.test(t) || /叫\s*\S+/.test(t) && /岁|公斤|kg/.test(t)) {
+    closeModal();
+    openPetModal();
+    setTimeout(() => fillFromNL('pet') && (($('nl-pet') || {}).value = t), 80);
+    setTimeout(() => { const i = $('nl-pet'); if (i) { i.value = t; fillFromNL('pet'); } }, 120);
+    return;
+  }
+  if (/每月|每周|每年|每天/.test(t) && /疫苗|驱虫|药|体检|就诊/.test(t)) {
+    closeModal();
+    openRecordModal(state.detailPetId || state.pets[0]?.id);
+    setTimeout(() => { const i = $('nl-record'); if (i) { i.value = t; fillFromNL('record'); } }, 120);
+    return;
+  }
+  if (/花了|记一笔|支出|花销|买/.test(t)) {
+    closeModal();
+    go('ledger');
+    setTimeout(() => {
+      openExpenseModal();
+      setTimeout(() => { const i = $('exp-nl'); if (i) { i.value = t; fillExpFromNL(); } }, 120);
+    }, 200);
+    return;
+  }
+  const v = jump();
+  if (v) { closeModal(); go(v); return; }
+  toast('没听懂，试试「记一笔可乐看病280」', true);
+}
+
+/* ---------- 聊天里的记账确认卡 ---------- */
+function expDraftCardHTML(d) {
+  return `<div class="draft-card" data-exp-draft="1">
+    <div class="draft-head">💸 记账草稿（待确认）</div>
+    <div class="draft-row"><span>金额</span><b>${d.amount != null ? fmtMoney(d.amount) : '？'}</b></div>
+    <div class="draft-row"><span>分类</span><b>${esc(EXP_LABEL[d.category] || d.category || '其他')}</b></div>
+    <div class="draft-row"><span>宠物</span><b>${esc(d.pet_name || '家庭共同')}</b></div>
+    <div class="draft-row"><span>日期</span><b>${esc(d.date || '')}</b></div>
+    <div class="draft-row"><span>备注</span><b>${esc(d.note || '')}</b></div>
+    <div class="draft-ops">
+      <button type="button" class="btn sm" onclick="this.closest('[data-exp-draft]').remove()">取消</button>
+      <button type="button" class="btn sm primary" onclick="commitExpDraft(this)">确认记账</button>
+    </div>
+  </div>`;
+}
+async function commitExpDraft(btn) {
+  const card = btn.closest('[data-exp-draft]');
+  const rows = [...card.querySelectorAll('.draft-row')];
+  const get = k => (rows.find(r => r.textContent.includes(k))?.querySelector('b')?.textContent || '').trim();
+  const amount = parseFloat((get('金额') || '').replace(/[^\d.]/g, ''));
+  if (!(amount > 0)) { toast('金额无效', true); return; }
+  const catLabel = get('分类');
+  const category = Object.keys(EXP_LABEL).find(k => EXP_LABEL[k] === catLabel) || 'other';
+  const petName = get('宠物');
+  const pet = state.pets.find(p => p.name === petName);
+  const body = { amount, category, note: get('备注'), date: get('日期') || undefined };
+  if (pet) body.pet_id = pet.id;
+  try {
+    await api('/api/expenses', { method: 'POST', body: JSON.stringify(body) });
+    card.outerHTML = '<div class="draft-card done"><div class="draft-head">✅ 已记账</div></div>';
+    toast('已记账 ✓', 'ok');
+  } catch (e) { toast(e.message, true); }
+}
+async function maybeAttachExpenseDraft(userText) {
+  try {
+    if (!/花了|花销|记一笔|买了|支出|看病|买/.test(userText)) return;
+    const d = await api('/api/expenses/parse', { method: 'POST', body: JSON.stringify({ text: userText }) });
+    if (!d || d.error || d.amount == null) return;
+    const box = document.querySelector('#chat-box, #chat-msgs, .chat-box');
+    const host = box || document.querySelector('#view-chat');
+    if (!host) return;
+    host.insertAdjacentHTML('beforeend', expDraftCardHTML(d));
+    host.scrollTop = host.scrollHeight;
+  } catch (_) {}
+}
+
+/* ---------- 回忆 AI 配文 ---------- */
+async function aiMemCaption() {
+  const f = document.getElementById('mem-form') || document.querySelector('#modal-box form');
+  const title = (f?.querySelector('[name=title]')?.value || '').trim();
+  const text = (f?.querySelector('[name=text]')?.value || '').trim();
+  const pet = state.pets.find(p => p.id === state.detailPetId) || state.pets[0];
+  const btn = $('mem-ai-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '生成中…'; }
+  try {
+    const d = await api('/api/parse/nl', {
+      method: 'POST',
+      body: JSON.stringify({
+        kind: 'memory',
+        text: [pet?.name, title, text].filter(Boolean).join(' ') || '宠物的美好一天',
+      }),
+    });
+    if (d && d.caption && f) {
+      const ta = f.querySelector('[name=text]');
+      if (ta && !ta.value.trim()) ta.value = d.caption;
+      else if (ta) ta.value = (ta.value.trim() + '\n' + d.caption).trim();
+      toast('已生成配文 ✓', 'ok');
+    } else if (d && d.error) throw new Error(d.error);
+  } catch (e) {
+    toast('配文失败：' + (e.message || e), true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'AI 配文'; }
+  }
+}
 </script>
 <div id="print-root" aria-hidden="true"></div>
 <button class="coach-fab" id="coach-fab" onclick="coachToggle()" aria-label="主人养成教练" title="主人养成教练">

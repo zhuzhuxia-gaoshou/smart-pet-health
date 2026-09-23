@@ -526,10 +526,10 @@ def parse_weight_text(text: str) -> dict:
     raw = (text or "").strip()
     pet_id, pet_name, d = _parse_pet_and_date(raw)
     w = None
-    m = _re.search(r"(\d+(?:\.\d+)?)\s*(?:公斤|kg|KG|Kg|斤|千克)?", raw)
+    m = _re.search(r"(\d+(?:\.\d+)?)\s*(公斤|kg|KG|Kg|斤|千克)", raw)
     if m:
         w = float(m.group(1))
-        if "斤" in raw:
+        if m.group(2) == "斤":
             w = round(w / 2, 2)
     if w is not None and not (0 < w <= 500):
         w = None
@@ -610,6 +610,103 @@ def parse_medbox_text(text: str) -> dict:
         "pet_id": pet_id, "pet_name": pet_name, "purpose": raw[:200],
         "hints": ([] if expiry else ["expiry"]) + ([] if qty is not None else ["qty"]),
     }
+    return out
+
+
+def parse_pet_text(text: str) -> dict:
+    """「3岁柯基可乐 11公斤 公」→ 建档草稿。"""
+    import re as _re
+    from datetime import date
+    raw = (text or "").strip()
+    out = {"name": "", "type": None, "breed": "", "gender": None, "birthday": None,
+           "weight": None, "personality": raw[:80], "hints": []}
+    # 类型/品种
+    if any(w in raw for w in ("猫", "英短", "美短", "布偶", "橘猫", "狸花")):
+        out["type"] = "cat"
+    elif any(w in raw for w in ("狗", "犬", "柯基", "金毛", "泰迪", "比熊", "边牧", "柴犬", "拉布拉多", "贵宾")):
+        out["type"] = "dog"
+    elif any(w in raw for w in ("鸟", "鹦鹉", "虎皮", "文鸟")):
+        out["type"] = "bird"
+    elif any(w in raw for w in ("鱼", "金鱼", "锦鲤")):
+        out["type"] = "fish"
+    else:
+        out["type"] = "other"
+    breeds = ("柯基", "金毛", "泰迪", "比熊", "边牧", "柴犬", "拉布拉多", "贵宾", "英短", "美短", "布偶", "橘猫", "狸花", "鹦鹉")
+    for b in breeds:
+        if b in raw:
+            out["breed"] = b
+            break
+    # 名字：优先「叫X」
+    nm = _re.search(r"叫\s*([^\s，,。]{1,8})", raw)
+    if nm:
+        out["name"] = nm.group(1)
+    else:
+        for b in breeds + ("猫", "狗", "鸟", "鱼"):
+            if b in raw:
+                i = raw.find(b)
+                tail = raw[i + len(b): i + len(b) + 6]
+                t2 = _re.match(r"([^\s，,。0-9]{1,6})", tail)
+                if t2 and t2.group(1) not in ("的", "一只", "岁", "公斤"):
+                    out["name"] = t2.group(1)
+                    break
+        if not out["name"]:
+            toks = _re.findall(r"[一-龥A-Za-z]{1,6}", raw)
+            out["name"] = toks[0] if toks else "新宠物"
+    # 年龄→生日（近似）
+    am = _re.search(r"(\d+)\s*岁", raw)
+    if am:
+        y = date.today().year - int(am.group(1))
+        out["birthday"] = f"{y}-06-01"
+        out["hints"].append("birthday")
+    # 体重
+    wm = _re.search(r"(\d+(?:\.\d+)?)\s*(公斤|kg|千克|斤)", raw, _re.I)
+    if wm:
+        w = float(wm.group(1))
+        if wm.group(2) == "斤":
+            w = round(w / 2, 2)
+        if 0 < w <= 500:
+            out["weight"] = w
+    if "公" in raw and "母" not in raw:
+        out["gender"] = "male"
+    elif "母" in raw:
+        out["gender"] = "female"
+    if not out["name"]:
+        out["hints"].append("name")
+    return out
+
+
+def parse_record_nl(text: str) -> dict:
+    """「每月初给可乐驱虫」→ 记录/提醒草稿（含重复周期）。"""
+    import re as _re
+    raw = (text or "").strip()
+    pet_id, pet_name, d = _parse_pet_and_date(raw)
+    rtype = ""
+    for t, kws in (("vaccine", ("疫苗", "打针", "接种", "狂犬")),
+                   ("deworm", ("驱虫",)),
+                   ("checkup", ("体检", "检查")),
+                   ("medication", ("喂药", "吃药", "用药")),
+                   ("clinic", ("就诊", "看病", "复诊"))):
+        if any(w in raw for w in kws):
+            rtype = t
+            break
+    repeat = ""
+    if "每月" in raw or "每个月" in raw or "月月" in raw:
+        repeat = "monthly"
+    elif "每周" in raw or "周周" in raw:
+        repeat = "weekly"
+    elif "每天" in raw or "每日" in raw:
+        repeat = "daily"
+    elif "每年" in raw or "年年" in raw:
+        repeat = "yearly"
+    title = raw
+    if pet_name:
+        title = title.replace(pet_name, " ")
+    title = _re.sub(r"每月初?|每个月|每周|每年|每天|每日|下周[一二三四五六日]?|下个月|记得|提醒|要打|要去|要去做", " ", title)
+    title = _re.sub(r"\s+", " ", title).strip(" ，,、的了") or "健康记录"
+    out = {"pet_id": pet_id, "pet_name": pet_name, "type": rtype or "checkup",
+           "date": d, "title": title[:40], "note": raw[:200], "repeat_rule": repeat,
+           "next_date": d if repeat else None,
+           "hints": ([] if rtype else ["type"]) + ([] if pet_id else ["pet"])}
     return out
 
 
