@@ -1875,6 +1875,8 @@ html[data-fx="calm"] .stat-card.tilt { transform: none !important; }
         <button class="mon-btn" onclick="ledgerShift(1)" aria-label="下个月">›</button>
         <button class="btn ghost sm" id="ledger-today" style="display:none" onclick="ledgerToday()">回到本月</button>
       </div>
+      <input id="ledger-smart" placeholder="智能筛选，如：上月医疗 / 本月粮食超100" style="flex:1;min-width:180px;max-width:280px" onkeydown="if(event.key==='Enter')applyLedgerSmartFilter()">
+      <button type="button" class="btn sm" onclick="applyLedgerSmartFilter()">筛选</button>
       <button class="btn primary" onclick="openExpenseModal()">＋ 记一笔</button>
     </div>
     <div class="exp-top">
@@ -2731,6 +2733,7 @@ function openMedModal(id) {
   const pet = state.pets.find(x => x.id === state.detailPetId);
   openModal(`
   <h3>${m ? '编辑用药' : '添加用药'}${pet ? ` · ${esc(pet.name)}` : ''}</h3>
+  ${m ? '' : nlBarHTML('med', '如：耳药水 每侧2滴 一天两次')}
   <form id="med-form" onsubmit="return submitMed(event, ${m ? m.id : 'null'})">
     <div class="form-grid">
       <div class="form-field full"><label>药名 <span class="req">*</span></label><input name="name" required maxlength="60" value="${esc(m?.name || '')}" placeholder="如：益生菌粉、耳药水"></div>
@@ -2816,6 +2819,7 @@ function openDietModal(id) {
   const typeOpts = Object.entries(DIET_LABEL).map(([k, t]) => `<option value="${k}" ${(l ? l.food_type : 'kibble') === k ? 'selected' : ''}>${t}</option>`).join('');
   openModal(`
   <h3>${l ? '编辑饮食记录' : '记一笔饮食'}${pet ? ` · ${esc(pet.name)}` : ''}</h3>
+  ${l ? '' : nlBarHTML('diet', '如：今天两顿干粮 / 昨天1罐湿粮')}
   <form id="diet-form" onsubmit="return submitDiet(event, ${l ? l.id : 'null'})">
     <div class="form-grid">
       <div class="form-field"><label>日期</label><input name="date" type="date" value="${esc(l?.date || todayISO())}"></div>
@@ -2867,6 +2871,33 @@ function ledgerShift(delta) {
   renderLedger();
 }
 function ledgerToday() { state.ledgerYM = _ymNow(); renderLedger(); }
+function clearLedgerSmart() {
+  state.ledgerSmart = null;
+  const i = $('ledger-smart'); if (i) i.value = '';
+  renderLedger();
+}
+function applyLedgerSmartFilter() {
+  const t = (($('ledger-smart') || {}).value || '').trim();
+  if (!t) { state.ledgerSmart = null; renderLedger(); return; }
+  const f = { cat: null, min: null, pet: null };
+  if (/医疗|药|疫苗|看病|诊/.test(t)) f.cat = 'medical';
+  else if (/粮|食|罐头|零食/.test(t)) f.cat = 'food';
+  else if (/用品|猫砂|玩具/.test(t)) f.cat = 'supply';
+  else if (/洗|美容/.test(t)) f.cat = 'grooming';
+  const m = t.match(/(\d+(?:\.\d+)?)/);
+  if (/超|过|大于|以上/.test(t) && m) f.min = parseFloat(m[1]);
+  const pet = (state.pets || []).find(p => p.name && t.includes(p.name));
+  if (pet) f.pet = pet.id;
+  if (/上月|上个月/.test(t)) { state.ledgerYM = localISO(new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1)).slice(0, 7); }
+  else if (/本月|这个月|这个月/.test(t)) { state.ledgerYM = _ymNow(); }
+  state.ledgerSmart = f;
+  renderLedger();
+  const bits = [];
+  if (f.cat) bits.push(EXP_LABEL[f.cat]);
+  if (f.pet) bits.push((state.pets.find(p => p.id === f.pet) || {}).name);
+  if (f.min != null) bits.push('≥' + f.min);
+  window.toast && toast(bits.length ? '已筛选：' + bits.join(' · ') : '未识别条件，显示全部', bits.length ? 'ok' : true);
+}
 
 function ledgerSkeleton() {
   $('ledger-total').innerHTML = `<div class="card-title">本月合计</div><div class="skel sk-line w60" style="height:34px"></div><div class="skel sk-line w40"></div>`;
@@ -2928,9 +2959,28 @@ async function renderLedger() {
     playEnter(listEl, (state._ledgerDir || 0) < 0 ? 'content-in-prev' : 'content-in-next');
     return;
   }
+  // 智能筛选：分类 / 金额下限 / 宠物
+  let show = expenses;
+  const sm = state.ledgerSmart;
+  if (sm) {
+    show = expenses.filter(e =>
+      (!sm.cat || e.category === sm.cat) &&
+      (sm.min == null || e.amount >= sm.min) &&
+      (!sm.pet || e.pet_id === sm.pet));
+    if (!show.length && expenses.length) {
+      listEl.innerHTML = `<div class="card card-pad"><div class="empty-hint">筛选后没有匹配流水，<button type="button" class="chip" onclick="clearLedgerSmart()">清除筛选</button></div></div>`;
+      return;
+    }
+    if (!show.length) {
+      listEl.innerHTML = `<div class="card card-pad"><div class="empty-state"><div class="big" aria-hidden="true">🧾</div>
+      <h3>${m} 月还没有记账</h3><p>罐头、疫苗、玩具……记下来才知道花在哪。第一笔记给谁？</p>
+      <button class="btn primary sm" onclick="openExpenseModal()">＋ 记第一笔</button></div></div>`;
+      return;
+    }
+  }
   // 按宠物分组：组间按小计倒序，家庭共同（pet_id 空）固定最后；组内沿用接口的日期倒序
   const groups = new Map();
-  expenses.forEach(e => {
+  show.forEach(e => {
     const k = e.pet_id || 0;
     if (!groups.has(k)) groups.set(k, { pet_id: k, name: e.pet_name || '家庭共同', avatar: e.pet_avatar || (k ? '🐾' : '🏠'), items: [], total: 0 });
     const g = groups.get(k); g.items.push(e); g.total += e.amount;
@@ -2997,9 +3047,15 @@ function expBarLeave(e) {
 
 function openExpenseModal(id) {
   const e = id ? (state.ledgerCache.find(x => x.id === id) || {}) : {};
+  // 表单智能默认：记住上次分类/宠物（仅新建）
+  let lastCat = null, lastPet = null;
+  try {
+    lastCat = localStorage.getItem('pet-exp-cat');
+    lastPet = localStorage.getItem('pet-exp-pet');
+  } catch (_) {}
   const petOpts = `<option value="">家庭共同（不指定宠物）</option>` + state.pets.map(p =>
-    `<option value="${p.id}" ${e.pet_id === p.id ? 'selected' : ''}>${esc(p.avatar || TYPE_EMOJI[p.type] || '🐾')} ${esc(p.name)}</option>`).join('');
-  const catOpts = Object.entries(EXP_LABEL).map(([k, t]) => `<option value="${k}" ${(e.category || 'food') === k ? 'selected' : ''}>${t}</option>`).join('');
+    `<option value="${p.id}" ${e.pet_id === p.id || (!id && String(p.id) === lastPet) ? 'selected' : ''}>${esc(p.avatar || TYPE_EMOJI[p.type] || '🐾')} ${esc(p.name)}</option>`).join('');
+  const catOpts = Object.entries(EXP_LABEL).map(([k, t]) => `<option value="${k}" ${((e.category || lastCat || 'food') === k) ? 'selected' : ''}>${t}</option>`).join('');
   // 默认日期：看本月填今天；翻到别的月份则填该月 1 号，避免把旧账记到今天
   const defDate = (state.ledgerYM && state.ledgerYM !== _ymNow()) ? state.ledgerYM + '-01' : todayISO();
   openModal(`<h3>${id ? '编辑花销' : '记一笔花销'}</h3>
@@ -3056,6 +3112,50 @@ async function fillExpFromNL() {
     if (btn) { btn.disabled = false; btn.textContent = '智能填表'; }
   }
 }
+
+/* 通用口语填表（饮食/用药/体重） */
+function nlBarHTML(kind, ph) {
+  return `<div class="form-field full" style="margin-bottom:12px">
+    <label for="nl-${kind}">一句话填写</label>
+    <div style="display:flex;gap:8px">
+      <input id="nl-${kind}" name="nl" placeholder="${esc(ph)}" style="flex:1">
+      <button type="button" class="btn sm" id="nl-btn-${kind}" onclick="fillFromNL('${kind}')">智能填表</button>
+    </div>
+    <div class="care-note" id="nl-hint-${kind}" style="margin-top:6px">说完点「智能填表」，核对后保存。</div>
+  </div>`;
+}
+async function fillFromNL(kind) {
+  const input = $('nl-' + kind), btn = $('nl-btn-' + kind), hint = $('nl-hint-' + kind);
+  const text = (input?.value || '').trim();
+  if (!text) { toast('先写一句', true); return; }
+  if (btn) { btn.disabled = true; btn.textContent = '解析中…'; }
+  try {
+    const d = await api('/api/parse/nl', { method: 'POST', body: JSON.stringify({ kind, text }) });
+    if (d && d.error) throw new Error(d.error);
+    const f = input.closest('form') || document.getElementById('exp-form') || document.querySelector('form');
+    if (!f) return;
+    const set = (name, val) => {
+      const el = f.querySelector(`[name="${name}"]`);
+      if (el && val != null && val !== '') el.value = val;
+    };
+    if (kind === 'diet') {
+      set('food_type', d.food_type); set('amount', d.amount); set('date', d.date); set('note', d.note);
+    } else if (kind === 'med') {
+      set('name', d.name); set('dosage', d.dosage); set('frequency', d.frequency);
+      set('start_date', d.date || d.start_date); set('note', d.note);
+    } else if (kind === 'weight') {
+      set('weight', d.weight); set('date', d.date); set('note', d.note);
+    }
+    const miss = (d.hints || []).map(h => ({ amount: '份量', frequency: '频次', weight: '体重', pet: '宠物', date: '日期' }[h] || h));
+    if (hint) hint.textContent = miss.length ? `已填表 · 还请核对：${miss.join('、')}` : '已填表 · 核对后点保存';
+    window.toast && toast('已智能填表 ✓', 'ok');
+  } catch (err) {
+    if (hint) hint.textContent = '解析失败：' + (err.message || err);
+    window.toast && toast('解析失败', true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '智能填表'; }
+  }
+}
 async function submitExpense(ev, id) {
   ev.preventDefault();
   const f = Object.fromEntries(new FormData(ev.target).entries());
@@ -3067,6 +3167,10 @@ async function submitExpense(ev, id) {
   try {
     if (id) await api(`/api/expenses/${id}`, { method: 'PUT', body: JSON.stringify(body) });
     else await api('/api/expenses', { method: 'POST', body: JSON.stringify(body) });
+    try {
+      localStorage.setItem('pet-exp-cat', body.category || 'other');
+      localStorage.setItem('pet-exp-pet', body.pet_id ? String(body.pet_id) : '');
+    } catch (_) {}
     flashSaved($('exp-save-btn'));
     // 记到别的月份时跟过去，让用户立刻看见这一笔；日期留空（编辑保持原日期）则停在当前月
     const ym = body.date ? body.date.slice(0, 7) : state.ledgerYM, jumped = ym !== state.ledgerYM;
@@ -3403,7 +3507,11 @@ function patrolFindCard(x) {
     ${facts ? `<div class="find-metrics">${facts}</div>` : ''}
     <div class="tl-note">${esc(x.ai_text || '')}</div>${acts}</div>`;
 }
-function patrolGo(link) { if (link && link.view) go(link.view, link.opts || undefined); }
+function patrolGo(link) {
+  if (!link) return;
+  if (link.action) { runSmartAction(link.action, link.opts); return; }
+  if (link.view) go(link.view, link.opts || undefined);
+}
 function patrolAsk(title) { go('chat'); setTimeout(() => { const i = $('chat-input'); if (i) { i.value = '关于「' + title + '」，我该怎么做？'; i.focus(); } }, 260); }
 function renderPatrolHistory(d) {
   const box = $('patrol-history');
@@ -4130,6 +4238,7 @@ function openWeightModal(pid) {
   const today = todayISO();
   openModal(`
   <h3>为「${esc(p.name || '')}」记录体重</h3>
+  ${nlBarHTML('weight', '如：称了 11.2 公斤 / 昨天 4.5kg')}
   <form id="wt-form" onsubmit="return submitWeight(event, ${pid})">
     <div class="form-grid">
       <div class="form-field"><label>日期</label><input name="date" type="date" value="${today}"></div>
@@ -5228,11 +5337,36 @@ function coachToggle() {
   p.classList.add('open');
   renderCoach();
 }
+function runSmartAction(action, opts) {
+  const petId = (opts && opts.petId) || state.detailPetId || state.pets[0]?.id;
+  if (action === 'weigh' && petId) {
+    go('detail', { petId });
+    setTimeout(() => openWeightModal(petId), 320);
+    return;
+  }
+  if (action === 'diet' && petId) {
+    go('detail', { petId });
+    setTimeout(() => { switchTab('diet'); openDietModal(); }, 320);
+    return;
+  }
+  if (action === 'meds' && petId) {
+    go('detail', { petId });
+    setTimeout(() => switchTab('meds'), 320);
+    return;
+  }
+  if (action === 'record' && petId) {
+    go('detail', { petId });
+    setTimeout(() => openRecordModal(), 320);
+    return;
+  }
+  if (action === 'ledger') { go('ledger'); setTimeout(() => openExpenseModal(), 280); return; }
+  go(action);
+}
 function coachGoto(view) {
   if (!view) return;
   const p = $('coach-panel');
   if (p) p.classList.remove('open');
-  go(view);
+  runSmartAction(view);
 }
 function coachClose() {
   const p = $('coach-panel');

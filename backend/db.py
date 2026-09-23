@@ -1934,7 +1934,7 @@ def _patrol_pet_scan_rules(findings: list, errors: list) -> None:
                         f"appetite:{pid}:{today.isoformat()}", "appetite", "high",
                         f"{pet['name']} · 近3天没有任何进食记录",
                         [{"k": "近3天喂餐", "v": "0 次"}, {"k": "此前日均", "v": f"{round(avg, 1)} 次/天"}],
-                        {"view": "detail", "opts": {"petId": pid}}))
+                        {"view": "detail", "opts": {"petId": pid}, "action": "diet"}))
                 elif recent >= 1 and avg >= 1 and recent <= avg * 3 * 0.6:
                     pct = round((1 - recent / (avg * 3)) * 100)
                     findings.append(_patrol_finding(
@@ -1943,7 +1943,7 @@ def _patrol_pet_scan_rules(findings: list, errors: list) -> None:
                         [{"k": "近3天喂餐", "v": f"{recent} 次"},
                          {"k": "此前均值", "v": f"{round(avg, 1)} 次/天"},
                          {"k": "降幅", "v": f"{pct}%"}],
-                        {"view": "detail", "opts": {"petId": pid}}))
+                        {"view": "detail", "opts": {"petId": pid}, "action": "diet"}))
             except Exception as e:
                 errors.append(f"appetite:{pid}: {type(e).__name__}")
             # ② weight_gap：距最新体重 >60 天且养宠 >60 天
@@ -1959,7 +1959,7 @@ def _patrol_pet_scan_rules(findings: list, errors: list) -> None:
                             f"weight_gap:{pid}:{today.isoformat()}", "weight_gap", "warn",
                             f"{pet['name']} · 已 {-gap} 天没有称重",
                             [{"k": "距上次称重", "v": f"{-gap} 天"}, {"k": "上次日期", "v": latest["date"]}],
-                            {"view": "detail", "opts": {"petId": pid}}))
+                            {"view": "detail", "opts": {"petId": pid}, "action": "weigh"}))
             except Exception as e:
                 errors.append(f"weight_gap:{pid}: {type(e).__name__}")
             # ⑥ weight_delta：近30天首末差超 10%
@@ -2221,17 +2221,17 @@ def _coach_task_templates(dims: list[dict], pets: list[dict]) -> list[dict]:
         out.append({"dim": dim, "title": title, "link_view": view})
 
     if by["weigh"]["score"] < 85:
-        push("weigh", f"给{pet}称一次体重", "library")
+        push("weigh", f"给{pet}称一次体重", "weigh")
     if by["overdue"]["score"] < 85:
         push("overdue", "清一清到期提醒（先做逾期）", "reminders")
     if by["records"]["score"] < 85:
-        push("records", f"给{pet}补一条健康记录（体检/驱虫）", "records")
+        push("records", f"给{pet}补一条健康记录（体检/驱虫）", "record")
     if by["meds"]["score"] < 85:
-        push("meds", "核对用药疗程，结束已吃完的", "library")
+        push("meds", "核对用药疗程，结束已吃完的", "meds")
     if by["medbox"]["score"] < 85:
         push("medbox", "清理药箱过期/临期药品", "medbox")
     if by["diet"]["score"] < 85:
-        push("diet", "这周记满 3 天饮食", "library")
+        push("diet", "这周记满 3 天饮食", "diet")
     if by["ledger"]["score"] < 85:
         push("ledger", "补几笔本月花销流水", "ledger")
     if by["patrol"]["score"] < 85:

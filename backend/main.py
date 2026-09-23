@@ -598,6 +598,27 @@ def api_expense_parse(body: ExpenseParseIn):
         return {"error": f"解析失败（{type(e).__name__}）", "hints": ["amount"]}
 
 
+class NLParseIn(BaseModel):
+    kind: str = Field(..., description="diet|med|weight")
+    text: str = Field(..., min_length=1, max_length=200)
+
+
+@app.post("/api/parse/nl")
+def api_nl_parse(body: NLParseIn):
+    """一句话 → 饮食/用药/体重草稿字段（规则秒回，不入库）。"""
+    try:
+        import tools
+        if body.kind == "diet":
+            return tools.parse_diet_text(body.text)
+        if body.kind == "med":
+            return tools.parse_med_text(body.text)
+        if body.kind == "weight":
+            return tools.parse_weight_text(body.text)
+        return {"error": "kind 无效"}
+    except Exception as e:
+        return {"error": f"解析失败（{type(e).__name__}）", "hints": ["text"]}
+
+
 # 月度预算：必须注册在 /api/expenses/{exp_id} 之前，否则 PUT budget 会被 int 路径参数抢走并 422
 BUDGET_KEY = "expense_budget"
 

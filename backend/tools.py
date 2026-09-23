@@ -425,6 +425,118 @@ def parse_expense_text(text: str) -> dict:
     return out
 
 
+def _parse_pet_and_date(raw: str) -> tuple:
+    """共用：从口语中抠宠物 id/名 与 本地日期。"""
+    import re as _re
+    from datetime import date, timedelta
+    pet_id, pet_name = None, None
+    for p in sorted(db.list_pets(), key=lambda x: -len(x.get("name") or "")):
+        name = (p.get("name") or "").strip()
+        if name and name in raw:
+            pet_id, pet_name = p["id"], name
+            break
+    today = date.today()
+    d = today.isoformat()
+    if "前天" in raw:
+        d = (today - timedelta(days=2)).isoformat()
+    elif "昨天" in raw:
+        d = (today - timedelta(days=1)).isoformat()
+    elif "今天" in raw:
+        d = today.isoformat()
+    else:
+        md = _re.search(r"(\d{1,2})\s*月\s*(\d{1,2})", raw)
+        if md:
+            mo, dd = int(md.group(1)), int(md.group(2))
+            try:
+                d = date(today.year, mo, dd).isoformat()
+            except ValueError:
+                pass
+    return pet_id, pet_name, d
+
+
+def parse_diet_text(text: str) -> dict:
+    """「今天两顿干粮」→ 饮食草稿。"""
+    import re as _re
+    raw = (text or "").strip()
+    pet_id, pet_name, d = _parse_pet_and_date(raw)
+    food = "other"
+    for k, kws in (("kibble", ("干粮", "猫粮", "狗粮", "主粮", "粮")),
+                   ("wet", ("湿粮", "罐头", "罐罐")),
+                   ("treat", ("零食", "猫条", "冻干", "肉条")),
+                   ("raw", ("生骨肉", "生骨"))):
+        if any(w in raw for w in kws):
+            food = k
+            break
+    amount = raw
+    if pet_name:
+        amount = amount.replace(pet_name, " ")
+    m = _re.search(r"(\d+(?:\.\d+)?)\s*(顿|次|餐|粒|块|袋|罐|包|g|克|ml)", raw)
+    amt = f"{m.group(1)} {m.group(2)}" if m else ""
+    note = _re.sub(r"\s+", " ", raw.replace(pet_name or "", " ")).strip()[:200]
+    out = {"pet_id": pet_id, "pet_name": pet_name, "food_type": food,
+           "amount": amt or note or "1 顿", "date": d, "note": note if amt else "",
+           "hints": []}
+    if not amt:
+        out["hints"].append("amount")
+    return out
+
+
+def parse_med_text(text: str) -> dict:
+    """「可乐耳药一天两次」→ 用药草稿。"""
+    import re as _re
+    raw = (text or "").strip()
+    pet_id, pet_name, d = _parse_pet_and_date(raw)
+    freq = ""
+    if "一天三次" in raw or "每日三次" in raw or "一日三次" in raw:
+        freq = "每日三次"
+    elif "一天两次" in raw or "每日两次" in raw or "一日两次" in raw or "早晚" in raw:
+        freq = "每日两次"
+    elif "一天一次" in raw or "每日一次" in raw or "一日一次" in raw:
+        freq = "每日一次"
+    elif "隔天" in raw:
+        freq = "隔天一次"
+    elif "每周" in raw:
+        freq = "每周一次"
+    elif "按需" in raw:
+        freq = "按需"
+    dosage = ""
+    dm = _re.search(r"(\d+(?:\.\d+)?)\s*(片|粒|滴|袋|ml|毫升|泵)", raw)
+    if dm:
+        dosage = f"{dm.group(1)}{dm.group(2)}"
+    name = _re.sub(r"\s+", " ", raw)
+    for drop in (pet_name or "", "今天", "昨天", "开始吃", "继续吃", "吃", "用", "滴", "涂"):
+        name = name.replace(drop, " ")
+    name = _re.sub(r"一天[一二三]次|每日[一二三]次|一日[一二三]次|隔天一次|每周一次|按需", " ", name)
+    name = _re.sub(r"\s+", " ", name).strip(" ，,、的")
+    if not name:
+        name = "用药"
+    out = {"pet_id": pet_id, "pet_name": pet_name, "name": name[:40],
+           "dosage": dosage or "1 次量", "frequency": freq or "每日一次",
+           "start_date": d, "note": raw[:200], "hints": []}
+    if not freq:
+        out["hints"].append("frequency")
+    return out
+
+
+def parse_weight_text(text: str) -> dict:
+    """「可乐称了 11.2 公斤」→ 体重草稿。"""
+    import re as _re
+    raw = (text or "").strip()
+    pet_id, pet_name, d = _parse_pet_and_date(raw)
+    w = None
+    m = _re.search(r"(\d+(?:\.\d+)?)\s*(?:公斤|kg|KG|Kg|斤|千克)?", raw)
+    if m:
+        w = float(m.group(1))
+        if "斤" in raw:
+            w = round(w / 2, 2)
+    if w is not None and not (0 < w <= 500):
+        w = None
+    out = {"pet_id": pet_id, "pet_name": pet_name,
+           "weight": w, "date": d, "note": raw[:100],
+           "hints": ([] if w is not None else ["weight"]) + ([] if pet_id else ["pet"])}
+    return out
+
+
 def create_record_draft(pet_name: str, record_type: str, date: str, title: str,
                         note: str = "", next_date: str = "", weight: float | None = None) -> str:
     """根据用户口语描述起草一条健康记录（不直接入库，待用户在前端确认后保存）。
