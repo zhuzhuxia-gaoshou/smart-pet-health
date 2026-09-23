@@ -3197,6 +3197,16 @@ async function fillFromNL(kind) {
       set('start_date', d.date || d.start_date); set('note', d.note);
     } else if (kind === 'weight') {
       set('weight', d.weight); set('date', d.date); set('note', d.note);
+    } else if (kind === 'medbox') {
+      set('name', d.name); set('form', d.form); set('qty', d.qty); set('unit', d.unit);
+      set('expiry_date', d.expiry_date); set('opened_date', d.opened_date);
+      set('open_period_days', d.open_period_days); set('location', d.location);
+      set('purpose', d.purpose);
+      if (d.pet_id != null) {
+        f.querySelectorAll('.chip-group .chip').forEach(c => {
+          c.classList.toggle('on', +c.dataset.pet === +d.pet_id);
+        });
+      }
     }
     const miss = (d.hints || []).map(h => ({ amount: '份量', frequency: '频次', weight: '体重', pet: '宠物', date: '日期' }[h] || h));
     if (hint) hint.textContent = miss.length ? `已填表 · 还请核对：${miss.join('、')}` : '已填表 · 核对后点保存';
@@ -3376,6 +3386,7 @@ function openMedboxModal(id) {
   if (id && !m) return;
   openModal(`
   <h3>${id ? '编辑药品' : '添加药品'}</h3>
+  ${id ? '' : nlBarHTML('medbox', '如：大宠爱滴剂 3支 有效期2027年3月 开封后90天 可乐')}
   <form id="medbox-form" onsubmit="return submitMedbox(event, ${id || 0})">
     <div class="form-grid">
       <div class="form-field full"><label>药名 <span class="req">*</span></label><input name="name" required maxlength="60" value="${esc(m?.name || '')}" placeholder="如：大宠爱驱虫滴剂"></div>

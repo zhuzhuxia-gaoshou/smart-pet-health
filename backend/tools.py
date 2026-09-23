@@ -470,9 +470,9 @@ def parse_diet_text(text: str) -> dict:
     amount = raw
     if pet_name:
         amount = amount.replace(pet_name, " ")
-    m = _re.search(r"(\d+(?:\.\d+)?)\s*(顿|次|餐|粒|块|袋|罐|包|g|克|ml)", raw)
+    m = _re.search(r"(\d+(?:\.\d+)?|一|两|二|三|四|五)\s*(顿|次|餐|粒|块|袋|罐|包|g|克|ml)", raw)
     amt = f"{m.group(1)} {m.group(2)}" if m else ""
-    note = _re.sub(r"\s+", " ", raw.replace(pet_name or "", " ")).strip()[:200]
+    note = _re.sub(r"\s+", " ", raw.replace(pet_name, " ") if pet_name else raw).strip()[:200]
     out = {"pet_id": pet_id, "pet_name": pet_name, "food_type": food,
            "amount": amt or note or "1 顿", "date": d, "note": note if amt else "",
            "hints": []}
@@ -504,7 +504,9 @@ def parse_med_text(text: str) -> dict:
     if dm:
         dosage = f"{dm.group(1)}{dm.group(2)}"
     name = _re.sub(r"\s+", " ", raw)
-    for drop in (pet_name or "", "今天", "昨天", "开始吃", "继续吃", "吃", "用", "滴", "涂"):
+    if pet_name:
+        name = name.replace(pet_name, " ")
+    for drop in ("今天", "昨天", "开始吃", "继续吃", "吃", "用", "滴", "涂"):
         name = name.replace(drop, " ")
     name = _re.sub(r"一天[一二三]次|每日[一二三]次|一日[一二三]次|隔天一次|每周一次|按需", " ", name)
     name = _re.sub(r"\s+", " ", name).strip(" ，,、的")
@@ -534,6 +536,80 @@ def parse_weight_text(text: str) -> dict:
     out = {"pet_id": pet_id, "pet_name": pet_name,
            "weight": w, "date": d, "note": raw[:100],
            "hints": ([] if w is not None else ["weight"]) + ([] if pet_id else ["pet"])}
+    return out
+
+
+def parse_medbox_text(text: str) -> dict:
+    """「大宠爱滴剂 有效期2027年3月 开封后90天」→ 药箱草稿。"""
+    import re as _re
+    from datetime import date, timedelta
+    raw = (text or "").strip()
+    pet_id, pet_name, _d = _parse_pet_and_date(raw)
+    form = "other"
+    for k, kws in (("drops", ("滴剂", "滴耳", "眼药", "药水")),
+                   ("tablet", ("片", "药片")),
+                   ("capsule", ("胶囊",)),
+                   ("liquid", ("口服液", "糖浆", "冲剂", "粉")),
+                   ("ointment", ("膏", "软膏", "眼膏")),
+                   ("spray", ("喷", "喷雾")),
+                   ("injection", ("针", "注射"))):
+        if any(w in raw for w in kws):
+            form = k
+            break
+    qty, unit = None, ""
+    qm = _re.search(r"(\d+(?:\.\d+)?)\s*(支|片|粒|袋|瓶|盒|管|只|次)", raw)
+    if qm:
+        qty, unit = float(qm.group(1)), qm.group(2)
+    expiry = ""
+    today = date.today()
+    ym = _re.search(r"(20\d{2})\s*年\s*(\d{1,2})\s*月(?:\s*(\d{1,2})\s*日)?", raw)
+    if ym:
+        y, mo = int(ym.group(1)), int(ym.group(2))
+        dd = int(ym.group(3) or 28)
+        try:
+            expiry = date(y, mo, min(dd, 28)).isoformat()
+        except ValueError:
+            pass
+    elif "明年" in raw:
+        mo_m = _re.search(r"明年\s*(\d{1,2})\s*月", raw)
+        if mo_m:
+            try:
+                expiry = date(today.year + 1, int(mo_m.group(1)), 28).isoformat()
+            except ValueError:
+                pass
+    else:
+        iso = _re.search(r"(20\d{2})-(\d{1,2})-(\d{1,2})", raw)
+        if iso:
+            expiry = f"{int(iso.group(1)):04d}-{int(iso.group(2)):02d}-{int(iso.group(3)):02d}"
+    opened = today.isoformat() if ("开封" in raw or "打开" in raw) and "未开封" not in raw else ""
+    period = 90
+    pm = _re.search(r"开封后\s*(\d+)\s*天", raw)
+    if pm:
+        period = int(pm.group(1))
+    location = ""
+    if "上层" in raw or "上格" in raw:
+        location = "药箱上层"
+    elif "下层" in raw:
+        location = "药箱下层"
+    elif "冰箱" in raw:
+        location = "冰箱"
+    name = raw
+    if pet_name:
+        name = name.replace(pet_name, " ")
+    name = _re.sub(r"有效期至?\s*20\d{2}\s*年\s*\d{1,2}\s*月(?:\s*\d{1,2}\s*日)?", " ", name)
+    name = _re.sub(r"开封后\s*\d+\s*天|未开封|开封|打开", " ", name)
+    name = _re.sub(r"\d+(?:\.\d+)?\s*(?:支|片|粒|袋|瓶|盒|管|只|次|ml|克|g)", " ", name)
+    name = _re.sub(r"\s+", " ", name).strip(" ，,、的")
+    if not name:
+        name = "药品"
+    out = {
+        "name": name[:40], "form": form,
+        "qty": qty, "unit": unit,
+        "expiry_date": expiry or None, "opened_date": opened or None,
+        "open_period_days": period, "location": location,
+        "pet_id": pet_id, "pet_name": pet_name, "purpose": raw[:200],
+        "hints": ([] if expiry else ["expiry"]) + ([] if qty is not None else ["qty"]),
+    }
     return out
 
 

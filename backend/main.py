@@ -614,6 +614,8 @@ def api_nl_parse(body: NLParseIn):
             return tools.parse_med_text(body.text)
         if body.kind == "weight":
             return tools.parse_weight_text(body.text)
+        if body.kind == "medbox":
+            return tools.parse_medbox_text(body.text)
         return {"error": "kind 无效"}
     except Exception as e:
         return {"error": f"解析失败（{type(e).__name__}）", "hints": ["text"]}
