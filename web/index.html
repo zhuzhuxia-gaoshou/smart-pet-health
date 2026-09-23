@@ -3062,18 +3062,21 @@ function openExpenseModal(id) {
   ${id ? '' : `<div class="form-field full" style="margin-bottom:12px">
     <label for="exp-nl">一句话记账</label>
     <div style="display:flex;gap:8px">
-      <input id="exp-nl" name="nl" placeholder="如：可乐打狂犬 280 / 昨天猫粮 380" style="flex:1">
+      <input id="exp-nl" name="nl" placeholder="如：可乐打狂犬 280 / 昨天猫粮 380" style="flex:1"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();fillExpFromNL();}">
       <button type="button" class="btn sm" id="exp-nl-btn" onclick="fillExpFromNL()">智能填表</button>
     </div>
-    <div class="care-note" id="exp-nl-hint" style="margin-top:6px">说完点「智能填表」，下面字段会自动填好，确认后保存即可。</div>
-  </div>`}
+    <div class="care-note" id="exp-nl-hint" style="margin-top:6px">说完点「智能填表」（或回车），下面字段会自动填好，确认后保存即可。</div>
+  </div>
+  <div class="chip-group" id="exp-quick" style="margin:-4px 0 12px">${expQuickChips()}</div>`}
   <form id="exp-form" onsubmit="return submitExpense(event, ${id ?? 'null'})">
     <div class="form-grid">
-      <div class="form-field"><label>金额（元） <span class="req">*</span></label><input name="amount" type="number" step="0.01" min="0.01" required placeholder="如：128.00" value="${e.amount ?? ''}"></div>
+      <div class="form-field"><label>金额（元） <span class="req">*</span></label><input name="amount" type="number" step="0.01" min="0.01" required placeholder="如：128.00" value="${e.amount ?? ''}" oninput="expLiveHint()"></div>
       <div class="form-field"><label>日期</label><input name="date" type="date" value="${esc(e.date || defDate)}"></div>
-      <div class="form-field"><label>分类</label><select name="category">${catOpts}</select></div>
+      <div class="form-field"><label>分类</label><select name="category" onchange="expLiveHint()">${catOpts}</select></div>
       <div class="form-field"><label>宠物</label><select name="pet_id">${petOpts}</select></div>
-      <div class="form-field full"><label>备注</label><textarea name="note" rows="2" maxlength="200" placeholder="如：疫苗第三针 / 双十一囤粮">${esc(e.note || '')}</textarea></div>
+      <div class="form-field full"><label>备注</label><textarea name="note" rows="2" maxlength="200" placeholder="如：疫苗第三针 / 双十一囤粮" oninput="expLiveHint()">${esc(e.note || '')}</textarea>
+        <div class="care-note" id="exp-live-hint" style="margin-top:6px"></div></div>
     </div>
     <div class="modal-actions">
       ${id ? `<button type="button" class="btn danger" style="margin-right:auto" onclick="deleteExpense(${id}, this)">删除</button>` : ''}
@@ -3103,6 +3106,7 @@ async function fillExpFromNL() {
         ? `已填表（${d.mode === 'agent' ? 'AI' : '规则'}）· 还请核对：${miss.join('、')}`
         : `已填表（${d.mode === 'agent' ? 'AI' : '规则'}）· 核对后点保存`;
     }
+    expLiveHint();
     window.toast && toast('已智能填表 ✓', 'ok');
     f.amount.focus();
   } catch (err) {
@@ -3113,7 +3117,55 @@ async function fillExpFromNL() {
   }
 }
 
-/* 通用口语填表（饮食/用药/体重） */
+/* 常用快捷：从本月/缓存流水取高频（分类+金额） */
+function expQuickChips() {
+  const rows = (state.ledgerCache || []).slice(0, 30);
+  const key = e => `${e.category}|${Math.round(e.amount * 100)}`;
+  const cnt = new Map();
+  rows.forEach(e => {
+    const k = key(e);
+    if (!cnt.has(k)) cnt.set(k, { cat: e.category, amt: e.amount, note: e.note || EXP_LABEL[e.category], n: 0 });
+    cnt.get(k).n++;
+  });
+  const top = [...cnt.values()].sort((a, b) => b.n - a.n).slice(0, 4);
+  if (!top.length) return '<span class="care-note">记几笔后这里会出现常用快捷</span>';
+  return top.map(t => `<button type="button" class="chip" onclick="expQuickFill('${t.cat}',${t.amt},${JSON.stringify(t.note).replace(/"/g, '&quot;')})">${esc(EXP_LABEL[t.cat] || t.cat)} ${fmtMoney(t.amt)}</button>`).join('');
+}
+function expQuickFill(cat, amt, note) {
+  const f = document.getElementById('exp-form');
+  if (!f) return;
+  f.amount.value = amt;
+  f.category.value = cat;
+  if (note) f.note.value = note;
+  expLiveHint();
+  f.amount.focus();
+}
+function expLiveHint() {
+  const f = document.getElementById('exp-form');
+  const hint = $('exp-live-hint');
+  if (!f || !hint) return;
+  const note = (f.note.value || '').trim();
+  // 备注关键词 → 分类自动切换（仅新建，且用户尚未手动改过就跟随）
+  if (note) {
+    let cat = null;
+    if (/疫苗|药|诊|驱虫|体检|看病|手术/.test(note)) cat = 'medical';
+    else if (/粮|罐头|零食|冻干|猫条/.test(note)) cat = 'food';
+    else if (/猫砂|玩具|尿垫|窝|牵引/.test(note)) cat = 'supply';
+    else if (/洗|美容|剪毛/.test(note)) cat = 'grooming';
+    if (cat && f.category.value !== cat) f.category.value = cat;
+  }
+  // 同类上次金额参考
+  const cat = f.category.value;
+  const prev = (state.ledgerCache || []).find(x => x.category === cat && x.amount > 0
+    && (!note || (x.note || '').includes(note.slice(0, 4)) || note.includes((x.note || '').slice(0, 4))));
+  const bits = [];
+  if (prev) bits.push(`上次「${EXP_LABEL[cat]}」${fmtMoney(prev.amount)}${prev.note ? ' · ' + prev.note : ''}`);
+  const amt = parseFloat(f.amount.value);
+  if (amt > 0 && prev && Math.abs(amt - prev.amount) > prev.amount * 0.5) {
+    bits.push(`金额和上次差较多，确认一下`);
+  }
+  hint.textContent = bits.join(' · ');
+}
 function nlBarHTML(kind, ph) {
   return `<div class="form-field full" style="margin-bottom:12px">
     <label for="nl-${kind}">一句话填写</label>
