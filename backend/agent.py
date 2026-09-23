@@ -1456,6 +1456,78 @@ def coach_sig(payload: dict) -> str:
     return "|".join(parts)
 
 
+# ---------------------------------------------------------------- 一句话记账（解析）
+
+def expense_parse(text: str) -> dict:
+    """口语 → 花销草稿。规则秒回；缺金额且有 Key 时 LLM 补一次（失败保留规则结果）。"""
+    import tools
+    import db
+    draft = tools.parse_expense_text(text)
+    draft["mode"] = "rules"
+    if draft.get("amount") is not None and "amount" not in (draft.get("hints") or []):
+        return draft
+    if not provider() or _agent_failed or os.environ.get("EXP_PARSE_LLM", "1") == "0":
+        return draft
+    pets = []
+    try:
+        pets = [p.get("name") for p in db.list_pets()]
+    except Exception:
+        pass
+    prompt = (
+        "从用户一句话里提取记账字段，只输出 JSON：\n"
+        '{"amount":数字,"category":"medical|food|supply|grooming|other","pet_name":名字或null,"date":"YYYY-MM-DD","note":"短备注"}\n'
+        f"宠物名单：{pets}\n分类参考：医疗=疫苗/看病/药；粮食=猫粮/罐头/零食；用品=猫砂/玩具/尿垫；洗护=洗澡/美容。\n"
+        f"今天是 {__import__('datetime').date.today().isoformat()}。识别不出的字段用 null。\n"
+        f"用户原话：{text}\n只输出 JSON。"
+    )
+    out = _medbox_briefing_llm(prompt)
+    if not out or out.startswith("⚠️"):
+        return draft
+    import json as _json
+    import re as _re
+    m = _re.search(r"\{.*\}", out, _re.S)
+    if not m:
+        return draft
+    try:
+        d = _json.loads(m.group(0))
+    except Exception:
+        return draft
+    if d.get("amount") is not None:
+        try:
+            amt = round(float(d["amount"]), 2)
+            if 0 < amt <= 99999:
+                draft["amount"] = amt
+                draft["hints"] = [h for h in draft.get("hints") or [] if h != "amount"]
+        except Exception:
+            pass
+    cat = d.get("category")
+    if cat in ("medical", "food", "supply", "grooming", "other"):
+        draft["category"] = cat
+        draft["hints"] = [h for h in draft.get("hints") or [] if h != "category"]
+    name = (d.get("pet_name") or "").strip()
+    if name:
+        try:
+            p = db.fetch_pet_by_name(name)
+            if p:
+                draft["pet_id"], draft["pet_name"] = p["id"], p["name"]
+        except Exception:
+            pass
+    if d.get("date"):
+        draft["date"] = str(d["date"])[:10]
+    if d.get("note"):
+        draft["note"] = str(d["note"])[:200]
+    draft["mode"] = "agent"
+    return draft
+
+
+# ---------------------------------------------------------------- 一句话记账（解析）
+
+# ---------------------------------------------------------------- 一句话记账（解析）
+
+# ---------------------------------------------------------------- 一句话记账（解析）
+
+# ---------------------------------------------------------------- 一句话记账（解析）
+
 # ---------------------------------------------------------------- AI 护理计划
 
 # 各记录类型的默认复做周期（天）

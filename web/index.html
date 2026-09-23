@@ -3003,6 +3003,14 @@ function openExpenseModal(id) {
   // 默认日期：看本月填今天；翻到别的月份则填该月 1 号，避免把旧账记到今天
   const defDate = (state.ledgerYM && state.ledgerYM !== _ymNow()) ? state.ledgerYM + '-01' : todayISO();
   openModal(`<h3>${id ? '编辑花销' : '记一笔花销'}</h3>
+  ${id ? '' : `<div class="form-field full" style="margin-bottom:12px">
+    <label for="exp-nl">一句话记账</label>
+    <div style="display:flex;gap:8px">
+      <input id="exp-nl" name="nl" placeholder="如：可乐打狂犬 280 / 昨天猫粮 380" style="flex:1">
+      <button type="button" class="btn sm" id="exp-nl-btn" onclick="fillExpFromNL()">智能填表</button>
+    </div>
+    <div class="care-note" id="exp-nl-hint" style="margin-top:6px">说完点「智能填表」，下面字段会自动填好，确认后保存即可。</div>
+  </div>`}
   <form id="exp-form" onsubmit="return submitExpense(event, ${id ?? 'null'})">
     <div class="form-grid">
       <div class="form-field"><label>金额（元） <span class="req">*</span></label><input name="amount" type="number" step="0.01" min="0.01" required placeholder="如：128.00" value="${e.amount ?? ''}"></div>
@@ -3017,6 +3025,36 @@ function openExpenseModal(id) {
       <button type="submit" class="btn primary" id="exp-save-btn">${id ? '保存修改' : '保存'}</button>
     </div>
   </form>`);
+}
+async function fillExpFromNL() {
+  const input = $('exp-nl'), btn = $('exp-nl-btn'), hint = $('exp-nl-hint');
+  const text = (input?.value || '').trim();
+  if (!text) { toast('先写一句，例如「可乐打狂犬 280」', true); return; }
+  if (btn) { btn.disabled = true; btn.textContent = '解析中…'; }
+  try {
+    const d = await api('/api/expenses/parse', { method: 'POST', body: JSON.stringify({ text }) });
+    if (d && d.error) throw new Error(d.error);
+    const f = document.getElementById('exp-form');
+    if (!f) return;
+    if (d.amount != null) f.amount.value = d.amount;
+    if (d.date) f.date.value = d.date;
+    if (d.category) f.category.value = d.category;
+    if (d.pet_id != null) f.pet_id.value = String(d.pet_id);
+    if (d.note) f.note.value = d.note;
+    const miss = (d.hints || []).map(h => ({ amount: '金额', category: '分类', pet_id: '宠物', date: '日期', empty: '内容' }[h] || h));
+    if (hint) {
+      hint.textContent = miss.length
+        ? `已填表（${d.mode === 'agent' ? 'AI' : '规则'}）· 还请核对：${miss.join('、')}`
+        : `已填表（${d.mode === 'agent' ? 'AI' : '规则'}）· 核对后点保存`;
+    }
+    window.toast && toast('已智能填表 ✓', 'ok');
+    f.amount.focus();
+  } catch (err) {
+    if (hint) hint.textContent = '解析失败：' + (err.message || err);
+    window.toast && toast('解析失败', true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '智能填表'; }
+  }
 }
 async function submitExpense(ev, id) {
   ev.preventDefault();

@@ -719,3 +719,19 @@ def test_coach_reset_demo_clears_tasks(tmp_db):
     week = db.coach_week_id()
     assert db.coach_list_tasks(week) == []
     assert db.kv_get("coach:streak") in (None, "") or ":" in (db.kv_get("coach:streak") or "")
+
+
+# ---------------------------------------------------------------- 一句话记账解析（规则层）
+
+def test_parse_expense_text_rules(tmp_db):
+    import tools
+    keke = db.fetch_pet_by_name("测测")
+    d = tools.parse_expense_text(f"{keke['name']}打狂犬疫苗 280元")
+    assert d["amount"] == 280
+    assert d["category"] == "medical"
+    assert d["pet_id"] == keke["id"]
+    d2 = tools.parse_expense_text("昨天猫粮 380")
+    assert d2["amount"] == 380 and d2["category"] == "food"
+    assert d2["date"] == (date.today() - timedelta(days=1)).isoformat()
+    d3 = tools.parse_expense_text("猫砂")
+    assert d3["amount"] is None and "amount" in d3["hints"] and d3["category"] == "supply"

@@ -584,6 +584,20 @@ def api_add_expense(body: ExpenseIn):
     return {"expense": result}
 
 
+class ExpenseParseIn(BaseModel):
+    text: str = Field(..., min_length=1, max_length=200, description="一句话记账，如：可乐打狂犬 280")
+
+
+@app.post("/api/expenses/parse")
+def api_expense_parse(body: ExpenseParseIn):
+    """一句话 → 花销草稿字段（不入库，前端填表后由用户确认保存）。"""
+    try:
+        import agent
+        return agent.expense_parse(body.text)
+    except Exception as e:
+        return {"error": f"解析失败（{type(e).__name__}）", "hints": ["amount"]}
+
+
 # 月度预算：必须注册在 /api/expenses/{exp_id} 之前，否则 PUT budget 会被 int 路径参数抢走并 422
 BUDGET_KEY = "expense_budget"
 

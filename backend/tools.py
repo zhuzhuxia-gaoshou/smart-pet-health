@@ -332,6 +332,99 @@ def take_last_draft() -> dict | None:
     return d
 
 
+# ---------------------------------------------------------------- 一句话记账（规则解析）
+# 纯规则、零延迟；LLM 只在缺金额时由 agent.expense_parse 补全（失败不影响表单）。
+
+_EXP_CAT_KEYWORDS = (
+    ("medical", ("疫苗", "打针", "狂犬", "驱虫", "体检", "看病", "就诊", "手术", "住院", "药", "耳药", "益生菌", "绝育", "化验", "拍片", "输液")),
+    ("food", ("猫粮", "狗粮", "粮食", "主粮", "罐头", "零食", "冻干", "生骨肉", "猫条", "狗零食", "奶", "营养膏", "化毛膏")),
+    ("supply", ("猫砂", "尿垫", "玩具", "笼", "窝", "牵引", "项圈", "碗", "指甲", "梳", "航空箱", "猫抓", "垫", "清洁", "湿巾", "尿")),
+    ("grooming", ("洗澡", "洗护", "美容", "剪毛", "剃毛", "spa", "SPA", "修剪")),
+)
+
+
+def parse_expense_text(text: str) -> dict:
+    """把「可乐打狂犬 280」式口语解析成花销草稿字段（不入库）。
+    返回 {amount, category, pet_id, pet_name, date, note, hints:[缺失提示]}。"""
+    import re as _re
+    from datetime import date, timedelta
+    raw = (text or "").strip()
+    out = {"amount": None, "category": "other", "pet_id": None, "pet_name": None,
+           "date": db.today_str(), "note": raw, "hints": []}
+    if not raw:
+        out["hints"].append("empty")
+        return out
+
+    # 金额：优先「数字+元」，否则最后一个合理数字（排除日期里的日号）
+    m = _re.search(r"(\d+(?:\.\d{1,2})?)\s*(?:元|块|圆|rmb|RMB|¥)", raw)
+    if not m:
+        nums = [float(x) for x in _re.findall(r"\d+(?:\.\d{1,2})?", raw)]
+        nums = [n for n in nums if 0.01 <= n <= 99999]
+        amount = nums[-1] if nums else None
+    else:
+        amount = float(m.group(1))
+    if amount is not None and amount > 0:
+        out["amount"] = round(amount, 2)
+    else:
+        out["hints"].append("amount")
+
+    # 宠物：最长名优先（避免「可」误匹配）
+    pets = sorted(db.list_pets(), key=lambda p: -len(p.get("name") or ""))
+    for p in pets:
+        name = (p.get("name") or "").strip()
+        if name and name in raw:
+            out["pet_id"], out["pet_name"] = p["id"], name
+            break
+
+    # 分类：关键词投票
+    scores = {k: 0 for k in db.EXPENSE_CATEGORIES}
+    for cat, kws in _EXP_CAT_KEYWORDS:
+        for kw in kws:
+            if kw in raw:
+                scores[cat] += 1
+    best = max(scores, key=lambda k: scores[k])
+    if scores[best] > 0:
+        out["category"] = best
+    else:
+        out["hints"].append("category")
+
+    # 日期：今天/昨天/前天 / N天前 / X月Y日 / YYYY-MM-DD
+    today = date.today()
+    if "前天" in raw:
+        out["date"] = (today - timedelta(days=2)).isoformat()
+    elif "昨天" in raw or "昨晚" in raw:
+        out["date"] = (today - timedelta(days=1)).isoformat()
+    elif "今天" in raw or "今晚" in raw:
+        out["date"] = today.isoformat()
+    else:
+        dm = _re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", raw)
+        if dm:
+            out["date"] = f"{int(dm.group(1)):04d}-{int(dm.group(2)):02d}-{int(dm.group(3)):02d}"
+        else:
+            md = _re.search(r"(\d{1,2})\s*月\s*(\d{1,2})\s*日?", raw)
+            if md:
+                mo, dd = int(md.group(1)), int(md.group(2))
+                if 1 <= mo <= 12 and 1 <= dd <= 31:
+                    try:
+                        out["date"] = date(today.year, mo, dd).isoformat()
+                    except ValueError:
+                        pass
+            else:
+                nd = _re.search(r"(\d+)\s*天前", raw)
+                if nd:
+                    out["date"] = (today - timedelta(days=int(nd.group(1)))).isoformat()
+
+    # 备注：去掉金额与宠物名后的短语；过短则保留原文
+    note = raw
+    if m:
+        note = note.replace(m.group(0), " ")
+    if out["pet_name"]:
+        note = note.replace(out["pet_name"], " ")
+    note = _re.sub(r"\s+", " ", note).strip(" ，,、的花了花在买")
+    out["note"] = (note or raw)[:200]
+    return out
+
+
 def create_record_draft(pet_name: str, record_type: str, date: str, title: str,
                         note: str = "", next_date: str = "", weight: float | None = None) -> str:
     """根据用户口语描述起草一条健康记录（不直接入库，待用户在前端确认后保存）。
